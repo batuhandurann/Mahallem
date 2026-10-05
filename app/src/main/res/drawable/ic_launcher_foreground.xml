@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    
+    <!-- Outer Glow Circle -->
+    <path
+        android:fillColor="#25FFFFFF"
+        android:pathData="M54,54m-40,0a40,40 0 1,0 80,0a40,40 0 1,0 -80,0" />
+
+    <!-- Chimney (Bacası olan sıcak ev) -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M66,30 L73,30 L73,43 L66,37 Z" />
+
+    <!-- Main Pitched Roof (Çatı) -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M54,23 L23,48 L27,53 L54,31 L81,53 L85,48 Z" />
+
+    <!-- House Walls Body (Ev Gövdesi) -->
+    <path
+        android:fillColor="#F8FAFC"
+        android:pathData="M31,49 L31,81 C31,83.2 32.8,85 35,85 L73,85 C75.2,85 77,83.2 77,81 L77,49 L54,30 Z" />
+
+    <!-- Left Window (Pencere 1) -->
+    <path
+        android:fillColor="#3B82F6"
+        android:pathData="M37,53 L45,53 L45,61 L37,61 Z" />
+
+    <!-- Right Window (Pencere 2) -->
+    <path
+        android:fillColor="#3B82F6"
+        android:pathData="M63,53 L71,53 L71,61 L63,61 Z" />
+
+    <!-- Cozy Front Door (Sıcak Kapı - Energetic Orange) -->
+    <path
+        android:fillColor="#EA580C"
+        android:pathData="M48,85 L48,65 C48,62.8 49.8,61 52,61 L56,61 C58.2,61 60,62.8 60,65 L60,85 Z" />
+
+    <!-- Doorknob (Kapı Kolu) -->
+    <path
+        android:fillColor="#FBBF24"
+        android:pathData="M57,74m-1.2,0a1.2,1.2 0 1,0 2.4,0a1.2,1.2 0 1,0 -2.4,0" />
+
+    <!-- Attic Star / Roof Peak Badge (Çatı Yıldızı) -->
+    <path
+        android:fillColor="#F59E0B"
+        android:pathData="M54,39 L55.5,43 L59.5,43.5 L56.5,46 L57.5,50 L54,48 L50.5,50 L51.5,46 L48.5,43.5 L52.5,43 Z" />
+</vector>
