@@ -26,12 +26,12 @@ class CloudMarketplaceRepository(
         emergencyOnly: Boolean = false
     ): Flow<List<ServiceProviderEntity>> = callbackFlow {
         var query: Query = firestore.collection("publicProviders")
-        when {
-            !categoryId.isNullOrBlank() -> query = query.whereEqualTo("categoryId", categoryId)
-            !sector.isNullOrBlank() -> query = query.whereEqualTo("sector", sector)
-            emergencyOnly -> query = query.whereEqualTo("isEmergencyAvailable", true)
-            !district.isNullOrBlank() -> query = query.whereEqualTo("district", district)
-            else -> query = query.orderBy("updatedAt", Query.Direction.DESCENDING)
+        if (!categoryId.isNullOrBlank()) query = query.whereEqualTo("categoryId", categoryId)
+        if (!sector.isNullOrBlank()) query = query.whereEqualTo("sector", sector)
+        if (emergencyOnly) query = query.whereEqualTo("isEmergencyAvailable", true)
+        if (!district.isNullOrBlank()) query = query.whereEqualTo("district", district)
+        if (categoryId.isNullOrBlank() && sector.isNullOrBlank() && !emergencyOnly && district.isNullOrBlank()) {
+            query = query.orderBy("updatedAt", Query.Direction.DESCENDING)
         }
         val listener = query.limit(50).addSnapshotListener { snapshot, error ->
             if (error != null) { close(error); return@addSnapshotListener }
@@ -50,12 +50,12 @@ class CloudMarketplaceRepository(
         urgency: String? = null
     ): Flow<List<JobRequestEntity>> = callbackFlow {
         var query: Query = firestore.collection("publicJobRequests")
-        when {
-            !categoryId.isNullOrBlank() -> query = query.whereEqualTo("categoryId", categoryId)
-            !sector.isNullOrBlank() -> query = query.whereEqualTo("sector", sector)
-            urgency == "EMERGENCY" -> query = query.whereEqualTo("urgencyMode", "EMERGENCY")
-            !district.isNullOrBlank() -> query = query.whereEqualTo("district", district)
-            else -> query = query.orderBy("updatedAt", Query.Direction.DESCENDING)
+        if (!categoryId.isNullOrBlank()) query = query.whereEqualTo("categoryId", categoryId)
+        if (!sector.isNullOrBlank()) query = query.whereEqualTo("sector", sector)
+        if (urgency == "EMERGENCY") query = query.whereEqualTo("urgencyMode", "EMERGENCY")
+        if (!district.isNullOrBlank()) query = query.whereEqualTo("district", district)
+        if (categoryId.isNullOrBlank() && sector.isNullOrBlank() && urgency != "EMERGENCY" && district.isNullOrBlank()) {
+            query = query.orderBy("updatedAt", Query.Direction.DESCENDING)
         }
         val listener = query.limit(50).addSnapshotListener { snapshot, error ->
             if (error != null) { close(error); return@addSnapshotListener }
