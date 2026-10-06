@@ -79,16 +79,26 @@ export const createPaymentIntent = onCall(
       .update(request.auth.uid + ":" + idempotencyKey)
       .digest("hex");
     const rateLimitRef = db.collection("rateLimits").doc("payment-intent:" + request.auth.uid);
-    const rateLimitSnap = await rateLimitRef.get();
-    const rate = rateLimitSnap.exists ? rateLimitSnap.data()! : {};
-    const windowStart = Number(rate.windowStartMs ?? 0);
-    const count = Number(rate.count ?? 0);
-    const activeWindow = Number.isSafeInteger(windowStart) && Date.now() - windowStart < 60_000;
-    if (activeWindow && count >= 5) {
-      throw new HttpsError("resource-exhausted", "Çok fazla ödeme denemesi. Lütfen biraz sonra tekrar deneyin.");
-    }
-
     const paymentRef = db.collection("payments").doc(idemHash);
+
+    await db.runTransaction(async (tx) => {
+      const rateLimitSnap = await tx.get(rateLimitRef);
+      const rate = rateLimitSnap.exists ? rateLimitSnap.data()! : {};
+      const windowStart = Number(rate.windowStartMs ?? 0);
+      const count = Number(rate.count ?? 0);
+      const now = Date.now();
+      const activeWindow = Number.isSafeInteger(windowStart) && now - windowStart < 60_000;
+
+      if (activeWindow && count >= 5) {
+        throw new HttpsError("resource-exhausted", "Çok fazla ödeme denemesi. Lütfen biraz sonra tekrar deneyin.");
+      }
+
+      tx.set(rateLimitRef, {
+        windowStartMs: activeWindow ? windowStart : now,
+        count: activeWindow ? count + 1 : 1,
+        updatedAt: FieldValue.serverTimestamp(),
+      }, { merge: true });
+    });
     const existing = await paymentRef.get();
     if (existing.exists) {
       const existingPayment = existing.data()!;
@@ -112,12 +122,6 @@ export const createPaymentIntent = onCall(
         "Ödeme sağlayıcısı staging/production ortamında henüz yapılandırılmadı."
       );
     }
-
-    await rateLimitRef.set({
-      windowStartMs: activeWindow ? windowStart : Date.now(),
-      count: activeWindow ? count + 1 : 1,
-      updatedAt: FieldValue.serverTimestamp(),
-    }, { merge: true });
 
     // PayTR Marketplace checkout generation requires the merchant-approved
     // marketplace account configuration. Fail closed until it is configured.
