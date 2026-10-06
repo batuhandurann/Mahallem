@@ -2,6 +2,7 @@ package com.example
 
 import android.app.Application
 import com.example.core.AppEnvironment
+import com.example.privacy.ConsentRepository
 import com.google.firebase.FirebaseApp
 import com.google.firebase.FirebaseException
 import com.google.firebase.appcheck.FirebaseAppCheck
@@ -32,7 +33,7 @@ class MahallemApplication : Application() {
         }
 
         runCatching {
-            FirebaseAnalytics.getInstance(this).setAnalyticsCollectionEnabled(false)
+            FirebaseAnalytics.getInstance(this).setAnalyticsCollectionEnabled(ConsentRepository(this).analyticsConsent)
         }
     }
 }
