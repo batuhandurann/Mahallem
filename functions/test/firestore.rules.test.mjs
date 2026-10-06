@@ -235,6 +235,31 @@ async function run() {
     })
   );
 
+  await env.withSecurityRulesDisabled(async (ctx) => {
+    await setDoc(doc(ctx.firestore(), "users/alice-deleting"), {
+      uid: "alice-deleting",
+      role: "user",
+      deletionStatus: "REQUESTED",
+    });
+  });
+
+  const deletingUser = env.authenticatedContext("alice-deleting", { email_verified: true });
+  const deletingDb = deletingUser.firestore();
+
+  await assertFails(
+    setDoc(doc(deletingDb, "jobRequests/deleting-request"), {
+      ownerId: "alice-deleting",
+      title: "Bloklanmalı",
+      sector: "CLEANING",
+      categoryId: "cleaning",
+      district: "Karşıyaka",
+      urgencyMode: "NORMAL",
+      status: "PENDING",
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    })
+  );
+
   await assertFails(deleteDoc(doc(aliceDb, "providers/provider-1")));
 
   await env.withSecurityRulesDisabled(async (ctx) => {
