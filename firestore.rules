@@ -55,6 +55,20 @@ service cloud.firestore {
       }
     }
 
+    // Public discovery mirrors are written only by trusted backend triggers.
+    // Clients may read bounded lists but cannot create or mutate discovery data.
+    match /publicProviders/{providerId} {
+      allow get: if accountActive();
+      allow list: if accountActive() && request.query.limit <= 50;
+      allow create, update, delete: if false;
+    }
+
+    match /publicJobRequests/{requestId} {
+      allow get: if accountActive();
+      allow list: if accountActive() && request.query.limit <= 50;
+      allow create, update, delete: if false;
+    }
+
     match /providers/{providerId} {
       allow get: if isAdmin() || (accountActive() && resource.data.ownerId == request.auth.uid);
       allow list: if false;
