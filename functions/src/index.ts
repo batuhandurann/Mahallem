@@ -71,7 +71,11 @@ async function assertAccountActive(uid: string) {
     db.collection("users").doc(uid).get(),
   ]);
 
-  if (userSnap.exists && ["REQUESTED", "PURGING"].includes(String(userSnap.data()?.deletionStatus ?? ""))) {
+  if (!userSnap.exists) {
+    throw new HttpsError("failed-precondition", "Kullanıcı profili henüz hazır değil.");
+  }
+
+  if (["REQUESTED", "PURGING"].includes(String(userSnap.data()?.deletionStatus ?? ""))) {
     throw new HttpsError("failed-precondition", "Hesap silme sürecinde olduğu için bu işlem kullanılamaz.");
   }
 }
