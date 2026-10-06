@@ -12,6 +12,7 @@ import { setGlobalOptions } from "firebase-functions/options";
 import {
   verifyPaytrCallback,
 } from "./payments/paytr";
+import { parseTryAmountMinor } from "./money";
 
 initializeApp();
 setGlobalOptions({ region: "europe-west1", maxInstances: 20, concurrency: 40 });
@@ -41,8 +42,6 @@ function requireString(data: Record<string, unknown>, key: string, maxLength: nu
 function hashDeviceToken(token: string): string {
   return createHash("sha256").update(token).digest("hex");
 }
-
-import { parseTryAmountMinor } from "./money";
 
 
 async function assertAccountActive(uid: string) {
