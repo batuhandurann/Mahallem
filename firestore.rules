@@ -78,7 +78,9 @@ service cloud.firestore {
 
     match /jobRequests/{requestId} {
       allow get: if isAdmin() || (accountActive() && resource.data.ownerId == request.auth.uid);
-      allow list: if false;
+      allow list: if isAdmin() || (accountActive()
+        && request.query.limit <= 50
+        && resource.data.ownerId == request.auth.uid);
       allow create, update: if false;
       allow delete: if isAdmin() || (ownsRequest() && resource.data.status == 'PENDING');
     }
