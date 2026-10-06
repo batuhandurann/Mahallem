@@ -212,6 +212,15 @@ class MarketplaceViewModel(application: Application) : AndroidViewModel(applicat
     fun navigateTo(destination: ScreenDestination) {
         if (destination is ScreenDestination.Chat) {
             _activeConversationId.value = destination.conversationId
+            if (AppEnvironment.mode != AppEnvironment.Mode.LOCAL) {
+                viewModelScope.launch {
+                    runCatching {
+                        cloudChatRepository.markConversationRead(destination.conversationId)
+                    }.onFailure {
+                        _toastMessage.value = "Sohbet okundu durumu güncellenemedi."
+                    }
+                }
+            }
         }
         val current = _screenStack.value
         _screenStack.value = current + destination
@@ -782,7 +791,19 @@ class MarketplaceViewModel(application: Application) : AndroidViewModel(applicat
     fun toggleProviderOpenForOffers(providerId: String, currentStatus: Boolean) {
         viewModelScope.launch {
             if (AppEnvironment.mode != AppEnvironment.Mode.LOCAL) {
-                _toastMessage.value = "Bu ayar sunucu tarafında yönetilecek; mevcut cloud sürümünde değişiklik uygulanmadı."
+                runCatching {
+                    com.example.backend.FunctionsRepository().updateProviderAvailability(
+                        providerId = providerId,
+                        isOpenForOffers = !currentStatus
+                    )
+                }.onSuccess {
+                    _toastMessage.value = if (!currentStatus)
+                        "Teklif alımı ve takviminiz açıldı ✅"
+                    else
+                        "Teklif alımı kapatıldı (Müsait değil) ⏸️"
+                }.onFailure {
+                    _toastMessage.value = it.message ?: "Müsaitlik güncellenemedi."
+                }
                 return@launch
             }
             repository.toggleOpenForOffers(providerId, !currentStatus)
@@ -795,22 +816,47 @@ class MarketplaceViewModel(application: Application) : AndroidViewModel(applicat
 
     fun toggleBookedDate(provider: ServiceProviderEntity, dateIso: String) {
         viewModelScope.launch {
-            val list = try {
-                val cleaned = provider.bookedDatesJson.replace("[", "").replace("]", "").replace("\"", "")
-                if (cleaned.isBlank()) mutableListOf() else cleaned.split(",").map { it.trim() }.toMutableList()
-            } catch (e: Exception) {
-                mutableListOf()
+            val currentlyBooked = provider.bookedDatesJson
+                .removePrefix("[")
+                .removeSuffix("]")
+                .split(",")
+                .map { it.trim().trim('\"') }
+                .filter { it.isNotBlank() }
+                .contains(dateIso)
+            val nextBooked = !currentlyBooked
+
+            if (AppEnvironment.mode != AppEnvironment.Mode.LOCAL) {
+                runCatching {
+                    com.example.backend.FunctionsRepository().updateProviderAvailability(
+                        providerId = provider.id,
+                        dateIso = dateIso,
+                        dateBooked = nextBooked
+                    )
+                }.onSuccess {
+                    _toastMessage.value = if (nextBooked)
+                        "$dateIso tarihi 'Dolu / Rezerve' olarak işaretlendi 🔴"
+                    else
+                        "$dateIso tarihi müsait olarak açıldı 🟢"
+                }.onFailure {
+                    _toastMessage.value = it.message ?: "Takvim güncellenemedi."
+                }
+                return@launch
             }
 
-            if (list.contains(dateIso)) {
-                list.remove(dateIso)
-                _toastMessage.value = "$dateIso tarihi müsait olarak açıldı 🟢"
-            } else {
-                list.add(dateIso)
-                _toastMessage.value = "$dateIso tarihi 'Dolu / Rezerve' olarak işaretlendi 🔴"
-            }
-            val newJson = "[" + list.joinToString(",") { "\"$it\"" } + "]"
+            val list = provider.bookedDatesJson
+                .removePrefix("[")
+                .removeSuffix("]")
+                .split(",")
+                .map { it.trim().trim('\"') }
+                .filter { it.isNotBlank() }
+                .toMutableList()
+            if (nextBooked) list.add(dateIso) else list.remove(dateIso)
+            val newJson = "[" + list.distinct().sorted().joinToString(",") { "\"$it\"" } + "]"
             repository.updateBookedDates(provider.id, newJson)
+            _toastMessage.value = if (nextBooked)
+                "$dateIso tarihi 'Dolu / Rezerve' olarak işaretlendi 🔴"
+            else
+                "$dateIso tarihi müsait olarak açıldı 🟢"
         }
     }
 }
