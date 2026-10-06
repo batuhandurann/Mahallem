@@ -28,6 +28,8 @@ import com.example.data.model.UrgencyMode
 import com.example.ui.components.DISTRICT_OPTIONS
 import com.example.ui.components.getCategoryIcon
 import com.example.ui.theme.*
+import com.example.validation.RequestFormInput
+import com.example.validation.RequestFormValidator
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
@@ -94,6 +96,7 @@ fun CreateJobRequestScreen(
     var selectedAgeGroup by remember { mutableStateOf("4-7 Yaş") }
     var selectedCostume by remember { mutableStateOf("Palyaço & Yüz Boyama") }
     var extraServices by remember { mutableStateOf("Yüz Boyama + Sosis Balon") }
+    var formError by remember { mutableStateOf<String?>(null) }
 
     val isPhysicalService = selectedSector == SectorType.HOME_REPAIR ||
             selectedSector == SectorType.CLEANING ||
@@ -141,10 +144,27 @@ fun CreateJobRequestScreen(
                             if (isPhysicalService) {
                                 "${selectedDistrict}'da ${selectedRoomCount} ${selectedCategory.name} Talebi"
                             } else {
-                                "${selectedEventType} İçin ${selectedCategory.name} ($selectedCostume)"
+                                "${selectedEventType} İçin ${selectedCategory.name} (${selectedCostume})"
                             }
                         }
-
+                        val validation = RequestFormValidator.validate(
+                            RequestFormInput(
+                                title = computedTitle,
+                                district = selectedDistrict,
+                                date = date,
+                                time = time,
+                                address = address,
+                                customerName = customerName,
+                                customerPhone = customerPhone,
+                                areaSquareMeters = areaSquareMeters.toIntOrNull() ?: 0,
+                                isPhysicalService = isPhysicalService
+                            )
+                        )
+                        if (!validation.isValid) {
+                            formError = validation.errors.joinToString(" ")
+                            return@Button
+                        }
+                        formError = null
                         onSubmitRequest(
                             computedTitle,
                             selectedSector,
@@ -153,9 +173,9 @@ fun CreateJobRequestScreen(
                             selectedUrgency,
                             date,
                             time,
-                            address.ifBlank { "Merkez Mahalle" },
-                            customerName.ifBlank { "Mahalle Sakini" },
-                            customerPhone.ifBlank { "0532 000 00 00" },
+                            address.trim(),
+                            customerName.trim(),
+                            customerPhone.trim(),
                             areaSquareMeters.toIntOrNull() ?: 0,
                             selectedRoomCount,
                             isFurnished,
@@ -166,7 +186,7 @@ fun CreateJobRequestScreen(
                             selectedAgeGroup,
                             selectedCostume,
                             extraServices,
-                            budget.ifBlank { if (isPhysicalService) "3.000 - 6.000 ₺" else "2.000 - 3.500 ₺" }
+                            budget.trim()
                         )
                     },
                     shape = RoundedCornerShape(14.dp),
@@ -595,6 +615,17 @@ fun CreateJobRequestScreen(
                 modifier = Modifier.fillMaxWidth().testTag("input_budget")
             )
 
+            formError?.let { message ->
+                Text(
+                    text = message,
+                    color = MaterialTheme.colorScheme.error,
+                    style = MaterialTheme.typography.bodySmall,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 12.dp)
+                        .testTag("form_error")
+                )
+            }
             Spacer(modifier = Modifier.height(30.dp))
         }
     }
