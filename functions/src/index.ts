@@ -537,8 +537,14 @@ export const updateProviderAvailability = onCall(
           ? current.filter((value): value is string => typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value))
           : [];
         const next = new Set(dates);
-        if (dateBooked) next.add(dateIso);
-        else next.delete(dateIso);
+        if (dateBooked) {
+          next.add(dateIso);
+          if (next.size > 366) {
+            throw new HttpsError("resource-exhausted", "Takvimde en fazla 366 gün tutulabilir.");
+          }
+        } else {
+          next.delete(dateIso);
+        }
         update.bookedDates = [...next].sort();
       }
 
