@@ -29,6 +29,7 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -494,6 +495,20 @@ class MarketplaceViewModel(application: Application) : AndroidViewModel(applicat
             } else {
                 _toastMessage.value = "Gerçek ödeme serbest bırakma, doğrulanmış ödeme kimliği üzerinden sunucudan yapılacak."
             }
+        }
+    }
+
+    fun loadReceiptForRequest(
+        requestId: Long,
+        onLoaded: (com.example.data.local.DigitalReceiptEntity?) -> Unit
+    ) {
+        viewModelScope.launch {
+            if (AppEnvironment.mode != AppEnvironment.Mode.LOCAL) {
+                _toastMessage.value = "Dijital iş fişi gerçek ödeme tamamlandıktan sonra sunucudan gösterilecek."
+                onLoaded(null)
+                return@launch
+            }
+            onLoaded(repository.getReceiptForRequest(requestId).first())
         }
     }
 
