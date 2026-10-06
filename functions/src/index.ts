@@ -595,7 +595,10 @@ export const sendMessage = onCall(
       const conversationSnap = await tx.get(conversationRef);
       if (attachmentUrl) {
         const attachmentParts = attachmentUrl.split("/");
-        const grantId = attachmentParts[3]?.replace(/\\.jpg$/, "");
+        const attachmentName = attachmentParts.length === 4 ? attachmentParts[3] ?? "" : "";
+        const grantId = attachmentName.endsWith(".jpg")
+          ? attachmentName.slice(0, -4)
+          : "";
         const grantRef = db.collection("users").doc(request.auth!.uid).collection("uploadGrants").doc(grantId || "invalid");
         const grantSnap = await tx.get(grantRef);
         const grant = grantSnap.data();
@@ -1534,12 +1537,27 @@ export const validateUploadedImage = onObjectFinalized(
     const name = String(object.name ?? "");
     const contentType = String(object.contentType ?? "");
     const size = Number(object.size ?? 0);
-    const match = name.match(/^(?:users\\/([^/]+)\\/images|jobRequests\\/([^/]+)\\/([^/]+)\\/images|chatAttachments\\/([^/]+)\\/([^/]+))\\/([A-Za-z0-9_-]{1,120})\\.jpg$/);
-    if (!match) return;
 
-    const uid = match[1] ?? match[2] ?? match[5];
-    const grantId = match[6];
-    if (!uid || !grantId) return;
+    const parts = name.split("/");
+    let uid = "";
+    let grantId = "";
+
+    if (parts.length === 4 && parts[0] === "users" && parts[2] === "images") {
+      uid = parts[1] ?? "";
+      grantId = (parts[3] ?? "").endsWith(".jpg") ? (parts[3] ?? "").slice(0, -4) : "";
+    } else if (
+      parts.length === 6
+      && parts[0] === "jobRequests"
+      && parts[3] === "images"
+    ) {
+      uid = parts[1] ?? "";
+      grantId = (parts[5] ?? "").endsWith(".jpg") ? (parts[5] ?? "").slice(0, -4) : "";
+    } else if (parts.length === 4 && parts[0] === "chatAttachments") {
+      uid = parts[2] ?? "";
+      grantId = (parts[3] ?? "").endsWith(".jpg") ? (parts[3] ?? "").slice(0, -4) : "";
+    }
+
+    if (!uid || !/^[A-Za-z0-9_-]{1,120}$/.test(grantId)) return;
 
     const grantRef = db.collection("users").doc(uid).collection("uploadGrants").doc(grantId);
     const grantSnap = await grantRef.get();
@@ -1553,8 +1571,9 @@ export const validateUploadedImage = onObjectFinalized(
       try {
         const [bytes] = await file.download({ start: 0, end: 15 });
         const jpeg = bytes.length >= 3 && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff;
-        const png = bytes.length >= 8 && bytes.subarray(0, 8).equals(Buffer.from([0x89,0x50,0x4e,0x47,0x0d,0x0a,0x1a,0x0a]));
-        const webp = bytes.length >= 12 && bytes.subarray(0, 4).toString("ascii") === "RIFF"
+        const png = bytes.length >= 8 && bytes.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]));
+        const webp = bytes.length >= 12
+          && bytes.subarray(0, 4).toString("ascii") === "RIFF"
           && bytes.subarray(8, 12).toString("ascii") === "WEBP";
         valid = (contentType === "image/jpeg" && jpeg)
           || (contentType === "image/png" && png)
@@ -1574,7 +1593,6 @@ export const validateUploadedImage = onObjectFinalized(
     await grantRef.set({ validated: true, validatedAt: FieldValue.serverTimestamp() }, { merge: true });
   }
 );
-
 export const notifyNewMessage = onDocumentCreated(
   { document: "messages/{messageId}", region: "europe-west1" },
   async (event) => {
@@ -1610,7 +1628,7 @@ export const notifyNewMessage = onDocumentCreated(
     const payload = {
       notification: {
         title: "Mahallem'den yeni mesaj",
-        body: String(message.text ?? "Yeni bir mesajınız var.").slice(0, 200),
+        body: "Yeni bir mesajınız var.",
       },
       data: {
         conversationId: String(message.conversationId ?? ""),
