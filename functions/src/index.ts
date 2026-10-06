@@ -233,8 +233,6 @@ export const notifyNewMessage = onDocumentCreated(
   { document: "messages/{messageId}", region: "europe-west1" },
   async (event) => {
     const message = event.data?.data();
-    if (!message?.participantIds || !Array.isArray(message.participantIds)) return;
-
     const conversationId = String(message.conversationId ?? "");
     const senderId = String(message.senderId ?? "");
     if (!conversationId || !senderId) return;
