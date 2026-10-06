@@ -79,7 +79,14 @@ secrets {
   ignoreList.add("FIREBASE_APPCHECK_DEBUG_TOKEN")
 }
 
-googleServices { missingGoogleServicesStrategy = MissingGoogleServicesStrategy.WARN }
+val allowMissingGoogleServices = providers.gradleProperty("allowMissingGoogleServices").orNull == "true"
+googleServices {
+  missingGoogleServicesStrategy = if (allowMissingGoogleServices) {
+    MissingGoogleServicesStrategy.WARN
+  } else {
+    MissingGoogleServicesStrategy.ERROR
+  }
+}
 
 // Some unused dependencies are commented out below instead of being removed.
 // This makes it easy to add them back in the future if needed.
