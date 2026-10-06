@@ -51,7 +51,7 @@ service firebase.storage {
     }
 
     match /users/{uid}/images/{grantId}.jpg {
-      allow read: if accountActive(uid) && request.auth.uid == uid;
+      allow read: if accountActive(uid) && request.auth.uid == uid && validGrant(uid, grantId, 'USER') && firestore.get(/databases/(default)/documents/users/$(uid)/uploadGrants/$(grantId)).data.validated == true;
       allow write: if accountActive(uid)
         && request.auth.uid == uid
         && resource == null
@@ -61,7 +61,7 @@ service firebase.storage {
     }
 
     match /jobRequests/{ownerUid}/{requestId}/images/{grantId}.jpg {
-      allow read: if accountActive(ownerUid) && request.auth.uid == ownerUid;
+      allow read: if accountActive(ownerUid) && request.auth.uid == ownerUid && validJobGrant(ownerUid, requestId, grantId) && firestore.get(/databases/(default)/documents/users/$(ownerUid)/uploadGrants/$(grantId)).data.validated == true;
       allow write: if accountActive(ownerUid)
         && request.auth.uid == ownerUid
         && resource == null
@@ -81,7 +81,9 @@ service firebase.storage {
         && firestore.exists(/databases/(default)/documents/conversations/$(conversationId))
         && request.auth.uid in firestore.get(
           /databases/(default)/documents/conversations/$(conversationId)
-        ).data.participantIds;
+        ).data.participantIds
+        && firestore.exists(/databases/(default)/documents/users/$(request.auth.uid)/uploadGrants/$(grantId))
+        && firestore.get(/databases/(default)/documents/users/$(request.auth.uid)/uploadGrants/$(grantId)).data.validated == true;
       allow write: if accountActive(senderUid)
         && request.auth.uid == senderUid
         && resource == null
