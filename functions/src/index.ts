@@ -639,52 +639,61 @@ async function anonymizeAccount(uid: string): Promise<void> {
     }
   );
 
-  const quoteDocs = new Map<string, FirebaseFirestore.QueryDocumentSnapshot>();
   await processQueryInPages(
     db.collection("quotes").where("customerId", "==", uid),
-    async (docs) => { for (const doc of docs) quoteDocs.set(doc.id, doc); }
+    async (docs) => {
+      const batch = db.batch();
+      for (const doc of docs) {
+        batch.set(doc.ref, {
+          customerId: anonymizedId,
+          accountDeletedAt: FieldValue.serverTimestamp(),
+        }, { merge: true });
+      }
+      await batch.commit();
+    }
   );
+
   await processQueryInPages(
     db.collection("quotes").where("providerOwnerId", "==", uid),
-    async (docs) => { for (const doc of docs) quoteDocs.set(doc.id, doc); }
-  );
-  const quoteList = Array.from(quoteDocs.values());
-  for (let i = 0; i < quoteList.length; i += 450) {
-    const batch = db.batch();
-    for (const doc of quoteList.slice(i, i + 450)) {
-      const data = doc.data();
-      batch.set(doc.ref, {
-        ...(data.customerId === uid ? { customerId: anonymizedId } : {}),
-        ...(data.providerOwnerId === uid ? { providerOwnerId: anonymizedId } : {}),
-        accountDeletedAt: FieldValue.serverTimestamp(),
-      }, { merge: true });
+    async (docs) => {
+      const batch = db.batch();
+      for (const doc of docs) {
+        batch.set(doc.ref, {
+          providerOwnerId: anonymizedId,
+          accountDeletedAt: FieldValue.serverTimestamp(),
+        }, { merge: true });
+      }
+      await batch.commit();
     }
-    await batch.commit();
-  }
+  );
 
-  const paymentDocs = new Map<string, FirebaseFirestore.QueryDocumentSnapshot>();
   await processQueryInPages(
     db.collection("payments").where("customerId", "==", uid),
-    async (docs) => { for (const doc of docs) paymentDocs.set(doc.id, doc); }
+    async (docs) => {
+      const batch = db.batch();
+      for (const doc of docs) {
+        batch.set(doc.ref, {
+          customerId: anonymizedId,
+          accountDeletedAt: FieldValue.serverTimestamp(),
+        }, { merge: true });
+      }
+      await batch.commit();
+    }
   );
+
   await processQueryInPages(
     db.collection("payments").where("providerId", "==", uid),
-    async (docs) => { for (const doc of docs) paymentDocs.set(doc.id, doc); }
-  );
-  const paymentList = Array.from(paymentDocs.values());
-  for (let i = 0; i < paymentList.length; i += 450) {
-    const batch = db.batch();
-    for (const doc of paymentList.slice(i, i + 450)) {
-      const data = doc.data();
-      batch.set(doc.ref, {
-        ...(data.customerId === uid ? { customerId: anonymizedId } : {}),
-        ...(data.providerId === uid ? { providerId: anonymizedId } : {}),
-        accountDeletedAt: FieldValue.serverTimestamp(),
-      }, { merge: true });
+    async (docs) => {
+      const batch = db.batch();
+      for (const doc of docs) {
+        batch.set(doc.ref, {
+          providerId: anonymizedId,
+          accountDeletedAt: FieldValue.serverTimestamp(),
+        }, { merge: true });
+      }
+      await batch.commit();
     }
-    await batch.commit();
-  }
-
+  );
   await processQueryInPages(
     db.collection("conversations").where("participantIds", "array-contains", uid),
     async (conversations) => {
