@@ -139,6 +139,7 @@ private fun MarketplaceContent(
     val selectedDistrict by viewModel.selectedDistrict.collectAsStateWithLifecycle()
     val providers by viewModel.providers.collectAsStateWithLifecycle()
     val requests by viewModel.jobRequests.collectAsStateWithLifecycle()
+    val myRequests by viewModel.myJobRequests.collectAsStateWithLifecycle()
     val quotes by viewModel.allQuotes.collectAsStateWithLifecycle()
     val conversations by viewModel.conversations.collectAsStateWithLifecycle()
     val activeChatMessages by viewModel.activeChatMessages.collectAsStateWithLifecycle()
@@ -365,7 +366,7 @@ private fun MarketplaceContent(
 
                 is ScreenDestination.MyRequests -> {
                     MyRequestsScreen(
-                        requests = requests,
+                        requests = myRequests,
                         quotes = quotes,
                         onBackClick = { viewModel.navigateBack() },
                         onAcceptQuote = { reqId, quoteId, pName ->
