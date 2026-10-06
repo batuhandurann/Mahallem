@@ -258,6 +258,36 @@ export const createPaymentIntent = onCall(
         tx.get(paymentRef),
       ]);
 
+      const rate = rateSnap.exists ? rateSnap.data()! : {};
+      const hourlyRate = hourlyRateSnap.exists ? hourlyRateSnap.data()! : {};
+      const windowStart = Number(rate.windowStartMs ?? 0);
+      const count = Number(rate.count ?? 0);
+      const hourWindowStart = Number(hourlyRate.windowStartMs ?? 0);
+      const hourCount = Number(hourlyRate.count ?? 0);
+      const now = Date.now();
+      const activeWindow = Number.isSafeInteger(windowStart) && now - windowStart < 60_000;
+      const activeHourWindow = Number.isSafeInteger(hourWindowStart) && now - hourWindowStart < 3_600_000;
+
+      const consumePaymentAttempt = () => {
+        if (activeWindow && count >= 5) {
+          throw new HttpsError("resource-exhausted", "Çok fazla ödeme denemesi. Lütfen biraz sonra tekrar deneyin.");
+        }
+        if (activeHourWindow && hourCount >= 20) {
+          throw new HttpsError("resource-exhausted", "Saatlik ödeme denemesi kotanıza ulaştınız.");
+        }
+
+        tx.set(rateLimitRef, {
+          windowStartMs: activeWindow ? windowStart : now,
+          count: activeWindow ? count + 1 : 1,
+          updatedAt: FieldValue.serverTimestamp(),
+        }, { merge: true });
+        tx.set(hourlyRateLimitRef, {
+          windowStartMs: activeHourWindow ? hourWindowStart : now,
+          count: activeHourWindow ? hourCount + 1 : 1,
+          updatedAt: FieldValue.serverTimestamp(),
+        }, { merge: true });
+      };
+
       if (paymentSnap.exists) {
         const payment = paymentSnap.data()!;
         const status = String(payment.status ?? "");
@@ -272,6 +302,7 @@ export const createPaymentIntent = onCall(
           if (startedMillis > Date.now() - 2 * 60_000) {
             return "IN_PROGRESS" as const;
           }
+          consumePaymentAttempt();
           tx.update(paymentRef, {
             tokenGenerationStartedAt: FieldValue.serverTimestamp(),
             updatedAt: FieldValue.serverTimestamp(),
@@ -287,33 +318,7 @@ export const createPaymentIntent = onCall(
         return "IN_PROGRESS" as const;
       }
 
-      const rate = rateSnap.exists ? rateSnap.data()! : {};
-      const hourlyRate = hourlyRateSnap.exists ? hourlyRateSnap.data()! : {};
-      const windowStart = Number(rate.windowStartMs ?? 0);
-      const count = Number(rate.count ?? 0);
-      const hourWindowStart = Number(hourlyRate.windowStartMs ?? 0);
-      const hourCount = Number(hourlyRate.count ?? 0);
-      const now = Date.now();
-      const activeWindow = Number.isSafeInteger(windowStart) && now - windowStart < 60_000;
-      const activeHourWindow = Number.isSafeInteger(hourWindowStart) && now - hourWindowStart < 3_600_000;
-
-      if (activeWindow && count >= 5) {
-        throw new HttpsError("resource-exhausted", "Çok fazla ödeme denemesi. Lütfen biraz sonra tekrar deneyin.");
-      }
-      if (activeHourWindow && hourCount >= 20) {
-        throw new HttpsError("resource-exhausted", "Saatlik ödeme denemesi kotanıza ulaştınız.");
-      }
-
-      tx.set(rateLimitRef, {
-        windowStartMs: activeWindow ? windowStart : now,
-        count: activeWindow ? count + 1 : 1,
-        updatedAt: FieldValue.serverTimestamp(),
-      }, { merge: true });
-      tx.set(hourlyRateLimitRef, {
-        windowStartMs: activeHourWindow ? hourWindowStart : now,
-        count: activeHourWindow ? hourCount + 1 : 1,
-        updatedAt: FieldValue.serverTimestamp(),
-      }, { merge: true });
+      consumePaymentAttempt();
 
       tx.create(paymentRef, {
         id: idemHash,
