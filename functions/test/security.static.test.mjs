@@ -59,6 +59,7 @@ assert.match(source, /consumePaymentAttempt\(\);/);
 assert.match(source, /parseTryAmountMinor\(price\) !== amountMinor/);
 assert.match(source, /tokenGenerationStartedAt/);
 assert.match(source, /getPaymentStatus/);
+assert.match(source, /const isProvider = payment\.providerId === request\.auth\.uid/);
 assert.match(source, /next\.size > 366/);
 assert.match(source, /Takvimde en fazla 366 gün tutulabilir/);
 assert.match(source, /status === "PURGING"/);
