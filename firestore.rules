@@ -53,6 +53,12 @@ service cloud.firestore {
       match /devices/{tokenId} {
         allow read, write: if false;
       }
+
+      match /conversationState/{conversationId} {
+        allow get: if isAdmin() || (accountActive() && request.auth.uid == uid);
+        allow list: if isAdmin() || (accountActive() && request.auth.uid == uid && request.query.limit <= 50);
+        allow create, update, delete: if false;
+      }
     }
 
     // Public discovery mirrors are written only by trusted backend triggers.
