@@ -28,6 +28,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
@@ -119,61 +120,108 @@ class MarketplaceViewModel(application: Application) : AndroidViewModel(applicat
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     // --- Providers Flow (Flow A: Esnaf/Hizmet İlanları) ---
-    @OptIn(ExperimentalCoroutinesApi::class)
-    val providers: StateFlow<List<ServiceProviderEntity>> = combine(
+    private val discoveryFilters = combine(
         _selectedSector,
         _selectedUrgency,
         _selectedCategory,
-        debouncedSearchQuery,
         _selectedDistrict
-    ) { sector, urgency, category, query, district ->
-        FilterState(sector, urgency, category, query, district)
-    }.flatMapLatest { f ->
+    ) { sector, urgency, category, district ->
+        FilterState(sector, urgency, category, "", district)
+    }.distinctUntilChanged()
+
+    private val cloudProviderSource: Flow<List<ServiceProviderEntity>> =
         if (AppEnvironment.mode == AppEnvironment.Mode.LOCAL) {
-            repository.getFilteredProviders(f.sector, f.urgency, f.category, f.query, f.district)
+            emptyFlow()
         } else {
-            cloudRepository.observeProviders().map { list ->
-                list.filter { p ->
-                    val sectorMatch = f.sector == SectorType.ALL || p.sector == f.sector.name
-                    val urgencyMatch = when (f.urgency) {
-                        UrgencyMode.ALL -> true
-                        UrgencyMode.EMERGENCY -> p.isEmergencyAvailable
-                        UrgencyMode.PLANNED -> !p.isEmergencyAvailable || p.isOpenForOffers
-                    }
-                    val categoryMatch = f.category.isNullOrBlank() || p.categoryId == f.category
-                    val districtMatch = f.district == "Tüm İlçeler" || p.district.contains(f.district.split("/").first().trim(), true)
-                    val queryMatch = f.query.isBlank() || p.name.contains(f.query, true) || p.title.contains(f.query, true) || p.bio.contains(f.query, true)
-                    sectorMatch && urgencyMatch && categoryMatch && districtMatch && queryMatch
-                }
+            discoveryFilters.flatMapLatest { f ->
+                cloudRepository.observeProviders(
+                    categoryId = f.category,
+                    sector = f.sector.takeUnless { it == SectorType.ALL }?.name,
+                    district = f.district.takeUnless { it == "Tüm İlçeler" }?.split("/")?.first()?.trim(),
+                    emergencyOnly = f.urgency == UrgencyMode.EMERGENCY
+                )
             }
         }
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     @OptIn(ExperimentalCoroutinesApi::class)
-    val jobRequests: StateFlow<List<JobRequestEntity>> = combine(
-        _selectedSector,
-        _selectedUrgency,
-        _selectedCategory,
-        debouncedSearchQuery,
-        _selectedDistrict
-    ) { sector, urgency, category, query, district ->
-        FilterState(sector, urgency, category, query, district)
-    }.flatMapLatest { f ->
-        if (AppEnvironment.mode == AppEnvironment.Mode.LOCAL) {
-            repository.getFilteredRequests(f.sector, f.urgency, f.category, f.query, f.district)
-        } else {
-            cloudRepository.observeRequests().map { list ->
-                list.filter { req ->
-                    val sectorMatch = f.sector == SectorType.ALL || req.sector == f.sector.name
-                    val urgencyMatch = f.urgency == UrgencyMode.ALL || req.urgencyMode == f.urgency.name
-                    val categoryMatch = f.category.isNullOrBlank() || req.categoryId == f.category
-                    val districtMatch = f.district == "Tüm İlçeler" || req.district.contains(f.district.split("/").first().trim(), true)
-                    val queryMatch = f.query.isBlank() || req.title.contains(f.query, true) || req.budgetEstimate.contains(f.query, true)
-                    sectorMatch && urgencyMatch && categoryMatch && districtMatch && queryMatch
+    val providers: StateFlow<List<ServiceProviderEntity>> = if (AppEnvironment.mode == AppEnvironment.Mode.LOCAL) {
+        combine(
+            _selectedSector,
+            _selectedUrgency,
+            _selectedCategory,
+            debouncedSearchQuery,
+            _selectedDistrict
+        ) { sector, urgency, category, query, district ->
+            FilterState(sector, urgency, category, query, district)
+        }.flatMapLatest { f ->
+            repository.getFilteredProviders(f.sector, f.urgency, f.category, f.query, f.district)
+        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+    } else {
+        combine(cloudProviderSource, discoveryFilters, debouncedSearchQuery) { list, f, query ->
+            val full = f.copy(query = query)
+            list.filter { p ->
+                val sectorMatch = full.sector == SectorType.ALL || p.sector == full.sector.name
+                val urgencyMatch = when (full.urgency) {
+                    UrgencyMode.ALL -> true
+                    UrgencyMode.EMERGENCY -> p.isEmergencyAvailable
+                    UrgencyMode.PLANNED -> !p.isEmergencyAvailable || p.isOpenForOffers
                 }
+                val categoryMatch = full.category.isNullOrBlank() || p.categoryId == full.category
+                val districtMatch = full.district == "Tüm İlçeler"
+                    || p.district.contains(full.district.split("/").first().trim(), true)
+                val queryMatch = full.query.isBlank()
+                    || p.name.contains(full.query, true)
+                    || p.title.contains(full.query, true)
+                    || p.bio.contains(full.query, true)
+                sectorMatch && urgencyMatch && categoryMatch && districtMatch && queryMatch
+            }
+        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+    }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    private val cloudRequestSource: Flow<List<JobRequestEntity>> =
+        if (AppEnvironment.mode == AppEnvironment.Mode.LOCAL) {
+            emptyFlow()
+        } else {
+            discoveryFilters.flatMapLatest { f ->
+                cloudRepository.observeRequests(
+                    categoryId = f.category,
+                    sector = f.sector.takeUnless { it == SectorType.ALL }?.name,
+                    district = f.district.takeUnless { it == "Tüm İlçeler" }?.split("/")?.first()?.trim(),
+                    urgency = f.urgency.takeUnless { it == UrgencyMode.ALL }?.name
+                )
             }
         }
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    val jobRequests: StateFlow<List<JobRequestEntity>> = if (AppEnvironment.mode == AppEnvironment.Mode.LOCAL) {
+        combine(
+            _selectedSector,
+            _selectedUrgency,
+            _selectedCategory,
+            debouncedSearchQuery,
+            _selectedDistrict
+        ) { sector, urgency, category, query, district ->
+            FilterState(sector, urgency, category, query, district)
+        }.flatMapLatest { f ->
+            repository.getFilteredRequests(f.sector, f.urgency, f.category, f.query, f.district)
+        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+    } else {
+        combine(cloudRequestSource, discoveryFilters, debouncedSearchQuery) { list, f, query ->
+            val full = f.copy(query = query)
+            list.filter { req ->
+                val sectorMatch = full.sector == SectorType.ALL || req.sector == full.sector.name
+                val urgencyMatch = full.urgency == UrgencyMode.ALL || req.urgencyMode == full.urgency.name
+                val categoryMatch = full.category.isNullOrBlank() || req.categoryId == full.category
+                val districtMatch = full.district == "Tüm İlçeler"
+                    || req.district.contains(full.district.split("/").first().trim(), true)
+                val queryMatch = full.query.isBlank()
+                    || req.title.contains(full.query, true)
+                    || req.budgetEstimate.contains(full.query, true)
+                sectorMatch && urgencyMatch && categoryMatch && districtMatch && queryMatch
+            }
+        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+    }
 
     val myJobRequests: StateFlow<List<JobRequestEntity>> = if (AppEnvironment.mode == AppEnvironment.Mode.LOCAL) {
         repository.getAllRequests()
