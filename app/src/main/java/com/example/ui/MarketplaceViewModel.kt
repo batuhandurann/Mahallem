@@ -706,7 +706,7 @@ class MarketplaceViewModel(application: Application) : AndroidViewModel(applicat
             )
             val quoteId = repository.sendQuote(quote)
             if (AppEnvironment.mode != AppEnvironment.Mode.LOCAL) {
-                val result = runCatching { cloudRepository.saveQuote(quote.copy(id = quoteId), provider.id) }
+                val result = runCatching { cloudRepository.saveQuote(quote.copy(id = quoteId)) }
                 result.exceptionOrNull()?.let {
                     repository.deleteQuote(quoteId)
                     _toastMessage.value = "Teklif gönderilemedi: ${it.message ?: "Bilinmeyen hata"}"
