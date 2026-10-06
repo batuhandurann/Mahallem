@@ -13,3 +13,19 @@ Do not open a public issue for a suspected security vulnerability. Report it pri
 - Payment callbacks require signature verification and idempotent processing.
 - Device tokens are owner-scoped.
 - CI runs unit/UI/backend tests plus static/security checks.
+
+## Current red-team hardening
+
+- Backend callable actions verify that the Firebase Auth user still exists, is not disabled, and has a verified email or phone number. Account deletion states remain blocked.
+- Account purge removes reverse device-token ownership records, UID-scoped rate-limit records, and user/job/chat media represented by upload grants.
+- Closed or anonymized job requests are removed from the public marketplace mirror.
+- Public marketplace mirrors are read-only to authenticated, active users; clients cannot write them.
+- Security-sensitive GitHub Actions are pinned to reviewed commit SHAs, and the Firebase CLI used by CI is pinned to an exact version.
+
+## Residual risk / external configuration
+
+- PayTR Marketplace checkout is intentionally fail-closed until merchant-approved marketplace configuration and sandbox webhook verification are completed. Do not treat a local/demo escrow state as a real payment.
+- Firebase App Check / Play Integrity, Authentication providers, Storage bucket configuration, PayTR secrets, and production domains remain deployment-time controls and must be configured and tested in the target Firebase project.
+- Storage upload validation is asynchronous: invalid objects can exist briefly before the finalization trigger deletes them, although client reads require a validated grant. Upload quotas limit abuse but do not eliminate storage-processing cost.
+- Existing environments may contain legacy orphaned device-token ownership records or media created before this purge hardening; perform a one-time maintenance cleanup before production if such data exists.
+
