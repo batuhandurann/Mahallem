@@ -33,6 +33,8 @@ import com.example.data.local.ChatMessageEntity
 import com.example.data.local.ConversationEntity
 import com.example.ui.theme.*
 
+private const val MAX_CHAT_MESSAGE_LENGTH = 2000
+
 val QUICK_REPLY_QUESTIONS = listOf(
     "Hâlâ müsait misiniz?",
     "Fiyatta pazarlık payı var mı?",
@@ -221,7 +223,7 @@ fun ChatScreen(
 
                         OutlinedTextField(
                             value = messageInput,
-                            onValueChange = { messageInput = it },
+                            onValueChange = { messageInput = it.take(MAX_CHAT_MESSAGE_LENGTH) },
                             placeholder = { Text("Mesaj veya sesli not...", fontSize = 13.sp) },
                             shape = RoundedCornerShape(24.dp),
                             singleLine = true,
@@ -235,7 +237,7 @@ fun ChatScreen(
                         IconButton(
                             onClick = {
                                 if (messageInput.isNotBlank()) {
-                                    onSendMessage(messageInput, false, "")
+                                    onSendMessage(messageInput.trim(), false, "")
                                     messageInput = ""
                                 }
                             },
