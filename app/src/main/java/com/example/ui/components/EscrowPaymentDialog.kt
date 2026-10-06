@@ -26,6 +26,7 @@ fun EscrowPaymentDialog(
     onConfirmPayment: (quote: QuoteEntity, customerEmail: String) -> Unit
 ) {
     var customerEmail by remember { mutableStateOf("") }
+    val isValidEmail = Regex("^[A-Za-z0-9._%+-]{1,100}@[A-Za-z0-9.-]{1,190}\\.[A-Za-z]{2,63}$").matches(customerEmail.trim())
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -107,12 +108,8 @@ fun EscrowPaymentDialog(
         },
         confirmButton = {
             Button(
-                onClick = {
-                    val email = customerEmail.trim()
-                    if (Regex("^[A-Za-z0-9._%+-]{1,100}@[A-Za-z0-9.-]{1,190}\\.[A-Za-z]{2,63}$").matches(email)) {
-                        onConfirmPayment(quote, email)
-                    }
-                },
+                enabled = isValidEmail,
+                onClick = { onConfirmPayment(quote, customerEmail.trim()) },
                 colors = ButtonDefaults.buttonColors(containerColor = TealPrimary),
                 shape = RoundedCornerShape(10.dp),
                 modifier = Modifier.testTag("btn_confirm_escrow_pay")
