@@ -383,6 +383,22 @@ async function run() {
     })
   );
 
+  await env.withSecurityRulesDisabled(async (ctx) => {
+    await setDoc(doc(ctx.firestore(), "users/alice/conversationState/conversation-1"), {
+      conversationId: "conversation-1",
+      unreadCount: 2,
+      updatedAt: new Date(),
+    });
+  });
+  await assertSucceeds(getDoc(doc(aliceDb, "users/alice/conversationState/conversation-1")));
+  await assertFails(getDoc(doc(bobDb, "users/alice/conversationState/conversation-1")));
+  await assertFails(
+    setDoc(doc(aliceDb, "users/alice/conversationState/client-write"), {
+      conversationId: "conversation-1",
+      unreadCount: 99,
+    })
+  );
+
   await assertFails(getDoc(doc(aliceDb, "users/alice/devices/device-1")));
   await assertFails(
     setDoc(doc(aliceDb, "contentReports/client-write"), {
