@@ -491,6 +491,9 @@ private fun MarketplaceContent(
                         onSendPhoto = { uri ->
                             viewModel.sendPhotoMessage(screen.conversationId, uri)
                         },
+                        onMarkRead = {
+                            viewModel.markConversationRead(screen.conversationId)
+                        },
                         onCallClick = {
                             viewModel.sendChatMessage(
                                 screen.conversationId,
