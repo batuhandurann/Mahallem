@@ -38,14 +38,31 @@ class TestPaymentGateway : PaymentGateway {
  * Production payments must be initiated and verified by the backend.
  * Do not put merchant secrets in the Android app.
  */
-class ProductionPaymentGateway : PaymentGateway {
+class ProductionPaymentGateway(
+    private val functions: com.example.backend.FunctionsRepository = com.example.backend.FunctionsRepository()
+) : PaymentGateway {
     override suspend fun createPayment(
         requestId: Long,
         quoteId: Long,
         amountMinor: Long,
         currency: String
-    ): PaymentIntent = error("Production payment provider is not configured")
+    ): PaymentIntent {
+        require(amountMinor > 0) { "Ödeme tutarı geçersiz." }
+        val idempotencyKey = java.util.UUID.randomUUID().toString()
+        val result = functions.createPaymentIntent(
+            requestId = requestId,
+            quoteId = quoteId,
+            amountMinor = amountMinor,
+            currency = currency,
+            idempotencyKey = idempotencyKey
+        )
+        val id = result["id"]?.toString() ?: error("Ödeme kimliği alınamadı.")
+        val checkoutUrl = result["checkoutUrl"]?.toString()
+            ?: error("Ödeme sağlayıcısı checkout adresi döndürmedi.")
+        return PaymentIntent(id, checkoutUrl)
+    }
 
-    override suspend fun refund(paymentId: String, amountMinor: Long?) =
-        error("Production payment provider is not configured")
+    override suspend fun refund(paymentId: String, amountMinor: Long?) {
+        functions.requestRefund(paymentId)
+    }
 }
