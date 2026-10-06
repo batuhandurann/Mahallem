@@ -39,7 +39,7 @@ class CloudChatRepository(
                         lastTimestamp = (d.getTimestamp("updatedAt")?.toDate()?.time ?: System.currentTimeMillis()),
                         unreadCount = 0, relatedItemTitle = d.getString("relatedItemTitle") ?: ""
                     )
-                }
+                }.sortedByDescending { it.lastTimestamp }
                 trySend(list)
             }
         awaitClose { listener.remove() }
