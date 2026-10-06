@@ -775,6 +775,8 @@ export const startConversation = onCall(
       if (relatedItemId !== targetId) {
         throw new HttpsError("invalid-argument", "Hizmet sağlayıcı sohbet bağlantısı geçersiz.");
       }
+
+      await assertAccountActive(participantUid);
     }
 
     const participantIds = [request.auth.uid, participantUid].sort();
