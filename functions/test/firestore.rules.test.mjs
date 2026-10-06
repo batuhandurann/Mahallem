@@ -5,7 +5,7 @@ import {
   assertSucceeds,
   assertFails,
 } from "@firebase/rules-unit-testing";
-import { doc, setDoc, getDoc } from "firebase/firestore";
+import { doc, setDoc, getDoc, deleteDoc, updateDoc } from "firebase/firestore";
 
 const rules = readFileSync(new URL("../../firestore.rules", import.meta.url), "utf8");
 
@@ -48,6 +48,17 @@ async function run() {
       displayName: "Alice",
       role: "user",
       isSuperuser: true,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    })
+  );
+
+  await assertFails(
+    setDoc(doc(aliceDb, "users/alice-fake-phone"), {
+      uid: "alice",
+      displayName: "Alice",
+      role: "user",
+      phoneNumber: "+905551112233",
       createdAt: new Date(),
       updatedAt: new Date(),
     })
@@ -180,7 +191,29 @@ async function run() {
     })
   );
 
+  await assertSucceeds(
+    setDoc(doc(aliceDb, "jobRequestPrivate/private-1"), {
+      ownerId: "alice",
+      address: "Karşıyaka",
+      customerName: "Alice",
+      customerPhone: "+905551112233",
+      phoneVerified: false,
+      updatedAt: new Date(),
+    })
+  );
+
   await assertFails(
+    setDoc(doc(aliceDb, "jobRequestPrivate/private-2"), {
+      ownerId: "alice",
+      address: "Karşıyaka",
+      customerName: "Alice",
+      customerPhone: "+905551112233",
+      phoneVerified: true,
+      updatedAt: new Date(),
+    })
+  );
+
+    await assertFails(
     setDoc(doc(aliceDb, "jobRequestPrivate/private-1"), {
       ownerId: "alice",
       address: "İzinsiz alan",
@@ -189,6 +222,29 @@ async function run() {
       updatedAt: new Date(),
     })
   );
+
+  await assertFails(
+    updateDoc(doc(aliceDb, "jobRequestPrivate/private-1"), {
+      secretRole: "admin",
+    })
+  );
+
+  await assertFails(
+    updateDoc(doc(aliceDb, "conversations/conversation-1"), {
+      lastMessagePreview: "client spoof",
+    })
+  );
+
+  await assertFails(deleteDoc(doc(aliceDb, "providers/provider-1")));
+
+  await env.withSecurityRulesDisabled(async (ctx) => {
+    await setDoc(doc(ctx.firestore(), "jobRequests/accepted-request"), {
+      ownerId: "alice",
+      status: "ACCEPTED",
+    });
+  });
+
+  await assertFails(deleteDoc(doc(aliceDb, "jobRequests/accepted-request")));
 
   assert.equal((await getDoc(doc(aliceDb, "users/alice"))).exists(), true);
 }
