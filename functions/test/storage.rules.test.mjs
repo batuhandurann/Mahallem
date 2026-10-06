@@ -22,14 +22,32 @@ async function run() {
 
   const validImage = new Uint8Array([0x89, 0x50, 0x4e, 0x47]);
 
+  await env.withSecurityRulesDisabled(async (ctx) => {
+    await setDoc(doc(ctx.firestore(), "users/alice/uploadGrants/grant-user"), {
+      ownerUid: "alice",
+      kind: "USER",
+      expiresAt: new Date(Date.now() + 10 * 60 * 1000),
+    });
+  });
+
   await assertSucceeds(
-    uploadBytes(ref(alice.storage("gs://" + bucket), "users/alice/images/profile.jpg"), validImage, {
+    uploadBytes(ref(alice.storage("gs://" + bucket), "users/alice/images/grant-user.jpg"), validImage, {
+      contentType: "image/png",
+    })
+  );
+  await assertFails(
+    uploadBytes(ref(alice.storage("gs://" + bucket), "users/alice/images/grant-user.jpg"), validImage, {
       contentType: "image/png",
     })
   );
 
   await assertFails(
     uploadBytes(ref(bob.storage("gs://" + bucket), "users/alice/images/blocked.jpg"), validImage, {
+      contentType: "image/png",
+    })
+  );
+  await assertFails(
+    uploadBytes(ref(alice.storage("gs://" + bucket), "users/alice/images/no-grant.jpg"), validImage, {
       contentType: "image/png",
     })
   );
@@ -64,10 +82,16 @@ async function run() {
       ownerId: "alice",
       status: "PENDING",
     });
+    await setDoc(doc(ctx.firestore(), "users/alice/uploadGrants/grant-job"), {
+      ownerUid: "alice",
+      kind: "JOB_REQUEST",
+      requestId: "request-1",
+      expiresAt: new Date(Date.now() + 10 * 60 * 1000),
+    });
   });
 
   await assertSucceeds(
-    uploadBytes(ref(alice.storage("gs://" + bucket), "jobRequests/alice/request-1/photo.jpg"), validImage, {
+    uploadBytes(ref(alice.storage("gs://" + bucket), "jobRequests/alice/request-1/images/grant-job.jpg"), validImage, {
       contentType: "image/png",
     })
   );
@@ -78,7 +102,16 @@ async function run() {
     });
   });
 
-  const chatPath = "chatAttachments/chat-1/alice/photo.jpg";
+  await env.withSecurityRulesDisabled(async (ctx) => {
+    await setDoc(doc(ctx.firestore(), "users/alice/uploadGrants/grant-chat"), {
+      ownerUid: "alice",
+      kind: "CHAT",
+      conversationId: "chat-1",
+      expiresAt: new Date(Date.now() + 10 * 60 * 1000),
+    });
+  });
+
+  const chatPath = "chatAttachments/chat-1/alice/grant-chat.jpg";
   await assertSucceeds(
     uploadBytes(ref(alice.storage("gs://" + bucket), chatPath), validImage, {
       contentType: "image/png",
