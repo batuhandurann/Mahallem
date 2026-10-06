@@ -60,6 +60,12 @@ function isValidIsoDate(value: string): boolean {
     && date.getUTCDate() === day;
 }
 
+function isValidTime(value: string): boolean {
+  if (!/^\d{2}:\d{2}$/.test(value)) return false;
+  const [hour, minute] = value.split(":").map(Number);
+  return hour >= 0 && hour <= 23 && minute >= 0 && minute <= 59;
+}
+
 function optionalBoolean(data: Record<string, unknown>, key: string): boolean | null {
   const value = data[key];
   if (value == null) return null;
@@ -643,6 +649,13 @@ export const saveJobRequest = onCall(
     const eventOrJobDate = requireString(data, "eventOrJobDate", 32, 0);
     const eventTime = requireString(data, "eventTime", 32, 0);
     const budgetEstimate = requireString(data, "budgetEstimate", 200, 0);
+
+    if (eventOrJobDate && !isValidIsoDate(eventOrJobDate)) {
+      throw new HttpsError("invalid-argument", "Geçersiz hizmet/talep tarihi.");
+    }
+    if (eventTime && !isValidTime(eventTime)) {
+      throw new HttpsError("invalid-argument", "Geçersiz hizmet/talep saati.");
+    }
 
     const customerPhone = typeof data.customerPhone === "string" ? data.customerPhone.slice(0, 32) : "";
     const phoneVerified = data.phoneVerified === true;
