@@ -20,12 +20,14 @@ import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.runtime.*
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.core.AppEnvironment
 import com.example.privacy.ConsentRepository
+import com.example.auth.UserProfileRepository
 import com.example.notification.PushTokenRepository
 import com.example.data.local.DigitalReceiptEntity
 import com.example.data.local.JobRequestEntity
@@ -143,6 +145,8 @@ private fun MarketplaceContent(
     val toastMessage by viewModel.toastMessage.collectAsStateWithLifecycle()
 
     val snackbarHostState = remember { SnackbarHostState() }
+    val coroutineScope = rememberCoroutineScope()
+    val context = LocalContext.current
 
     var reportingTarget by remember { mutableStateOf<Triple<String?, Long?, String>?>(null) }
     var escrowTargetQuote by remember { mutableStateOf<Pair<QuoteEntity, JobRequestEntity>?>(null) }
