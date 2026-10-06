@@ -14,7 +14,10 @@ service cloud.firestore {
 
     match /users/{uid} {
       allow read: if ownsUser(uid) || isAdmin();
-      allow create: if verifiedContact() && ownsUser(uid) && request.resource.data.uid == uid && (!('role' in request.resource.data) || request.resource.data.role == 'user') && request.resource.data.keys().hasOnly(['uid','displayName','photoUrl','phoneNumber','role','createdAt','updatedAt','district','city','language','notificationPreferences']);
+      allow create: if verifiedContact() && ownsUser(uid) && request.resource.data.uid == uid
+        && (!('role' in request.resource.data) || request.resource.data.role == 'user')
+        && (!('phoneNumber' in request.resource.data)
+          || request.resource.data.phoneNumber == request.auth.token.phone_number) && request.resource.data.keys().hasOnly(['uid','displayName','photoUrl','phoneNumber','role','createdAt','updatedAt','district','city','language','notificationPreferences']);
       allow update: if isAdmin() || (ownsUser(uid) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['displayName','photoUrl','district','city','language','notificationPreferences','updatedAt']));
       allow delete: if isAdmin();
       match /devices/{tokenId} {
