@@ -341,6 +341,19 @@ async function run() {
   await assertSucceeds(getDocs(query(collection(aliceDb, "publicProviders"), limit(50))));
   await assertSucceeds(getDocs(query(collection(aliceDb, "publicJobRequests"), limit(50))));
 
+  await assertFails(
+    setDoc(doc(aliceDb, "publicProviders/client-write"), {
+      displayName: "İstemci yazmamalı",
+      title: "Temizlik"
+    })
+  );
+  await assertFails(
+    setDoc(doc(aliceDb, "publicJobRequests/client-write"), {
+      title: "İstemci yazmamalı",
+      status: "PENDING"
+    })
+  );
+
   await assertFails(getDoc(doc(aliceDb, "users/alice/devices/device-1")));
   await assertFails(
     setDoc(doc(aliceDb, "quotes/client-created-quote"), {
@@ -365,6 +378,8 @@ async function run() {
   });
   const purgingDb = env.authenticatedContext("alice-purging", { email_verified: true }).firestore();
   await assertFails(getDoc(doc(purgingDb, "providers/provider-visible")));
+  await assertFails(getDocs(query(collection(purgingDb, "publicProviders"), limit(50))));
+  await assertFails(getDocs(query(collection(purgingDb, "publicJobRequests"), limit(50))));
   await assertFails(
     setDoc(doc(purgingDb, "jobRequests/purging-request"), {
       ownerId: "alice-purging",
