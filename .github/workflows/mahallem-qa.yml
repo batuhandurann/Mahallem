@@ -48,3 +48,23 @@ jobs:
           arch: x86_64
           profile: pixel_2
           script: gradle connectedDebugAndroidTest --no-daemon --stacktrace
+
+
+  backend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: functions
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+          cache-dependency-path: functions/package.json
+      - name: Install backend dependencies
+        run: npm install
+      - name: Check backend types and tests
+        run: npm test
