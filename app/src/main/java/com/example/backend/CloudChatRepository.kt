@@ -83,6 +83,25 @@ class CloudChatRepository(
         awaitClose { listener.remove() }
     }
 
+    suspend fun startOrGetConversationForRequest(requestId: Long, relatedItemTitle: String): String {
+        val me = uid()
+        val request = firestore.collection("jobRequests").document(requestId.toString()).get().await()
+        val ownerId = request.getString("ownerId") ?: error("Talep sahibi bulunamadı.")
+        val existing = firestore.collection("conversations").whereArrayContains("participantIds", me).get().await().documents.firstOrNull { doc ->
+            val ids = doc.get("participantIds") as? List<*> ?: emptyList<Any?>()
+            ownerId in ids && doc.getString("relatedItemId") == requestId.toString()
+        }
+        if (existing != null) return existing.id
+        val ref = firestore.collection("conversations").document()
+        ref.set(mapOf(
+            "participantIds" to listOf(me, ownerId),
+            "relatedItemId" to requestId.toString(),
+            "relatedItemTitle" to relatedItemTitle,
+            "createdAt" to com.google.firebase.Timestamp.now(),
+            "updatedAt" to com.google.firebase.Timestamp.now()
+        )).await()
+        return ref.id
+    }
     suspend fun sendMessage(
         conversationId: String, text: String, messageType: String = "TEXT", attachmentUrl: String? = null
     ) {
