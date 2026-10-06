@@ -148,6 +148,22 @@ async function run() {
     })
   );
 
+  await assertFails(
+    setDoc(doc(aliceDb, "quotes/client-create"), {
+      providerId: "provider-1",
+      providerOwnerId: "alice",
+      customerId: "alice",
+      requestId: "request-1",
+      price: "100 TL",
+      amountMinor: 10000,
+      durationOrArrival: "1 gün",
+      notes: "istemci doğrudan yazmamalı",
+      status: "PENDING",
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    })
+  );
+
   await env.withSecurityRulesDisabled(async (ctx) => {
     await setDoc(doc(ctx.firestore(), "conversations/conversation-1"), {
       participantIds: ["alice", "bob"],
@@ -242,6 +258,29 @@ async function run() {
       deletionStatus: "REQUESTED",
     });
   });
+
+  await env.withSecurityRulesDisabled(async (ctx) => {
+    await setDoc(doc(ctx.firestore(), "users/alice-purging"), {
+      uid: "alice-purging",
+      role: "user",
+      deletionStatus: "PURGING",
+    });
+  });
+  const purgingUser = env.authenticatedContext("alice-purging", { email_verified: true });
+  const purgingDb = purgingUser.firestore();
+  await assertFails(
+    setDoc(doc(purgingDb, "jobRequests/purging-request"), {
+      ownerId: "alice-purging",
+      title: "Bloklanmalı",
+      sector: "CLEANING",
+      categoryId: "cleaning",
+      district: "Karşıyaka",
+      urgencyMode: "NORMAL",
+      status: "PENDING",
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    })
+  );
 
   const deletingUser = env.authenticatedContext("alice-deleting", { email_verified: true });
   const deletingDb = deletingUser.firestore();
