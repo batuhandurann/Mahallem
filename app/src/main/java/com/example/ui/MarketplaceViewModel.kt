@@ -368,24 +368,50 @@ class MarketplaceViewModel(application: Application) : AndroidViewModel(applicat
         }
     }
 
-    fun sendPhotoMessage(conversationId: String, desc: String) {
+    fun sendPhotoMessage(conversationId: String, uri: android.net.Uri) {
         viewModelScope.launch {
             if (AppEnvironment.mode == AppEnvironment.Mode.LOCAL) {
                 repository.sendChatMessage(
-                    conversationId = conversationId, senderName = "Ben", text = desc, isFromMe = true,
-                    hasPhotoAttachment = true, photoDescription = desc
+                    conversationId = conversationId,
+                    senderName = "Ben",
+                    text = "📷 İş / keşif fotoğrafı",
+                    isFromMe = true,
+                    hasPhotoAttachment = true,
+                    photoDescription = "Seçilen fotoğraf"
                 )
-            } else {
-                cloudChatRepository.sendMessage(conversationId, desc, "IMAGE")
-            }
-            if (AppEnvironment.mode == AppEnvironment.Mode.LOCAL) {
                 delay(1500)
                 repository.sendChatMessage(
                     conversationId = conversationId,
                     senderName = "Hizmet Sağlayıcı",
-                    text = "Fotoğrafları inceledim. Gerekli alet ve malzemeleri hazırlıyorum.",
+                    text = "Fotoğrafı inceledim. Gerekli alet ve malzemeleri hazırlıyorum.",
                     isFromMe = false
                 )
+                return@launch
+            }
+
+            val currentUser = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser
+            if (currentUser == null) {
+                _toastMessage.value = "Fotoğraf göndermek için giriş yapmanız gerekiyor."
+                return@launch
+            }
+
+            runCatching {
+                val path = com.example.media.StorageRepository().uploadChatImage(
+                    senderUid = currentUser.uid,
+                    conversationId = conversationId,
+                    uri = uri,
+                    contentResolver = getApplication<Application>().contentResolver
+                )
+                cloudChatRepository.sendMessage(
+                    conversationId = conversationId,
+                    text = "📷 İş / keşif fotoğrafı",
+                    messageType = "IMAGE",
+                    attachmentUrl = path
+                )
+            }.onSuccess {
+                _toastMessage.value = "Fotoğraf gönderildi."
+            }.onFailure {
+                _toastMessage.value = it.message ?: "Fotoğraf gönderilemedi."
             }
         }
     }
