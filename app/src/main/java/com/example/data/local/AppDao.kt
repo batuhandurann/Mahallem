@@ -78,6 +78,9 @@ interface AppDao {
     @Query("UPDATE quotes SET status = :status WHERE id = :id")
     suspend fun updateQuoteStatus(id: Long, status: String)
 
+    @Query("DELETE FROM quotes WHERE id = :id")
+    suspend fun deleteQuote(id: Long)
+
     @Query("UPDATE quotes SET escrowFunded = :funded, receiptCode = :receiptCode WHERE id = :id")
     suspend fun updateQuoteEscrow(id: Long, funded: Boolean, receiptCode: String)
 
