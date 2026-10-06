@@ -148,6 +148,9 @@ class FunctionsRepository(
     suspend fun unregisterDeviceToken(token: String): Map<*, *> =
         call("unregisterDeviceToken", mapOf("token" to token))
 
+    suspend fun getPaymentStatus(paymentId: String): Map<*, *> =
+        call("getPaymentStatus", mapOf("paymentId" to paymentId))
+
     suspend fun requestRefund(paymentId: String): Map<*, *> {
         val result = functions.getHttpsCallable("requestRefund")
             .call(mapOf("paymentId" to paymentId))
