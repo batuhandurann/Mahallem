@@ -543,7 +543,13 @@ export const issueImageUploadGrant = onCall(
       if (kind === "CHAT") {
         conversationSnapForGrant = await tx.get(db.collection("conversations").doc(conversationId));
         const participants = conversationSnapForGrant.exists ? conversationSnapForGrant.data()?.participantIds : null;
-        if (!conversationSnapForGrant.exists || !Array.isArray(participants) || !participants.includes(uid)) {
+        if (
+          !conversationSnapForGrant.exists
+          || !Array.isArray(participants)
+          || participants.length !== 2
+          || !participants.every((id) => typeof id === "string" && ID_PATTERN.test(id))
+          || !participants.includes(uid)
+        ) {
           throw new HttpsError("permission-denied", "Bu sohbete görsel yükleyemezsiniz.");
         }
       }
@@ -559,9 +565,7 @@ export const issueImageUploadGrant = onCall(
         kind,
         conversationId: kind === "CHAT" ? conversationId : FieldValue.delete(),
         participantIds: kind === "CHAT"
-          ? ((conversationSnapForGrant?.data()?.participantIds as unknown[] | undefined) ?? [])
-              .filter((id): id is string => typeof id === "string" && ID_PATTERN.test(id))
-              .slice(0, 10)
+          ? (conversationSnapForGrant?.data()?.participantIds as string[])
           : FieldValue.delete(),
         requestId: kind === "JOB_REQUEST" ? requestId : FieldValue.delete(),
         expiresAt: FirestoreTimestamp.fromMillis(now + 10 * 60_000),
