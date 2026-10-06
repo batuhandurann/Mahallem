@@ -14,6 +14,7 @@ assert.match(source, /deviceTokenOwners/);
 assert.match(source, /adminAuth\.getUser\(uid\)/);
 assert.match(source, /authUser\.emailVerified/);
 assert.match(source, /authUser\.phoneNumber/);
+assert.match(source, /if \(!userSnap\.exists\)/);
 assert.match(source, /bucket\.deleteFiles/);
 assert.match(source, /users.*devices/);
 assert.match(source, /String\(jobRequest\.status \?\? ""\) === "CLOSED"/);
