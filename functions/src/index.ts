@@ -1835,6 +1835,7 @@ async function anonymizeAccount(uid: string): Promise<void> {
     "quote-hour:" + uid,
     "report-day:" + uid,
     "availability:" + uid,
+    "availability-minute:" + uid,
     "availability-hour:" + uid,
     "conversation-read:" + uid,
     "conversation-read-hour:" + uid,
