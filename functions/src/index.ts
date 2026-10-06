@@ -691,8 +691,8 @@ export const saveJobRequest = onCall(
         if (existing.data()?.ownerId !== request.auth!.uid) {
           throw new HttpsError("permission-denied", "Bu talebe erişemezsiniz.");
         }
-        if (!["PENDING", "QUOTED"].includes(String(existing.data()?.status ?? ""))) {
-          throw new HttpsError("failed-precondition", "Bu talep artık düzenlenemez.");
+        if (String(existing.data()?.status ?? "") !== "PENDING") {
+          throw new HttpsError("failed-precondition", "Teklif alınmış veya tamamlanmış talep artık düzenlenemez.");
         }
       }
 
