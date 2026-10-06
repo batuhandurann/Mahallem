@@ -33,6 +33,15 @@ async function run() {
       updatedAt: new Date(),
     })
   );
+  await env.withSecurityRulesDisabled(async (ctx) => {
+    await setDoc(doc(ctx.firestore(), "users/bob"), {
+      uid: "bob",
+      displayName: "Bob",
+      role: "user",
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+  });
 
   await assertFails(
     setDoc(doc(aliceDb, "users/alice"), {
@@ -449,6 +458,65 @@ async function run() {
   });
 
   await assertFails(deleteDoc(doc(aliceDb, "jobRequests/accepted-request")));
+
+  await env.withSecurityRulesDisabled(async (ctx) => {
+    await setDoc(doc(ctx.firestore(), "providers/provider-bob"), {
+      ownerId: "bob",
+      displayName: "Bob Hizmet",
+      title: "Temizlik",
+      bio: "Test",
+      sector: "CLEANING",
+      categoryId: "cleaning",
+      district: "Karşıyaka",
+      city: "İzmir",
+      experienceYears: 4,
+      serviceArea: { latitude: 38.46, longitude: 27.11 },
+      isOpenForOffers: true,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+    await setDoc(doc(ctx.firestore(), "jobRequests/quote-state-request"), {
+      ownerId: "alice",
+      status: "PENDING",
+      title: "Quote state lock",
+    });
+    await setDoc(doc(ctx.firestore(), "quotes/quote-state"), {
+      providerId: "provider-bob",
+      providerOwnerId: "bob",
+      customerId: "alice",
+      requestId: "quote-state-request",
+      price: "100 TL",
+      amountMinor: 10000,
+      durationOrArrival: "1 gün",
+      notes: "başlangıç",
+      status: "PENDING",
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+  });
+
+  await assertSucceeds(
+    updateDoc(doc(bobDb, "quotes/quote-state"), {
+      price: "120 TL",
+      durationOrArrival: "2 gün",
+      notes: "güncellendi",
+      updatedAt: new Date(),
+    })
+  );
+
+  await env.withSecurityRulesDisabled(async (ctx) => {
+    await setDoc(doc(ctx.firestore(), "jobRequests/quote-state-request"), {
+      status: "ACCEPTED",
+    }, { merge: true });
+  });
+
+  await assertFails(
+    updateDoc(doc(bobDb, "quotes/quote-state"), {
+      price: "900 TL",
+      notes: "Talep kabul edildiği halde değişiklik",
+      updatedAt: new Date(),
+    })
+  );
 
   assert.equal((await getDoc(doc(aliceDb, "users/alice"))).exists(), true);
 }
