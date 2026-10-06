@@ -4,12 +4,14 @@ service firebase.storage {
   match /b/{bucket}/o {
     function signedIn() { return request.auth != null; }
     function isAdmin() { return signedIn() && request.auth.token.admin == true; }
+
     function safeImage() {
-      return request.resource.size < 10 * 1024 * 1024
-        && request.resource.contentType.matches('image/.*');
+      return request.resource != null
+        && request.resource.size <= 5 * 1024 * 1024
+        && request.resource.contentType.matches('image/(jpeg|png|webp)');
     }
 
-    match /users/{uid}/{allPaths=**} {
+    match /users/{uid}/images/{allPaths=**} {
       allow read: if signedIn() && request.auth.uid == uid;
       allow write: if signedIn() && request.auth.uid == uid && safeImage();
       allow delete: if signedIn() && request.auth.uid == uid;
@@ -17,8 +19,16 @@ service firebase.storage {
 
     match /jobRequests/{ownerUid}/{requestId}/{allPaths=**} {
       allow read: if signedIn() && request.auth.uid == ownerUid;
-      allow write: if signedIn() && request.auth.uid == ownerUid && safeImage();
-      allow delete: if isAdmin() || (signedIn() && request.auth.uid == ownerUid);
+      allow write: if signedIn()
+        && request.auth.uid == ownerUid
+        && firestore.exists(/databases/(default)/documents/jobRequests/$(requestId))
+        && firestore.get(/databases/(default)/documents/jobRequests/$(requestId)).data.ownerId == ownerUid
+        && safeImage();
+      allow delete: if isAdmin()
+        || (signedIn()
+          && request.auth.uid == ownerUid
+          && firestore.exists(/databases/(default)/documents/jobRequests/$(requestId))
+          && firestore.get(/databases/(default)/documents/jobRequests/$(requestId)).data.ownerId == ownerUid);
     }
 
     match /providers/{providerId}/{allPaths=**} {
