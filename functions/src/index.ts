@@ -135,6 +135,7 @@ export const createPaymentIntent = onCall(
     if (!ID_PATTERN.test(requestId)
       || !ID_PATTERN.test(quoteId)
       || currency !== "TRY"
+      || customerEmail.length > 100
       || !/^[A-Za-z0-9._%+-]{1,100}@[A-Za-z0-9.-]{1,190}\.[A-Za-z]{2,63}$/.test(customerEmail)
       || !/^[A-Za-z0-9._:-]{16,128}$/.test(idempotencyKey)) {
       throw new HttpsError("invalid-argument", "Geçersiz ödeme parametreleri.");
@@ -368,6 +369,7 @@ export const createPaymentIntent = onCall(
         currency: "TL",
         test_mode: testMode,
         lang: "tr",
+        iframe_v2: "1",
       });
 
       response = await fetch("https://www.paytr.com/odeme/api/get-token", {
