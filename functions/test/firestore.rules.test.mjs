@@ -260,6 +260,13 @@ async function run() {
     })
   );
 
+  await assertFails(
+    setDoc(doc(deletingDb, "users/alice-deleting/devices/device-1"), {
+      platform: "android",
+      updatedAt: new Date(),
+    })
+  );
+
   await assertFails(deleteDoc(doc(aliceDb, "providers/provider-1")));
 
   await env.withSecurityRulesDisabled(async (ctx) => {
