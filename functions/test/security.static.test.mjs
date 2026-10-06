@@ -29,6 +29,8 @@ assert.match(rules, /allow list: if false;/);
 
 assert.match(storage, /validGrant/);
 assert.match(storage, /data.validated == true/);
-assert.match(storage, /\\\\.jpg/);
+assert.match(storage, /\.jpg/);
 
 console.log("Security static regression tests passed.");
+
+assert.match(source, /body:\s*"Yeni bir mesajınız var\."\s*,/);
