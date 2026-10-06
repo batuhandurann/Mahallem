@@ -1,11 +1,13 @@
 import { createHash } from "node:crypto";
 import { initializeApp } from "firebase-admin/app";
+import { getAuth } from "firebase-admin/auth";
 import { getFirestore, FieldValue } from "firebase-admin/firestore";
 import { getMessaging } from "firebase-admin/messaging";
 import { onDocumentCreated } from "firebase-functions/v2/firestore";
 import { onCall, onRequest, HttpsError } from "firebase-functions/v2/https";
 import { defineSecret } from "firebase-functions/params";
 import { logger } from "firebase-functions";
+import { onSchedule } from "firebase-functions/v2/scheduler";
 import {
   verifyPaytrCallback,
 } from "./payments/paytr";
@@ -13,6 +15,7 @@ import {
 initializeApp();
 
 const db = getFirestore();
+const adminAuth = getAuth();
 const paytrKey = defineSecret("PAYTR_MERCHANT_KEY");
 const paytrSalt = defineSecret("PAYTR_MERCHANT_SALT");
 
@@ -23,12 +26,18 @@ export const createPaymentIntent = onCall(
       throw new HttpsError("unauthenticated", "Kimlik doğrulaması gerekli.");
     }
 
+    const authTime = Number(request.auth.token.auth_time ?? 0);
+    if (!Number.isFinite(authTime) || Date.now() - authTime * 1000 > 15 * 60 * 1000) {
+      throw new HttpsError("failed-precondition", "Ödeme işlemi için yakın zamanda yeniden doğrulama gerekli.");
+    }
+
     const data = request.data as Record<string, unknown>;
     const requestId = String(data.requestId ?? "");
     const quoteId = String(data.quoteId ?? "");
     const idempotencyKey = String(data.idempotencyKey ?? "");
+    const currency = String(data.currency ?? "TRY").toUpperCase();
 
-    if (!requestId || !quoteId || !/^[A-Za-z0-9._:-]{16,128}$/.test(idempotencyKey)) {
+    if (!requestId || !quoteId || currency !== "TRY" || !/^[A-Za-z0-9._:-]{16,128}$/.test(idempotencyKey)) {
       throw new HttpsError("invalid-argument", "Geçersiz ödeme parametreleri.");
     }
 
@@ -52,27 +61,29 @@ export const createPaymentIntent = onCall(
       throw new HttpsError("failed-precondition", "Teklifin güvenilir ödeme tutarı bulunmuyor.");
     }
 
+    const requestDoc = await db.collection("jobRequests").doc(requestId).get();
+    if (!requestDoc.exists || requestDoc.data()?.ownerId !== request.auth.uid || requestDoc.data()?.status !== "ACCEPTED") {
+      throw new HttpsError("failed-precondition", "Talep ödeme için uygun durumda değil.");
+    }
+
     const idemHash = createHash("sha256")
       .update(request.auth.uid + ":" + idempotencyKey)
       .digest("hex");
+    const rateLimitRef = db.collection("rateLimits").doc("payment-intent:" + request.auth.uid);
+    const rateLimitSnap = await rateLimitRef.get();
+    const rate = rateLimitSnap.exists ? rateLimitSnap.data()! : {};
+    const windowStart = Number(rate.windowStartMs ?? 0);
+    const count = Number(rate.count ?? 0);
+    const activeWindow = Number.isSafeInteger(windowStart) && Date.now() - windowStart < 60_000;
+    if (activeWindow && count >= 5) {
+      throw new HttpsError("resource-exhausted", "Çok fazla ödeme denemesi. Lütfen biraz sonra tekrar deneyin.");
+    }
+
     const paymentRef = db.collection("payments").doc(idemHash);
     const existing = await paymentRef.get();
     if (existing.exists) {
       return existing.data();
     }
-
-    const payment = {
-      id: paymentRef.id, requestId, quoteId,
-      customerId: request.auth.uid,
-      providerId: String(quote.providerOwnerId ?? ""),
-      amountMinor, currency: "TRY",
-      provider: "paytr-marketplace",
-      status: "CREATED",
-      idempotencyKeyHash: idemHash,
-      createdAt: FieldValue.serverTimestamp(),
-      updatedAt: FieldValue.serverTimestamp(),
-    };
-    await paymentRef.create(payment);
 
     if (!paytrKey.value() || !paytrSalt.value()) {
       throw new HttpsError(
@@ -80,6 +91,12 @@ export const createPaymentIntent = onCall(
         "Ödeme sağlayıcısı staging/production ortamında henüz yapılandırılmadı."
       );
     }
+
+    await rateLimitRef.set({
+      windowStartMs: activeWindow ? windowStart : Date.now(),
+      count: activeWindow ? count + 1 : 1,
+      updatedAt: FieldValue.serverTimestamp(),
+    }, { merge: true });
 
     // PayTR Marketplace checkout generation requires the merchant-approved
     // marketplace account configuration. Fail closed until it is configured.
