@@ -79,6 +79,7 @@ fun MarketplaceApp() {
     }
 
     var currentUser by remember { mutableStateOf(auth.currentUser) }
+    var profileReady by remember(currentUser?.uid) { mutableStateOf(false) }
     DisposableEffect(auth) {
         val listener = FirebaseAuth.AuthStateListener { currentUser = it.currentUser }
         auth.addAuthStateListener(listener)
@@ -93,18 +94,33 @@ fun MarketplaceApp() {
         PhoneAuthScreen(onAuthenticated = {})
     } else {
         LaunchedEffect(currentUser?.uid) {
+            profileReady = false
             currentUser?.let { user ->
                 runCatching {
                     UserProfileRepository().ensureUserProfile(user)
                     PushTokenRepository().registerCurrentDevice()
+                }.onSuccess {
+                    profileReady = true
                 }.onFailure {
                     android.util.Log.w("MahallemAuth", "Kullanıcı profili/cihaz kaydı başarısız", it)
                 }
             }
         }
+
         val context = LocalContext.current
         val consent = remember(context) { ConsentRepository(context) }
-        if (!consent.privacyNoticeAcknowledged) {
+
+        if (!profileReady) {
+            Box(
+                modifier = Modifier.fillMaxSize(),
+                contentAlignment = androidx.compose.ui.Alignment.Center
+            ) {
+                androidx.compose.material3.Text(
+                    "Hesabınız hazırlanıyor...",
+                    modifier = Modifier.padding(24.dp)
+                )
+            }
+        } else if (!consent.privacyNoticeAcknowledged) {
             PrivacyConsentScreen(
                 onCompleted = { currentUser = auth.currentUser }
             )
