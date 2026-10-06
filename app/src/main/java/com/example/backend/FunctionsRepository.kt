@@ -33,6 +33,32 @@ class FunctionsRepository(
         return (result.data as? Map<*, *>) ?: error("Sunucudan geçersiz ödeme yanıtı.")
     }
 
+    suspend fun createQuote(
+        quoteId: Long,
+        requestId: Long,
+        providerId: String,
+        price: String,
+        amountMinor: Long,
+        durationOrArrival: String,
+        notes: String
+    ): Map<*, *> {
+        val result = functions.getHttpsCallable("createQuote")
+            .call(
+                mapOf(
+                    "quoteId" to quoteId.toString(),
+                    "requestId" to requestId.toString(),
+                    "providerId" to providerId,
+                    "price" to price,
+                    "amountMinor" to amountMinor,
+                    "durationOrArrival" to durationOrArrival,
+                    "notes" to notes
+                )
+            )
+            .await()
+        @Suppress("UNCHECKED_CAST")
+        return (result.data as? Map<*, *>) ?: error("Sunucudan geçersiz teklif yanıtı.")
+    }
+
     suspend fun sendMessage(
         conversationId: String,
         text: String,
