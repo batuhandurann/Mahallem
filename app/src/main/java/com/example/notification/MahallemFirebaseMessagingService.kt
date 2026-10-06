@@ -1,6 +1,5 @@
 package com.example.notification
 
-import com.google.firebase.auth.FirebaseAuth
 import com.example.backend.FunctionsRepository
 import com.google.firebase.messaging.FirebaseMessagingService
 import com.google.firebase.messaging.RemoteMessage
@@ -15,7 +14,6 @@ import kotlinx.coroutines.tasks.await
 class MahallemFirebaseMessagingService : FirebaseMessagingService() {
     override fun onNewToken(token: String) {
         super.onNewToken(token)
-        val uid = FirebaseAuth.getInstance().currentUser?.uid ?: return
         CoroutineScope(Dispatchers.IO).launch {
             runCatching {
                 FunctionsRepository().registerDeviceToken(token)
@@ -25,11 +23,12 @@ class MahallemFirebaseMessagingService : FirebaseMessagingService() {
 
     override fun onMessageReceived(message: RemoteMessage) {
         val title = message.notification?.title ?: "Mahallem"
-        val body = message.notification?.body ?: "Yeni bir güncelleme var."
+        val body = "Yeni bir mesajınız var."
         val notification = NotificationCompat.Builder(this, "mahallem_messages")
             .setSmallIcon(android.R.drawable.ic_dialog_info)
             .setContentTitle(title)
             .setContentText(body)
+            .setVisibility(NotificationCompat.VISIBILITY_PRIVATE)
             .setAutoCancel(true)
             .build()
         getSystemService(Context.NOTIFICATION_SERVICE)
