@@ -7,7 +7,6 @@ import com.example.backend.FunctionsRepository
 
 class PushTokenRepository(
     private val auth: FirebaseAuth = FirebaseAuth.getInstance(),
-    private val functions: FirebaseFunctions = FirebaseFunctions.getInstance("europe-west1"),
     private val messaging: FirebaseMessaging = FirebaseMessaging.getInstance()
 ) {
     suspend fun registerCurrentDevice() {
