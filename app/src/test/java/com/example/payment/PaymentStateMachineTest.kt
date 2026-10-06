@@ -9,9 +9,7 @@ class PaymentStateMachineTest {
     @Test fun heldCanMoveToReleased() = assertTrue(PaymentStateMachine.canTransition(PaymentStatus.HELD, PaymentStatus.RELEASED))
     @Test fun releasedCannotMoveBackToPaid() = assertFalse(PaymentStateMachine.canTransition(PaymentStatus.RELEASED, PaymentStatus.PAID))
     @Test fun failedCannotBecomeRefunded() = assertFalse(PaymentStateMachine.canTransition(PaymentStatus.FAILED, PaymentStatus.REFUNDED))
-    @Test fun disputeCanBecomeRefundRequested() = assertTrue(PaymentStateMachine.canTransition(PaymentStatus.DISPUTED, PaymentStatus.REFUND_REQUESTED))
-}
-    @Test fun heldCanRequestRelease() = assertTrue(
+    @Test fun disputeCanBecomeRefundRequested() = assertTrue(PaymentStateMachine.canTransition(PaymentStatus.DISPUTED, PaymentStatus.REFUND_REQUESTED))    @Test fun heldCanRequestRelease() = assertTrue(
         PaymentStateMachine.canTransition(PaymentStatus.HELD, PaymentStatus.RELEASE_REQUESTED)
     )
 
@@ -26,3 +24,4 @@ class PaymentStateMachineTest {
     @Test fun releaseRequestedCannotBecomePaid() = assertFalse(
         PaymentStateMachine.canTransition(PaymentStatus.RELEASE_REQUESTED, PaymentStatus.PAID)
     )
+}
