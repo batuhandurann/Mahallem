@@ -16,7 +16,7 @@ const paytrKey = defineSecret("PAYTR_MERCHANT_KEY");
 const paytrSalt = defineSecret("PAYTR_MERCHANT_SALT");
 
 export const createPaymentIntent = onCall(
-  { region: "europe-west1", secrets: [paytrKey, paytrSalt] },
+  { region: "europe-west1", enforceAppCheck: true, secrets: [paytrKey, paytrSalt] },
   async (request) => {
     if (!request.auth) {
       throw new HttpsError("unauthenticated", "Kimlik doğrulaması gerekli.");
@@ -62,7 +62,7 @@ export const createPaymentIntent = onCall(
 );
 
 export const requestRefund = onCall(
-  { region: "europe-west1" },
+  { region: "europe-west1", enforceAppCheck: true },
   async (request) => {
     if (!request.auth?.token.admin) {
       throw new HttpsError("permission-denied", "İade işlemi yetkili sunucu işlemi.");
@@ -98,8 +98,9 @@ export const paytrWebhook = onRequest(
     const receivedHash = String(req.body?.hash ?? "");
 
     const valid = verifyPaytrCallback(
-      merchantOid,
       paytrKey.value(),
+      merchantOid,
+      paytrSalt.value(),
       status,
       totalAmount,
       receivedHash
