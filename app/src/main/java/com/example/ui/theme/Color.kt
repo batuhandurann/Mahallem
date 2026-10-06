@@ -48,7 +48,7 @@ val Slate700 = Color(0xFF334155)
 val Slate600 = Color(0xFF475569)
 val Slate500 = Color(0xFF64748B)
 val Slate100 = Color(0xFFF8FAFC)                // Softest surface tint
-val Slate50 = Color(0xFFFFFFFF)                 // Pure luminous white background
+val Slate50 = Color(0xFFF8FAFC)                 // Soft, low-glare application background
 
 val SurfaceCardLight = Color(0xFFFFFFFF)        // Pure White Cards
 val SurfaceCardBorder = Color(0xFFE2E8F0)        // Delicate borders
