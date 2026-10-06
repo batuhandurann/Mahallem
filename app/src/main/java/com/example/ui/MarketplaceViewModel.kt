@@ -264,18 +264,21 @@ class MarketplaceViewModel(application: Application) : AndroidViewModel(applicat
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     // --- Navigation Actions ---
+    fun markConversationRead(conversationId: String) {
+        if (AppEnvironment.mode == AppEnvironment.Mode.LOCAL) return
+        viewModelScope.launch {
+            runCatching {
+                cloudChatRepository.markConversationRead(conversationId)
+            }.onFailure {
+                _toastMessage.value = "Sohbet okundu durumu güncellenemedi."
+            }
+        }
+    }
+
     fun navigateTo(destination: ScreenDestination) {
         if (destination is ScreenDestination.Chat) {
             _activeConversationId.value = destination.conversationId
-            if (AppEnvironment.mode != AppEnvironment.Mode.LOCAL) {
-                viewModelScope.launch {
-                    runCatching {
-                        cloudChatRepository.markConversationRead(destination.conversationId)
-                    }.onFailure {
-                        _toastMessage.value = "Sohbet okundu durumu güncellenemedi."
-                    }
-                }
-            }
+            markConversationRead(destination.conversationId)
         }
         val current = _screenStack.value
         _screenStack.value = current + destination
