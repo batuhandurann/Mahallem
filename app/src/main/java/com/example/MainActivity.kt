@@ -418,8 +418,8 @@ private fun MarketplaceContent(
                         onSendVoiceNote = { duration ->
                             viewModel.sendVoiceNote(screen.conversationId, duration)
                         },
-                        onSendPhoto = { desc ->
-                            viewModel.sendPhotoMessage(screen.conversationId, desc)
+                        onSendPhoto = { uri ->
+                            viewModel.sendPhotoMessage(screen.conversationId, uri)
                         },
                         onCallClick = {
                             viewModel.sendChatMessage(
