@@ -445,8 +445,12 @@ class MarketplaceViewModel(application: Application) : AndroidViewModel(applicat
 
     fun releaseEscrowPayment(requestId: Long, quoteId: Long, receiptCode: String) {
         viewModelScope.launch {
-            repository.releaseEscrowPayment(requestId, quoteId, receiptCode)
-            _toastMessage.value = "İş başarıyla tamamlandı ve ödeme ustaya aktarıldı! Teşekkür ederiz 🤝"
+            if (AppEnvironment.mode == AppEnvironment.Mode.LOCAL) {
+                repository.releaseEscrowPayment(requestId, quoteId, receiptCode)
+                _toastMessage.value = "Demo ödeme yerelde serbest bırakıldı."
+            } else {
+                _toastMessage.value = "Gerçek ödeme serbest bırakma, doğrulanmış ödeme kimliği üzerinden sunucudan yapılacak."
+            }
         }
     }
 
@@ -608,15 +612,27 @@ class MarketplaceViewModel(application: Application) : AndroidViewModel(applicat
 
     fun acceptQuote(requestId: Long, quoteId: Long, providerName: String) {
         viewModelScope.launch {
-            repository.acceptQuote(requestId, quoteId)
-            _toastMessage.value = "$providerName teklifini onayladınız! İletişim bilgileri paylaşıldı 🤝"
+            if (AppEnvironment.mode == AppEnvironment.Mode.LOCAL) {
+                repository.acceptQuote(requestId, quoteId)
+                _toastMessage.value = "$providerName teklifini onayladınız! İletişim bilgileri paylaşıldı 🤝"
+            } else {
+                runCatching { com.example.backend.FunctionsRepository().acceptQuote(quoteId) }
+                    .onSuccess { _toastMessage.value = "$providerName teklifi güvenli sunucu üzerinden onaylandı. 🤝" }
+                    .onFailure { _toastMessage.value = it.message ?: "Teklif onaylanamadı." }
+            }
         }
     }
 
     fun rejectQuote(quoteId: Long) {
         viewModelScope.launch {
-            repository.rejectQuote(quoteId)
-            _toastMessage.value = "Teklif reddedildi."
+            if (AppEnvironment.mode == AppEnvironment.Mode.LOCAL) {
+                repository.rejectQuote(quoteId)
+                _toastMessage.value = "Teklif reddedildi."
+            } else {
+                runCatching { com.example.backend.FunctionsRepository().rejectQuote(quoteId) }
+                    .onSuccess { _toastMessage.value = "Teklif güvenli sunucu üzerinden reddedildi." }
+                    .onFailure { _toastMessage.value = it.message ?: "Teklif reddedilemedi." }
+            }
         }
     }
 
