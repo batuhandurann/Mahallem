@@ -21,7 +21,7 @@ class CloudMarketplaceRepository(
 
     fun observeProviders(): Flow<List<ServiceProviderEntity>> = callbackFlow {
         val listener = firestore.collection("providers")
-            .limit(200)
+            .limit(50)
             .addSnapshotListener { snapshot, error ->
             if (error != null) { close(error); return@addSnapshotListener }
             val providers = snapshot?.documents.orEmpty().mapNotNull { doc ->
@@ -34,7 +34,7 @@ class CloudMarketplaceRepository(
 
     fun observeRequests(): Flow<List<JobRequestEntity>> = callbackFlow {
         val listener = firestore.collection("jobRequests")
-            .limit(200)
+            .limit(50)
             .addSnapshotListener { snapshot, error ->
             if (error != null) { close(error); return@addSnapshotListener }
             val requests = snapshot?.documents.orEmpty().mapNotNull { doc ->
@@ -49,6 +49,7 @@ class CloudMarketplaceRepository(
         val me = requireUid()
         val listener = firestore.collection("quotes")
             .whereEqualTo("customerId", me)
+            .limit(100)
             .addSnapshotListener { snap, error ->
                 if (error != null) { close(error); return@addSnapshotListener }
                 val list = snap?.documents.orEmpty().map { d ->
