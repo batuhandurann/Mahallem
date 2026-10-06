@@ -4,6 +4,9 @@ import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.messaging.FirebaseMessagingService
 import com.google.firebase.messaging.RemoteMessage
+import androidx.core.app.NotificationCompat
+import android.app.NotificationManager
+import android.content.Context
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -22,6 +25,15 @@ class MahallemFirebaseMessagingService : FirebaseMessagingService() {
     }
 
     override fun onMessageReceived(message: RemoteMessage) {
-        // Foreground notification UI can be implemented here.
+        val title = message.notification?.title ?: "Mahallem"
+        val body = message.notification?.body ?: "Yeni bir güncelleme var."
+        val notification = NotificationCompat.Builder(this, "mahallem_messages")
+            .setSmallIcon(android.R.drawable.ic_dialog_info)
+            .setContentTitle(title)
+            .setContentText(body)
+            .setAutoCancel(true)
+            .build()
+        getSystemService(Context.NOTIFICATION_SERVICE)
+            .let { (it as NotificationManager).notify(System.currentTimeMillis().toInt(), notification) }
     }
 }
