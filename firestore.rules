@@ -33,7 +33,9 @@ service cloud.firestore {
     }
 
     match /jobRequestPrivate/{requestId} {
-      allow read, create, update, delete: if isAdmin() || (signedIn() && resource.data.ownerId == request.auth.uid);
+      allow read: if isAdmin() || (signedIn() && resource.data.ownerId == request.auth.uid);
+      allow create: if signedIn() && request.resource.data.ownerId == request.auth.uid;
+      allow update, delete: if isAdmin() || (signedIn() && resource.data.ownerId == request.auth.uid);
     }
 
     match /quotes/{quoteId} {
