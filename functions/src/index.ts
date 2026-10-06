@@ -8,11 +8,13 @@ import { onCall, onRequest, HttpsError } from "firebase-functions/v2/https";
 import { defineSecret } from "firebase-functions/params";
 import { logger } from "firebase-functions";
 import { onSchedule } from "firebase-functions/v2/scheduler";
+import { setGlobalOptions } from "firebase-functions/v2";
 import {
   verifyPaytrCallback,
 } from "./payments/paytr";
 
 initializeApp();
+setGlobalOptions({ region: "europe-west1", maxInstances: 20, concurrency: 40 });
 
 const db = getFirestore();
 const adminAuth = getAuth();
@@ -1002,6 +1004,7 @@ export const notifyNewMessage = onDocumentCreated(
   { document: "messages/{messageId}", region: "europe-west1" },
   async (event) => {
     const message = event.data?.data();
+    if (!message) return;
     const conversationId = String(message.conversationId ?? "");
     const senderId = String(message.senderId ?? "");
     if (!conversationId || !senderId) return;
