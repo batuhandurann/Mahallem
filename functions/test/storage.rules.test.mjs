@@ -23,19 +23,19 @@ async function run() {
   const validImage = new Uint8Array([0x89, 0x50, 0x4e, 0x47]);
 
   await assertSucceeds(
-    uploadBytes(ref(alice.storage("gs://" + bucket), "users/alice/images/profile.png"), validImage, {
+    uploadBytes(ref(alice.storage("gs://" + bucket), "users/alice/images/profile.jpg"), validImage, {
       contentType: "image/png",
     })
   );
 
   await assertFails(
-    uploadBytes(ref(bob.storage("gs://" + bucket), "users/alice/images/blocked.png"), validImage, {
+    uploadBytes(ref(bob.storage("gs://" + bucket), "users/alice/images/blocked.jpg"), validImage, {
       contentType: "image/png",
     })
   );
 
   await assertFails(
-    uploadBytes(ref(alice.storage("gs://" + bucket), "users/alice/images/file.txt"), validImage, {
+    uploadBytes(ref(alice.storage("gs://" + bucket), "users/alice/images/file.jpg"), validImage, {
       contentType: "text/plain",
     })
   );
@@ -48,13 +48,13 @@ async function run() {
   });
   const deleting = env.authenticatedContext("alice-deleting");
   await assertFails(
-    uploadBytes(ref(deleting.storage("gs://" + bucket), "users/alice-deleting/images/blocked.png"), validImage, {
+    uploadBytes(ref(deleting.storage("gs://" + bucket), "users/alice-deleting/images/blocked.jpg"), validImage, {
       contentType: "image/png",
     })
   );
 
   await assertFails(
-    uploadBytes(ref(alice.storage("gs://" + bucket), "jobRequests/alice/request-1/photo.png"), validImage, {
+    uploadBytes(ref(alice.storage("gs://" + bucket), "jobRequests/alice/request-1/photo.jpg"), validImage, {
       contentType: "image/png",
     })
   );
@@ -67,7 +67,7 @@ async function run() {
   });
 
   await assertSucceeds(
-    uploadBytes(ref(alice.storage("gs://" + bucket), "jobRequests/alice/request-1/photo.png"), validImage, {
+    uploadBytes(ref(alice.storage("gs://" + bucket), "jobRequests/alice/request-1/photo.jpg"), validImage, {
       contentType: "image/png",
     })
   );
@@ -78,7 +78,7 @@ async function run() {
     });
   });
 
-  const chatPath = "chatAttachments/chat-1/alice/photo.png";
+  const chatPath = "chatAttachments/chat-1/alice/photo.jpg";
   await assertSucceeds(
     uploadBytes(ref(alice.storage("gs://" + bucket), chatPath), validImage, {
       contentType: "image/png",
