@@ -32,6 +32,7 @@ assert.match(source, /withinClockSkew/);
 assert.match(source, /recentEnough/);
 
 assert.match(source, /validateUploadedImage/);
+assert.match(source, /participantIds: kind === "CHAT"/);
 assert.match(source, /grant\.expiresAt/);
 assert.match(source, /expiresMillis > Date\.now\(\)/);
 assert.match(source, /validated: true/);
@@ -64,6 +65,9 @@ assert.match(storage, /validGrant/);
 assert.match(storage, /data\.validated == true/);
 assert.match(storage, /filenameGrantId\(fileName\)/);
 assert.match(storage, /fileName\.matches/);
+assert.match(storage, /data\.participantIds/);
+assert.doesNotMatch(storage, /documents\/.*\/conversations\//);
+assert.doesNotMatch(storage, /documents\/.*\/jobRequests\//);
 assert.doesNotMatch(
   storage,
   /match \\/users\/\{uid\}\\/images\/\{grantId\}\.jpg/
