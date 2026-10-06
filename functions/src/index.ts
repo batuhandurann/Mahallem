@@ -511,7 +511,7 @@ export const issueImageUploadGrant = onCall(
       if (kind === "CHAT") {
         conversationSnapForGrant = await tx.get(db.collection("conversations").doc(conversationId));
         const participants = conversationSnapForGrant.exists ? conversationSnapForGrant.data()?.participantIds : null;
-        if (!conversationSnap.exists || !Array.isArray(participants) || !participants.includes(uid)) {
+        if (!conversationSnapForGrant.exists || !Array.isArray(participants) || !participants.includes(uid)) {
           throw new HttpsError("permission-denied", "Bu sohbete görsel yükleyemezsiniz.");
         }
       }
