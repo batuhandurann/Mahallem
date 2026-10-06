@@ -52,6 +52,7 @@ fun ChatScreen(
     onSendMessage: (text: String, isOffer: Boolean, offerPrice: String) -> Unit,
     onSendVoiceNote: (duration: Int) -> Unit = {},
     onSendPhoto: (uri: Uri) -> Unit = {},
+    onMarkRead: () -> Unit = {},
     onCallClick: () -> Unit,
     onReportClick: () -> Unit
 ) {
@@ -68,7 +69,10 @@ fun ChatScreen(
         if (uri != null) onSendPhoto(uri)
     }
 
-    LaunchedEffect(messages.size) {
+    LaunchedEffect(conversation?.id, messages.lastOrNull()?.id) {
+        if (conversation != null && messages.isNotEmpty()) {
+            onMarkRead()
+        }
         if (messages.isNotEmpty()) {
             listState.animateScrollToItem(messages.size - 1)
         }
