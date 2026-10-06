@@ -70,6 +70,16 @@ async function run() {
       contentType: "text/plain",
     })
   );
+  await assertFails(
+    uploadBytes(ref(alice.storage("gs://" + bucket), "users/alice/images/grant-user.png"), validImage, {
+      contentType: "image/png",
+    })
+  );
+  await assertFails(
+    uploadBytes(ref(alice.storage("gs://" + bucket), "users/alice/images/grant.user.jpg"), validImage, {
+      contentType: "image/png",
+    })
+  );
 
   await env.withSecurityRulesDisabled(async (ctx) => {
     await setDoc(doc(ctx.firestore(), "users/alice-deleting"), {
