@@ -27,7 +27,7 @@ service cloud.firestore {
 
     match /jobRequests/{requestId} {
       allow read: if signedIn();
-      allow create: if signedIn() && request.resource.data.ownerId == request.auth.uid && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['ownerId','title','sector','categoryId','district','urgencyMode','eventOrJobDate','eventTime','budgetEstimate','status','createdAt','updatedAt']);
+      allow create: if signedIn() && request.resource.data.ownerId == request.auth.uid && request.resource.data.status == 'PENDING' && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['ownerId','title','sector','categoryId','district','urgencyMode','eventOrJobDate','eventTime','budgetEstimate','status','createdAt','updatedAt']);
       allow update: if isAdmin() || (ownsRequest() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['title','sector','categoryId','district','urgencyMode','eventOrJobDate','eventTime','budgetEstimate','updatedAt']));
       allow delete: if isAdmin() || ownsRequest();
     }
