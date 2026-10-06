@@ -1,7 +1,7 @@
 package com.example.notification
 
 import com.google.firebase.auth.FirebaseAuth
-import com.google.firebase.firestore.FirebaseFirestore
+import com.example.backend.FunctionsRepository
 import com.google.firebase.messaging.FirebaseMessagingService
 import com.google.firebase.messaging.RemoteMessage
 import androidx.core.app.NotificationCompat
@@ -18,8 +18,7 @@ class MahallemFirebaseMessagingService : FirebaseMessagingService() {
         val uid = FirebaseAuth.getInstance().currentUser?.uid ?: return
         CoroutineScope(Dispatchers.IO).launch {
             runCatching {
-                FirebaseFirestore.getInstance().collection("users").document(uid).collection("devices").document(token)
-                    .set(mapOf("platform" to "android", "updatedAt" to com.google.firebase.Timestamp.now())).await()
+                FunctionsRepository().registerDeviceToken(token)
             }
         }
     }
