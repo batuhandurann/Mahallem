@@ -40,6 +40,19 @@ async function run() {
     })
   );
 
+  await env.withSecurityRulesDisabled(async (ctx) => {
+    await setDoc(doc(ctx.firestore(), "users/alice-deleting"), {
+      uid: "alice-deleting",
+      deletionStatus: "REQUESTED",
+    });
+  });
+  const deleting = env.authenticatedContext("alice-deleting");
+  await assertFails(
+    uploadBytes(ref(deleting.storage("gs://" + bucket), "users/alice-deleting/images/blocked.png"), validImage, {
+      contentType: "image/png",
+    })
+  );
+
   await assertFails(
     uploadBytes(ref(alice.storage("gs://" + bucket), "jobRequests/alice/request-1/photo.png"), validImage, {
       contentType: "image/png",
