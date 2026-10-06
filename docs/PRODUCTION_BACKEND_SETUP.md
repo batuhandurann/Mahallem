@@ -64,6 +64,25 @@ The Android app should only receive a payment intent/checkout result.
 
 Never store raw card numbers, CVV, or payment secrets in Mahallem.
 
+## 5.1 PayTR iframe checkout configuration
+
+The Android app never receives PayTR merchant secrets and never collects raw card data. The backend creates the PayTR iframe token and returns only a hosted checkout URL.
+
+Configure these Cloud Functions secrets separately for staging and production:
+
+- `PAYTR_MERCHANT_ID`
+- `PAYTR_MERCHANT_KEY`
+- `PAYTR_MERCHANT_SALT`
+- `PAYTR_OK_URL`
+- `PAYTR_FAIL_URL`
+- `PAYTR_TEST_MODE` (`1` in sandbox/test, `0` in live)
+
+The checkout flow is:
+
+Android -> authenticated/App Check callable -> PayTR token endpoint -> PayTR hosted checkout -> signed PayTR webhook -> Firestore payment state.
+
+The project currently implements the standard PayTR iframe token flow. A true marketplace seller-settlement/escrow model additionally requires the PayTR Marketplace Solution onboarding/approval and merchant-specific sub-merchant configuration. Do not represent the standard tokenized checkout as completed seller payout/escrow until that approval and staging verification are complete.
+
 ## 6. Environments
 
 Use separate Firebase projects for staging and production. Firebase's Google Services Gradle plugin supports build-type-specific `google-services.json` files, so Mahallem uses:
