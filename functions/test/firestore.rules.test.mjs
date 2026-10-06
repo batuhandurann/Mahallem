@@ -504,6 +504,20 @@ async function run() {
     })
   );
 
+  await assertFails(
+    updateDoc(doc(aliceDb, "quotes/quote-state"), {
+      price: "1 TL",
+      updatedAt: new Date(),
+    })
+  );
+
+  await assertFails(
+    updateDoc(doc(bobDb, "quotes/quote-state"), {
+      customerId: "bob",
+      updatedAt: new Date(),
+    })
+  );
+
   await env.withSecurityRulesDisabled(async (ctx) => {
     await setDoc(doc(ctx.firestore(), "jobRequests/quote-state-request"), {
       status: "ACCEPTED",
