@@ -518,6 +518,7 @@ class MarketplaceViewModel(application: Application) : AndroidViewModel(applicat
         jobTitle: String,
         customerName: String,
         district: String,
+        customerEmail: String,
         onReceiptGenerated: (com.example.data.local.DigitalReceiptEntity) -> Unit,
         onCheckoutUrl: (String) -> Unit = { }
     ) {
@@ -532,7 +533,8 @@ class MarketplaceViewModel(application: Application) : AndroidViewModel(applicat
                         requestId = quote.requestId,
                         quoteId = quote.id,
                         amountMinor = quote.amountMinor,
-                        currency = "TRY"
+                        currency = "TRY",
+                        customerEmail = customerEmail
                     )
                 }.onSuccess { intent ->
                     _toastMessage.value = "Güvenli ödeme ekranı açılıyor. Ödeme durumu webhook ile doğrulanacak."
