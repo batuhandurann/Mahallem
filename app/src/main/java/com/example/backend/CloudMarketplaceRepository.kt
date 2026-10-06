@@ -153,16 +153,15 @@ class CloudMarketplaceRepository(
     suspend fun saveQuote(quote: QuoteEntity, providerOwnerId: String) {
         val uid = requireUid()
         require(uid == providerOwnerId) { "Teklifi yalnızca hizmet veren hesabı oluşturabilir." }
-        val requestDoc = firestore.collection("jobRequests").document(quote.requestId.toString()).get().await()
-        val customerId = requestDoc.getString("ownerId") ?: error("Talep sahibi bulunamadı.")
-        firestore.collection("quotes").document(quote.id.toString()).set(
-            mapOf(
-                "providerId" to quote.providerId, "providerOwnerId" to uid,
-                "customerId" to customerId, "requestId" to quote.requestId.toString(),
-                "price" to quote.price, "amountMinor" to quote.amountMinor, "durationOrArrival" to quote.durationOrArrival,
-                "notes" to quote.notes, "status" to quote.status, "createdAt" to quote.createdAt
-            ), SetOptions.merge()
-        ).await()
+        FunctionsRepository().createQuote(
+            quoteId = quote.id,
+            requestId = quote.requestId,
+            providerId = quote.providerId,
+            price = quote.price,
+            amountMinor = quote.amountMinor,
+            durationOrArrival = quote.durationOrArrival,
+            notes = quote.notes
+        )
     }
 
     private fun providerFromDocument(id: String, d: Map<String, Any?>) = ServiceProviderEntity(
