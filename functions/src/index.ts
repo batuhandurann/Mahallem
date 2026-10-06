@@ -264,6 +264,19 @@ export const saveJobRequest = onCall(
 
     const customerPhone = typeof data.customerPhone === "string" ? data.customerPhone.slice(0, 32) : "";
     const phoneVerified = data.phoneVerified === true;
+    const rawArea = Number(data.areaSquareMeters);
+    const rawDuration = Number(data.durationHours);
+    const rawLatitude = Number(data.latitude);
+    const rawLongitude = Number(data.longitude);
+
+    if (
+      (Number.isFinite(rawArea) && (!Number.isSafeInteger(rawArea) || rawArea < 0 || rawArea > 100_000))
+      || (Number.isFinite(rawDuration) && (!Number.isSafeInteger(rawDuration) || rawDuration < 0 || rawDuration > 168))
+      || (Number.isFinite(rawLatitude) && (rawLatitude < -90 || rawLatitude > 90))
+      || (Number.isFinite(rawLongitude) && (rawLongitude < -180 || rawLongitude > 180))
+    ) {
+      throw new HttpsError("invalid-argument", "Geçersiz özel talep ölçü/konum verisi.");
+    }
     if (phoneVerified) {
       const authPhone = typeof request.auth.token.phone_number === "string"
         ? request.auth.token.phone_number
@@ -324,18 +337,18 @@ export const saveJobRequest = onCall(
         customerName: typeof data.customerName === "string" ? data.customerName.slice(0, 120) : "",
         customerPhone,
         phoneVerified,
-        areaSquareMeters: Number.isSafeInteger(Number(data.areaSquareMeters)) ? Number(data.areaSquareMeters) : 0,
+        areaSquareMeters: Number.isSafeInteger(rawArea) ? rawArea : 0,
         roomCount: typeof data.roomCount === "string" ? data.roomCount.slice(0, 32) : "",
         isFurnished: data.isFurnished === true,
         materialsIncluded: data.materialsIncluded === true,
         renovationNotes: typeof data.renovationNotes === "string" ? data.renovationNotes.slice(0, 2000) : "",
         eventType: typeof data.eventType === "string" ? data.eventType.slice(0, 80) : "",
-        durationHours: Number.isSafeInteger(Number(data.durationHours)) ? Number(data.durationHours) : 0,
+        durationHours: Number.isSafeInteger(rawDuration) ? rawDuration : 0,
         targetAgeGroup: typeof data.targetAgeGroup === "string" ? data.targetAgeGroup.slice(0, 80) : "",
         selectedCostumeOrCharacter: typeof data.selectedCostumeOrCharacter === "string" ? data.selectedCostumeOrCharacter.slice(0, 120) : "",
         extraServicesRequested: typeof data.extraServicesRequested === "string" ? data.extraServicesRequested.slice(0, 1000) : "",
-        latitude: Number.isFinite(Number(data.latitude)) ? Number(data.latitude) : 0,
-        longitude: Number.isFinite(Number(data.longitude)) ? Number(data.longitude) : 0,
+        latitude: Number.isFinite(rawLatitude) ? rawLatitude : 0,
+        longitude: Number.isFinite(rawLongitude) ? rawLongitude : 0,
         updatedAt: FieldValue.serverTimestamp(),
       };
       tx.set(privateRef, privateData, { merge: true });
@@ -1435,7 +1448,18 @@ export const syncPublicProvider = onDocumentWritten(
       district: provider.district ?? "",
       city: provider.city ?? "",
       experienceYears: provider.experienceYears ?? 0,
-      serviceArea: provider.serviceArea ?? null,
+      serviceArea: (() => {
+        const area = provider.serviceArea;
+        if (!area || typeof area !== "object") return null;
+        const latitude = Number((area as { latitude?: unknown }).latitude);
+        const longitude = Number((area as { longitude?: unknown }).longitude);
+        if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return null;
+        return {
+          // Public discovery exposes only an approximate area (~1km grid), not exact coordinates.
+          latitude: Math.round(latitude * 100) / 100,
+          longitude: Math.round(longitude * 100) / 100,
+        };
+      })(),
       isOpenForOffers: provider.isOpenForOffers === true,
       createdAt: provider.createdAt ?? FieldValue.serverTimestamp(),
       updatedAt: FieldValue.serverTimestamp(),
