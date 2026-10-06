@@ -41,6 +41,8 @@ assert.match(source, /reportContent/);
 assert.match(source, /updateProviderAvailability/);
 assert.match(source, /markConversationRead/);
 assert.match(source, /conversationState/);
+assert.match(source, /function isValidIsoDate/);
+assert.match(source, /isValidIsoDate\(dateIso\)/);
 assert.match(source, /contentReports/);
 assert.match(source, /where\("reporterUid", "==", uid\)/);
 assert.match(source, /reporterUid: anonymizedId/);
