@@ -474,13 +474,15 @@ export const acceptQuote = onCall({ region: "europe-west1", enforceAppCheck: tru
   });
 
   const alternatives = await db.collection("quotes").where("requestId", "==", acceptedRequestId).get();
-  const batch = db.batch();
-  for (const doc of alternatives.docs) {
-    if (doc.id !== quoteId && doc.data().status === "PENDING") {
-      batch.update(doc.ref, { status: "REJECTED", updatedAt: FieldValue.serverTimestamp() });
-    }
-  }
-  if (!alternatives.empty) await batch.commit();
+  const pendingAlternatives = alternatives.docs.filter(
+    (doc) => doc.id !== quoteId && doc.data().status === "PENDING"
+  );
+  await commitInChunks(pendingAlternatives, (batch, doc) => {
+    batch.update(doc.ref, {
+      status: "REJECTED",
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+  });
 
   return { accepted: true, quoteId };
 });
