@@ -16,3 +16,11 @@
 local.properties
 .env
 debug.keystore
+
+# Firebase environment credentials
+**/google-services.json
+**/service-account*.json
+
+# Signing credentials
+*.jks
+*.keystore
