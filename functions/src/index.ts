@@ -1409,8 +1409,9 @@ export const createQuote = onCall(
 export const acceptQuote = onCall({ region: "europe-west1", enforceAppCheck: true }, async (request) => {
   if (!request.auth) throw new HttpsError("unauthenticated", "Kimlik doğrulaması gerekli.");
     await assertAccountActive(request.auth.uid);
-  const quoteId = String((request.data as Record<string, unknown>).quoteId ?? "");
-  if (!quoteId) throw new HttpsError("invalid-argument", "quoteId gerekli.");
+  const data = callableData(request.data);
+  const quoteId = requireString(data, "quoteId", 80, 1);
+  if (!ID_PATTERN.test(quoteId)) throw new HttpsError("invalid-argument", "Geçersiz teklif kimliği.");
   const quoteRef = db.collection("quotes").doc(quoteId);
   let acceptedRequestId = "";
 
@@ -1534,8 +1535,9 @@ export const reportContent = onCall(
 export const rejectQuote = onCall({ region: "europe-west1", enforceAppCheck: true }, async (request) => {
   if (!request.auth) throw new HttpsError("unauthenticated", "Kimlik doğrulaması gerekli.");
     await assertAccountActive(request.auth.uid);
-  const quoteId = String((request.data as Record<string, unknown>).quoteId ?? "");
-  if (!quoteId) throw new HttpsError("invalid-argument", "quoteId gerekli.");
+  const data = callableData(request.data);
+  const quoteId = requireString(data, "quoteId", 80, 1);
+  if (!ID_PATTERN.test(quoteId)) throw new HttpsError("invalid-argument", "Geçersiz teklif kimliği.");
   const quoteRef = db.collection("quotes").doc(quoteId);
 
   await db.runTransaction(async (tx) => {
@@ -1558,8 +1560,11 @@ export const releaseEscrowPayment = onCall({ region: "europe-west1", enforceAppC
   if (!request.auth) throw new HttpsError("unauthenticated", "Kimlik doğrulaması gerekli.");
     await assertAccountActive(request.auth.uid);
     requireRecentAuthentication(request.auth.token.auth_time);
-  const paymentId = String((request.data as Record<string, unknown>).paymentId ?? "");
-  if (!paymentId) throw new HttpsError("invalid-argument", "paymentId gerekli.");
+  const data = callableData(request.data);
+  const paymentId = requireString(data, "paymentId", 64, 64);
+  if (!/^[a-f0-9]{64}$/.test(paymentId)) {
+    throw new HttpsError("invalid-argument", "Geçersiz ödeme kimliği.");
+  }
   const paymentRef = db.collection("payments").doc(paymentId);
 
   await db.runTransaction(async (tx) => {
