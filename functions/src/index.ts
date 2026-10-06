@@ -149,23 +149,26 @@ export const releaseEscrowPayment = onCall({ region: "europe-west1", enforceAppC
 export const requestRefund = onCall(
   { region: "europe-west1", enforceAppCheck: true },
   async (request) => {
-    if (!request.auth?.token.admin) {
-      throw new HttpsError("permission-denied", "İade işlemi yetkili sunucu işlemi.");
-    }
-
+    if (!request.auth) throw new HttpsError("unauthenticated", "Kimlik doğrulaması gerekli.");
     const paymentId = String((request.data as Record<string, unknown>).paymentId ?? "");
-    if (!paymentId) {
-      throw new HttpsError("invalid-argument", "paymentId gerekli.");
+    if (!paymentId) throw new HttpsError("invalid-argument", "paymentId gerekli.");
+    const paymentRef = db.collection("payments").doc(paymentId);
+    const snap = await paymentRef.get();
+    if (!snap.exists) throw new HttpsError("not-found", "Ödeme bulunamadı.");
+    const payment = snap.data()!;
+    const isAdmin = request.auth.token.admin === true;
+    if (!isAdmin && payment.customerId !== request.auth.uid) {
+      throw new HttpsError("permission-denied", "Bu ödeme için iade talebi açamazsınız.");
     }
-
-    await db.collection("payments").doc(paymentId).set(
-      {
-        status: "REFUND_REQUESTED",
-        updatedAt: FieldValue.serverTimestamp(),
-      },
-      { merge: true }
-    );
-    return { accepted: true, paymentId };
+    if (!["PAID", "HELD", "RELEASE_REQUESTED"].includes(String(payment.status ?? ""))) {
+      throw new HttpsError("failed-precondition", "Ödeme iade için uygun durumda değil.");
+    }
+    await paymentRef.update({
+      status: "REFUND_REQUESTED",
+      refundRequestedBy: request.auth.uid,
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+    return { accepted: true, paymentId, status: "REFUND_REQUESTED" };
   }
 );
 
