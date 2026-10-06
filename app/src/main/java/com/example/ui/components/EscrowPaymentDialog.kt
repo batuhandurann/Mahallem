@@ -4,8 +4,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.CreditCard
-import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.VerifiedUser
 import androidx.compose.material3.*
@@ -25,11 +23,9 @@ fun EscrowPaymentDialog(
     quote: QuoteEntity,
     jobTitle: String,
     onDismiss: () -> Unit,
-    onConfirmPayment: (quote: QuoteEntity) -> Unit
+    onConfirmPayment: (quote: QuoteEntity, customerEmail: String) -> Unit
 ) {
-    var cardNumber by remember { mutableStateOf("•••• •••• •••• 4289") }
-    var cardExpiry by remember { mutableStateOf("11/28") }
-    var cardCvc by remember { mutableStateOf("•••") }
+    var customerEmail by remember { mutableStateOf("") }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -43,8 +39,8 @@ fun EscrowPaymentDialog(
                 )
                 Spacer(modifier = Modifier.width(8.dp))
                 Column {
-                    Text("Mahallemde Güvenli Havuz", fontWeight = FontWeight.Bold, fontSize = 16.sp)
-                    Text("Escrow Korumalı Ödeme", fontSize = 11.sp, color = Slate500)
+                    Text("Güvenli Ödeme", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                    Text("PayTR ödeme ekranına yönlendirileceksin", fontSize = 11.sp, color = Slate500)
                 }
             }
         },
@@ -63,7 +59,7 @@ fun EscrowPaymentDialog(
                         Icon(Icons.Default.VerifiedUser, contentDescription = null, tint = TealPrimary, modifier = Modifier.size(20.dp))
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
-                            text = "Paranız ustaya hemen aktarılmaz. Hizmet tamamlanıp siz memnuniyetinizi onaylayana kadar havuzda kilitli kalır.",
+                            text = "Kart bilgilerinizi Mahallem'e girmeyin. Ödeme PayTR'nin güvenli ödeme sayfasında yapılır ve sonucu sunucu webhook ile doğrular.",
                             fontSize = 11.5.sp,
                             color = OnTealContainer,
                             lineHeight = 16.sp
@@ -92,50 +88,36 @@ fun EscrowPaymentDialog(
                     }
                 }
 
-                // Simulated card inputs
-                Text("Ödeme Yöntemi", fontWeight = FontWeight.Bold, fontSize = 12.sp)
-
                 OutlinedTextField(
-                    value = cardNumber,
-                    onValueChange = { cardNumber = it },
-                    label = { Text("Kart Numarası") },
-                    leadingIcon = { Icon(Icons.Default.CreditCard, contentDescription = null, tint = Slate500) },
+                    value = customerEmail,
+                    onValueChange = { customerEmail = it.take(190) },
+                    label = { Text("Ödeme e-postası") },
+                    placeholder = { Text("ornek@mail.com") },
                     singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier.fillMaxWidth(),
+                    supportingText = { Text("PayTR ödeme işlemi için kullanılır.") }
                 )
 
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedTextField(
-                        value = cardExpiry,
-                        onValueChange = { cardExpiry = it },
-                        label = { Text("SKT") },
-                        singleLine = true,
-                        modifier = Modifier.weight(1f)
-                    )
-                    OutlinedTextField(
-                        value = cardCvc,
-                        onValueChange = { cardCvc = it },
-                        label = { Text("CVV") },
-                        singleLine = true,
-                        modifier = Modifier.weight(1f)
-                    )
-                }
-
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Default.Lock, contentDescription = null, tint = SafeBadgeGreen, modifier = Modifier.size(14.dp))
+                    Icon(Icons.Default.Security, contentDescription = null, tint = SafeBadgeGreen, modifier = Modifier.size(14.dp))
                     Spacer(modifier = Modifier.width(4.dp))
-                    Text("256-bit SSL ve BDDK Lisanslı Güvenli Ödeme Altyapısı", fontSize = 10.sp, color = Slate500)
+                    Text("Kart bilgileri Mahallem'de saklanmaz.", fontSize = 10.sp, color = Slate500)
                 }
             }
         },
         confirmButton = {
             Button(
-                onClick = { onConfirmPayment(quote) },
+                onClick = {
+                    val email = customerEmail.trim()
+                    if (Regex("^[A-Za-z0-9._%+-]{1,100}@[A-Za-z0-9.-]{1,190}\\.[A-Za-z]{2,63}$").matches(email)) {
+                        onConfirmPayment(quote, email)
+                    }
+                },
                 colors = ButtonDefaults.buttonColors(containerColor = TealPrimary),
                 shape = RoundedCornerShape(10.dp),
                 modifier = Modifier.testTag("btn_confirm_escrow_pay")
             ) {
-                Text("Havuzda Bloke Et & Başlat (${quote.price})", fontWeight = FontWeight.Bold)
+                Text("Güvenli ödeme ekranını aç (${quote.price})", fontWeight = FontWeight.Bold)
             }
         },
         dismissButton = {
