@@ -76,6 +76,18 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
+    match /publicProviders/{providerId} {
+      allow get: if accountActive();
+      allow list: if accountActive() && request.query.limit <= 100;
+      allow create, update, delete: if false;
+    }
+
+    match /publicJobRequests/{requestId} {
+      allow get: if accountActive();
+      allow list: if accountActive() && request.query.limit <= 100;
+      allow create, update, delete: if false;
+    }
+
     match /jobRequests/{requestId} {
       allow get: if isAdmin() || (accountActive() && resource.data.ownerId == request.auth.uid);
       allow list: if isAdmin() || (accountActive()
