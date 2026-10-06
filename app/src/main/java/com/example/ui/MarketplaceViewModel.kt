@@ -97,6 +97,12 @@ class MarketplaceViewModel(application: Application) : AndroidViewModel(applicat
     private val _selectedDistrict = MutableStateFlow("Tüm İlçeler")
     val selectedDistrict: StateFlow<String> = _selectedDistrict.asStateFlow()
 
+    private val _lastPaymentId = MutableStateFlow<String?>(null)
+    val lastPaymentId: StateFlow<String?> = _lastPaymentId.asStateFlow()
+
+    private val _paymentStatus = MutableStateFlow<String?>(null)
+    val paymentStatus: StateFlow<String?> = _paymentStatus.asStateFlow()
+
     private val _toastMessage = MutableStateFlow<String?>(null)
     val toastMessage: StateFlow<String?> = _toastMessage.asStateFlow()
 
@@ -537,7 +543,9 @@ class MarketplaceViewModel(application: Application) : AndroidViewModel(applicat
                         customerEmail = customerEmail
                     )
                 }.onSuccess { intent ->
-                    _toastMessage.value = "Güvenli ödeme ekranı açılıyor. Ödeme durumu webhook ile doğrulanacak."
+                    _lastPaymentId.value = intent.id
+                    _paymentStatus.value = "PENDING"
+                    _toastMessage.value = "Güvenli ödeme ekranı açılıyor. Ödeme sonucu sunucudan doğrulanacak."
                     onCheckoutUrl(intent.checkoutUrl)
                 }.onFailure {
                     _toastMessage.value = it.message ?: "Ödeme başlatılamadı."
@@ -564,6 +572,21 @@ class MarketplaceViewModel(application: Application) : AndroidViewModel(applicat
                 createdAtDate = "05.10.2026", district = district
             )
             onReceiptGenerated(receipt)
+        }
+    }
+
+    fun refreshLastPaymentStatus() {
+        val paymentId = _lastPaymentId.value ?: return
+        if (AppEnvironment.mode == AppEnvironment.Mode.LOCAL) return
+
+        viewModelScope.launch {
+            runCatching {
+                com.example.backend.FunctionsRepository().getPaymentStatus(paymentId)
+            }.onSuccess { data ->
+                _paymentStatus.value = data["status"]?.toString()
+            }.onFailure {
+                _toastMessage.value = it.message ?: "Ödeme durumu alınamadı."
+            }
         }
     }
 
