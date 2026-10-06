@@ -1,6 +1,8 @@
 package com.example
 
 import android.os.Bundle
+import android.content.Intent
+import android.net.Uri
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -428,6 +430,13 @@ private fun MarketplaceContent(
                             district = req.district,
                             onReceiptGenerated = { receipt ->
                                 activeReceipt = receipt
+                            },
+                            onCheckoutUrl = { url ->
+                                runCatching {
+                                    startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
+                                }.onFailure {
+                                    snackbarHostState.showSnackbar("Ödeme sayfası açılamadı.")
+                                }
                             }
                         )
                         escrowTargetQuote = null
