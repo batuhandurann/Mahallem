@@ -149,15 +149,26 @@ export const sendMessage = onCall(
       throw new HttpsError("invalid-argument", "Fotoğraf mesajı için ek dosya gerekli.");
     }
     if (attachmentUrl) {
+      if (attachmentUrl.includes("..") || attachmentUrl.includes("?") || attachmentUrl.includes("#")) {
+        throw new HttpsError("invalid-argument", "Geçersiz medya yolu.");
+      }
+
       const allowedPrefixes = [
         "users/" + request.auth.uid + "/images/",
         "jobRequests/" + request.auth.uid + "/",
+        "chatAttachments/" + conversationId + "/" + request.auth.uid + "/",
       ];
       if (!allowedPrefixes.some((prefix) => attachmentUrl.startsWith(prefix))) {
         throw new HttpsError("permission-denied", "Bu medya dosyasına mesajda erişim yetkiniz yok.");
       }
-      if (attachmentUrl.includes("..") || attachmentUrl.includes("?") || attachmentUrl.includes("#")) {
-        throw new HttpsError("invalid-argument", "Geçersiz medya yolu.");
+
+      if (
+        attachmentUrl.startsWith("chatAttachments/") &&
+        !attachmentUrl.startsWith(
+          "chatAttachments/" + conversationId + "/" + request.auth.uid + "/"
+        )
+      ) {
+        throw new HttpsError("permission-denied", "Sohbet medya yolu geçersiz.");
       }
     }
 
