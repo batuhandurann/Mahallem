@@ -12,6 +12,7 @@ import com.example.data.model.SectorType
 import com.example.data.model.UrgencyMode
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.first
 
 class MarketplaceRepository(private val dao: AppDao) {
 
@@ -191,7 +192,9 @@ class MarketplaceRepository(private val dao: AppDao) {
         relatedItemTitle: String
     ): String {
         val convId = "conv-$participantId"
-        val existing = dao.getAllConversations()
+        if (dao.getConversationById(convId).first() != null) {
+            return convId
+        }
         val conv = ConversationEntity(
             id = convId,
             participantId = participantId,
