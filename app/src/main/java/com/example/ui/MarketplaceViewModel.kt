@@ -166,8 +166,13 @@ class MarketplaceViewModel(application: Application) : AndroidViewModel(applicat
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     // --- Quotes Flow ---
-    val allQuotes: StateFlow<List<QuoteEntity>> = repository.getAllQuotes()
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+    val allQuotes: StateFlow<List<QuoteEntity>> = if (AppEnvironment.mode == AppEnvironment.Mode.LOCAL) {
+        repository.getAllQuotes()
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+    } else {
+        cloudRepository.observeQuotes()
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+    }
 
     // --- Conversations List Flow (In-App Messaging) ---
     val conversations: StateFlow<List<ConversationEntity>> = if (AppEnvironment.mode == AppEnvironment.Mode.LOCAL) {
@@ -391,9 +396,31 @@ class MarketplaceViewModel(application: Application) : AndroidViewModel(applicat
         jobTitle: String,
         customerName: String,
         district: String,
-        onReceiptGenerated: (com.example.data.local.DigitalReceiptEntity) -> Unit
+        onReceiptGenerated: (com.example.data.local.DigitalReceiptEntity) -> Unit,
+        onCheckoutUrl: (String) -> Unit = { }
     ) {
         viewModelScope.launch {
+            if (AppEnvironment.mode != AppEnvironment.Mode.LOCAL) {
+                if (quote.amountMinor <= 0L) {
+                    _toastMessage.value = "Bu teklif gerçek ödeme için güvenilir tutar içermiyor."
+                    return@launch
+                }
+                runCatching {
+                    com.example.integration.ProductionPaymentGateway().createPayment(
+                        requestId = quote.requestId,
+                        quoteId = quote.id,
+                        amountMinor = quote.amountMinor,
+                        currency = "TRY"
+                    )
+                }.onSuccess { intent ->
+                    _toastMessage.value = "Güvenli ödeme ekranı açılıyor. Ödeme durumu webhook ile doğrulanacak."
+                    onCheckoutUrl(intent.checkoutUrl)
+                }.onFailure {
+                    _toastMessage.value = it.message ?: "Ödeme başlatılamadı."
+                }
+                return@launch
+            }
+
             val code = repository.fundEscrowPayment(
                 requestId = quote.requestId,
                 quoteId = quote.id,
@@ -404,20 +431,13 @@ class MarketplaceViewModel(application: Application) : AndroidViewModel(applicat
                 providerTitle = quote.providerTitle,
                 district = district
             )
-            _toastMessage.value = "Ödeme Mahallemde Güvenli Havuzu'nda bloke edildi! 🔒"
+            _toastMessage.value = "Demo ödemesi yerel test havuzuna işlendi. Gerçek para hareketi yok."
             val receipt = com.example.data.local.DigitalReceiptEntity(
-                receiptCode = code,
-                requestId = quote.requestId,
-                quoteId = quote.id,
-                jobTitle = jobTitle,
-                customerName = customerName,
-                providerName = quote.providerName,
-                providerTitle = quote.providerTitle,
-                totalAmount = quote.price,
-                escrowStatus = "LOCKED",
+                receiptCode = code, requestId = quote.requestId, quoteId = quote.id,
+                jobTitle = jobTitle, customerName = customerName, providerName = quote.providerName,
+                providerTitle = quote.providerTitle, totalAmount = quote.price, escrowStatus = "LOCKED",
                 warrantyInfo = "2 Yıl İşçilik & Malzeme Mahallemde Güvencesi",
-                createdAtDate = "05.10.2026",
-                district = district
+                createdAtDate = "05.10.2026", district = district
             )
             onReceiptGenerated(receipt)
         }
