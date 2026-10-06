@@ -267,6 +267,12 @@ export const startConversation = onCall(
       if (providerQuery.empty) {
         throw new HttpsError("permission-denied", "Bu talep için sohbet başlatma yetkiniz yok.");
       }
+
+      const provider = providerQuery.docs[0].data();
+      if (provider.isOpenForOffers !== true) {
+        throw new HttpsError("permission-denied", "Hizmet sağlayıcınız yeni taleplere kapalı.");
+      }
+
       await assertAccountActive(participantUid);
     } else {
       const providerSnap = await db.collection("providers").doc(targetId).get();
