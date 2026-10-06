@@ -19,12 +19,15 @@ import com.example.data.repository.MarketplaceRepository
 import com.example.core.AppEnvironment
 import com.example.payment.parseTryAmountMinor
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
@@ -84,6 +87,11 @@ class MarketplaceViewModel(application: Application) : AndroidViewModel(applicat
     private val _searchQuery = MutableStateFlow("")
     val searchQuery: StateFlow<String> = _searchQuery.asStateFlow()
 
+    @OptIn(FlowPreview::class)
+    private val debouncedSearchQuery = _searchQuery
+        .debounce(SEARCH_DEBOUNCE_MS)
+        .distinctUntilChanged()
+
     private val _selectedDistrict = MutableStateFlow("Tüm İlçeler")
     val selectedDistrict: StateFlow<String> = _selectedDistrict.asStateFlow()
 
@@ -115,7 +123,7 @@ class MarketplaceViewModel(application: Application) : AndroidViewModel(applicat
         _selectedSector,
         _selectedUrgency,
         _selectedCategory,
-        _searchQuery,
+        debouncedSearchQuery,
         _selectedDistrict
     ) { sector, urgency, category, query, district ->
         FilterState(sector, urgency, category, query, district)
@@ -145,7 +153,7 @@ class MarketplaceViewModel(application: Application) : AndroidViewModel(applicat
         _selectedSector,
         _selectedUrgency,
         _selectedCategory,
-        _searchQuery,
+        debouncedSearchQuery,
         _selectedDistrict
     ) { sector, urgency, category, query, district ->
         FilterState(sector, urgency, category, query, district)
@@ -250,7 +258,7 @@ class MarketplaceViewModel(application: Application) : AndroidViewModel(applicat
     }
 
     fun setSearchQuery(query: String) {
-        _searchQuery.value = query
+        _searchQuery.value = normalizeSearchQuery(query)
     }
 
     fun setDistrict(district: String) {
@@ -753,6 +761,12 @@ class MarketplaceViewModel(application: Application) : AndroidViewModel(applicat
         }
     }
 }
+
+internal const val MAX_SEARCH_QUERY_LENGTH = 80
+internal const val SEARCH_DEBOUNCE_MS = 250L
+
+internal fun normalizeSearchQuery(query: String): String =
+    query.trim().take(MAX_SEARCH_QUERY_LENGTH)
 
 private data class FilterState(
     val sector: SectorType,
