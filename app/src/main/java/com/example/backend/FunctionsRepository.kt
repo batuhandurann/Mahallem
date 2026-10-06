@@ -33,7 +33,8 @@ class FunctionsRepository(
         quoteId: Long,
         amountMinor: Long,
         currency: String = "TRY",
-        idempotencyKey: String
+        idempotencyKey: String,
+        customerEmail: String? = null
     ): Map<*, *> {
         require(idempotencyKey.matches(Regex("^[A-Za-z0-9._:-]{16,128}$"))) {
             "Geçersiz ödeme idempotency anahtarı."
@@ -46,7 +47,8 @@ class FunctionsRepository(
                     "quoteId" to quoteId.toString(),
                     "amountMinor" to amountMinor,
                     "idempotencyKey" to idempotencyKey,
-                    "currency" to currency
+                    "currency" to currency,
+                    "customerEmail" to customerEmail
                 )
             )
             .await()
