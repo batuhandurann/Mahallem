@@ -82,8 +82,10 @@ service firebase.storage {
         && request.auth.uid in firestore.get(
           /databases/(default)/documents/conversations/$(conversationId)
         ).data.participantIds
-        && firestore.exists(/databases/(default)/documents/users/$(request.auth.uid)/uploadGrants/$(grantId))
-        && firestore.get(/databases/(default)/documents/users/$(request.auth.uid)/uploadGrants/$(grantId)).data.validated == true;
+        && firestore.exists(/databases/(default)/documents/users/$(senderUid)/uploadGrants/$(grantId))
+        && firestore.get(/databases/(default)/documents/users/$(senderUid)/uploadGrants/$(grantId)).data.kind == 'CHAT'
+        && firestore.get(/databases/(default)/documents/users/$(senderUid)/uploadGrants/$(grantId)).data.conversationId == conversationId
+        && firestore.get(/databases/(default)/documents/users/$(senderUid)/uploadGrants/$(grantId)).data.validated == true;
       allow write: if accountActive(senderUid)
         && request.auth.uid == senderUid
         && resource == null
