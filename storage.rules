@@ -10,9 +10,9 @@ service firebase.storage {
 
     function accountActive(uid) {
       return signedIn()
-        && (!firestore.exists(/databases/(default)/documents/users/$(uid))
-          || (firestore.get(/databases/(default)/documents/users/$(uid)).data.deletionStatus != 'REQUESTED'
-              && firestore.get(/databases/(default)/documents/users/$(uid)).data.deletionStatus != 'PURGING'));
+        && firestore.exists(/databases/(default)/documents/users/$(uid))
+        && firestore.get(/databases/(default)/documents/users/$(uid)).data.deletionStatus != 'REQUESTED'
+        && firestore.get(/databases/(default)/documents/users/$(uid)).data.deletionStatus != 'PURGING';
     }
 
     function safeImage() {
