@@ -77,7 +77,7 @@ class MarketplaceRepositoryTest {
             totalAmount = "1.000 ₺", escrowStatus = "LOCKED",
             warrantyInfo = "2 Yıl", createdAtDate = "06.10.2026", district = "Kadıköy"
         )
-        val dao = FakeDao(receipt = receipt)
+        val dao = FakeDao(initialReceipt = receipt)
         val repo = MarketplaceRepository(dao)
 
         repo.releaseEscrowPayment(42, 7, receipt.receiptCode)
@@ -140,15 +140,16 @@ class MarketplaceRepositoryTest {
 
     private class FakeDao(
         providers: List<ServiceProviderEntity> = emptyList(),
-        requests: List<JobRequestEntity> = emptyList()
+        requests: List<JobRequestEntity> = emptyList(),
+        initialReceipt: DigitalReceiptEntity? = null
     ) : AppDao {
-        private var storedReceipt: DigitalReceiptEntity? = receipt
+        private var storedReceipt: DigitalReceiptEntity? = initialReceipt
         private val providersFlow = MutableStateFlow(providers)
         private val requestsFlow = MutableStateFlow(requests)
         val favoriteUpdates = mutableListOf<Boolean>()
         val requestStatuses = mutableMapOf<Long, String>()
         val insertedQuotes = mutableListOf<QuoteEntity>()
-        var receipt: DigitalReceiptEntity? = receipt
+        val receipt: DigitalReceiptEntity? get() = storedReceipt
 
         override fun getAllProviders(): Flow<List<ServiceProviderEntity>> = providersFlow
         override fun getProvidersBySector(sector: String): Flow<List<ServiceProviderEntity>> = flowOf(emptyList())
