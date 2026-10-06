@@ -1,53 +1,63 @@
 rules_version = '2';
 
 service cloud.firestore {
-  match /databases/\$(database)/documents {
+  match /databases/{database}/documents {
     function signedIn() { return request.auth != null; }
-    function isAdmin() {
-      return signedIn()
-        && exists(/databases/\$(database)/documents/users/\$(request.auth.uid))
-        && get(/databases/\$(database)/documents/users/\$(request.auth.uid)).data.role == "admin";
-    }
-    function isOwner(uid) { return signedIn() && request.auth.uid == uid; }
-    function isParticipant() {
-      return signedIn() && request.auth.uid in resource.data.participantIds;
-    }
+    function isAdmin() { return signedIn() && request.auth.token.admin == true; }
+    function ownsUser(uid) { return signedIn() && request.auth.uid == uid; }
+    function ownsProvider() { return signedIn() && resource.data.ownerId == request.auth.uid; }
+    function ownsRequest() { return signedIn() && resource.data.ownerId == request.auth.uid; }
 
     match /users/{uid} {
-      allow read: if isOwner(uid) || isAdmin();
-      allow create: if isOwner(uid) && request.resource.data.uid == uid;
-      allow update, delete: if isOwner(uid) || isAdmin();
+      allow read: if ownsUser(uid) || isAdmin();
+      allow create: if ownsUser(uid) && request.resource.data.uid == uid && (!('role' in request.resource.data) || request.resource.data.role == 'user');
+      allow update: if isAdmin() || (ownsUser(uid) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['displayName','photoUrl','district','city','language','notificationPreferences','updatedAt']));
+      allow delete: if ownsUser(uid) || isAdmin();
     }
+
     match /providers/{providerId} {
       allow read: if signedIn();
-      allow create: if signedIn() && request.resource.data.ownerId == request.auth.uid;
-      allow update, delete: if signedIn() && (resource.data.ownerId == request.auth.uid || isAdmin());
+      allow create: if signedIn() && request.resource.data.ownerId == request.auth.uid && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['ownerId','displayName','title','bio','sector','categoryId','district','city','experienceYears','serviceArea','isOpenForOffers','createdAt','updatedAt']);
+      allow update: if isAdmin() || (ownsProvider() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['displayName','title','bio','sector','categoryId','district','city','experienceYears','serviceArea','isOpenForOffers','updatedAt']));
+      allow delete: if isAdmin() || ownsProvider();
     }
+
     match /jobRequests/{requestId} {
       allow read: if signedIn();
-      allow create: if signedIn() && request.resource.data.ownerId == request.auth.uid;
-      allow update, delete: if signedIn() && (resource.data.ownerId == request.auth.uid || isAdmin());
+      allow create: if signedIn() && request.resource.data.ownerId == request.auth.uid && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['ownerId','title','sector','categoryId','district','urgencyMode','eventOrJobDate','eventTime','budgetEstimate','status','createdAt','updatedAt']);
+      allow update: if isAdmin() || (ownsRequest() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['title','sector','categoryId','district','urgencyMode','eventOrJobDate','eventTime','budgetEstimate','updatedAt']));
+      allow delete: if isAdmin() || ownsRequest();
     }
+
+    match /jobRequestPrivate/{requestId} {
+      allow read, create, update, delete: if isAdmin() || (signedIn() && resource.data.ownerId == request.auth.uid);
+    }
+
     match /quotes/{quoteId} {
-      allow read: if signedIn() && (resource.data.customerId == request.auth.uid || resource.data.providerId == request.auth.uid || isAdmin());
+      allow read: if isAdmin() || (signedIn() && (resource.data.customerId == request.auth.uid || resource.data.providerId == request.auth.uid));
       allow create: if signedIn() && request.resource.data.providerId == request.auth.uid;
-      allow update: if signedIn() && (resource.data.customerId == request.auth.uid || resource.data.providerId == request.auth.uid || isAdmin());
+      allow update: if isAdmin() || (signedIn() && (resource.data.customerId == request.auth.uid || resource.data.providerId == request.auth.uid) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['price','durationOrArrival','notes','status','updatedAt']));
       allow delete: if isAdmin();
     }
+
     match /conversations/{conversationId} {
-      allow read: if isParticipant() || isAdmin();
+      allow read: if isAdmin() || (signedIn() && request.auth.uid in resource.data.participantIds);
       allow create: if signedIn() && request.auth.uid in request.resource.data.participantIds;
-      allow update: if isParticipant() || isAdmin();
+      allow update: if isAdmin() || (signedIn() && request.auth.uid in resource.data.participantIds && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['lastMessageAt','lastMessagePreview','updatedAt']));
       allow delete: if isAdmin();
     }
+
     match /messages/{messageId} {
-      allow read: if isParticipant() || isAdmin();
+      allow read: if isAdmin() || (signedIn() && resource.data.conversationId is string && request.auth.uid in get(/databases/$(database)/documents/conversations/$(resource.data.conversationId)).data.participantIds);
       allow create: if signedIn() && request.resource.data.senderId == request.auth.uid && request.auth.uid in request.resource.data.participantIds;
       allow update, delete: if isAdmin();
     }
+
     match /payments/{paymentId} {
-      allow read: if signedIn() && (resource.data.customerId == request.auth.uid || resource.data.providerId == request.auth.uid || isAdmin());
+      allow read: if isAdmin() || (signedIn() && (resource.data.customerId == request.auth.uid || resource.data.providerId == request.auth.uid));
       allow create, update, delete: if isAdmin();
     }
+
+    match /_admin/{document=**} { allow read, write: if isAdmin(); }
   }
 }
