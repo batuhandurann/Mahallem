@@ -39,6 +39,13 @@ android {
       proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
       signingConfig = signingConfigs.getByName("release")
     }
+    create("staging") {
+      initWith(getByName("debug"))
+      matchingFallbacks += listOf("debug")
+      applicationIdSuffix = ".staging"
+      versionNameSuffix = "-staging"
+      // Staging uses non-production credentials and sandbox integrations.
+    }
     debug {
       // Use Android's default debug signing configuration so fresh clones and CI
       // do not depend on a repository-local debug.keystore.
