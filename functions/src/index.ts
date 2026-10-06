@@ -119,6 +119,7 @@ export const createPaymentIntent = onCall(
       .update(request.auth.uid + ":" + idempotencyKey)
       .digest("hex");
     const rateLimitRef = db.collection("rateLimits").doc("payment-intent:" + request.auth.uid);
+    const hourlyRateLimitRef = db.collection("rateLimits").doc("payment-intent-hour:" + request.auth.uid);
     const paymentRef = db.collection("payments").doc(idemHash);
 
     const existing = await paymentRef.get();
@@ -139,20 +140,35 @@ export const createPaymentIntent = onCall(
     }
 
     await db.runTransaction(async (tx) => {
-      const rateLimitSnap = await tx.get(rateLimitRef);
+      const [rateLimitSnap, hourlyRateSnap] = await Promise.all([
+        tx.get(rateLimitRef),
+        tx.get(hourlyRateLimitRef),
+      ]);
       const rate = rateLimitSnap.exists ? rateLimitSnap.data()! : {};
+      const hourlyRate = hourlyRateSnap.exists ? hourlyRateSnap.data()! : {};
       const windowStart = Number(rate.windowStartMs ?? 0);
       const count = Number(rate.count ?? 0);
+      const hourWindowStart = Number(hourlyRate.windowStartMs ?? 0);
+      const hourCount = Number(hourlyRate.count ?? 0);
       const now = Date.now();
       const activeWindow = Number.isSafeInteger(windowStart) && now - windowStart < 60_000;
+      const activeHourWindow = Number.isSafeInteger(hourWindowStart) && now - hourWindowStart < 3_600_000;
 
       if (activeWindow && count >= 5) {
         throw new HttpsError("resource-exhausted", "Çok fazla ödeme denemesi. Lütfen biraz sonra tekrar deneyin.");
+      }
+      if (activeHourWindow && hourCount >= 20) {
+        throw new HttpsError("resource-exhausted", "Saatlik ödeme denemesi kotanıza ulaştınız.");
       }
 
       tx.set(rateLimitRef, {
         windowStartMs: activeWindow ? windowStart : now,
         count: activeWindow ? count + 1 : 1,
+        updatedAt: FieldValue.serverTimestamp(),
+      }, { merge: true });
+      tx.set(hourlyRateLimitRef, {
+        windowStartMs: activeHourWindow ? hourWindowStart : now,
+        count: activeHourWindow ? hourCount + 1 : 1,
         updatedAt: FieldValue.serverTimestamp(),
       }, { merge: true });
     });
@@ -294,13 +310,19 @@ export const sendMessage = onCall(
     const rateLimitRef = db.collection("rateLimits").doc(
       "message:" + request.auth.uid
     );
+    const hourlyRateLimitRef = db.collection("rateLimits").doc(
+      "message-hour:" + request.auth.uid
+    );
 
     const messageRef = db.collection("messages").doc();
     const now = Date.now();
 
     await db.runTransaction(async (tx) => {
       const conversationSnap = await tx.get(conversationRef);
-      const rateLimitSnap = await tx.get(rateLimitRef);
+      const [rateLimitSnap, hourlyRateSnap] = await Promise.all([
+        tx.get(rateLimitRef),
+        tx.get(hourlyRateLimitRef),
+      ]);
 
       if (!conversationSnap.exists) {
         throw new HttpsError("not-found", "Sohbet bulunamadı.");
@@ -312,20 +334,29 @@ export const sendMessage = onCall(
       }
 
       const rate = rateLimitSnap.exists ? rateLimitSnap.data()! : {};
+      const hourlyRate = hourlyRateSnap.exists ? hourlyRateSnap.data()! : {};
       const windowStart = Number(rate.windowStartMs ?? 0);
       const count = Number(rate.count ?? 0);
-      const windowMs = 60_000;
-
-      const activeWindow = Number.isSafeInteger(windowStart)
-        && now - windowStart < windowMs;
+      const hourWindowStart = Number(hourlyRate.windowStartMs ?? 0);
+      const hourCount = Number(hourlyRate.count ?? 0);
+      const activeWindow = Number.isSafeInteger(windowStart) && now - windowStart < 60_000;
+      const activeHourWindow = Number.isSafeInteger(hourWindowStart) && now - hourWindowStart < 3_600_000;
 
       if (activeWindow && count >= 30) {
         throw new HttpsError("resource-exhausted", "Çok fazla mesaj gönderildi. Lütfen biraz sonra tekrar deneyin.");
+      }
+      if (activeHourWindow && hourCount >= 500) {
+        throw new HttpsError("resource-exhausted", "Saatlik mesaj kotanıza ulaştınız.");
       }
 
       tx.set(rateLimitRef, {
         windowStartMs: activeWindow ? windowStart : now,
         count: activeWindow ? count + 1 : 1,
+        updatedAt: FieldValue.serverTimestamp(),
+      }, { merge: true });
+      tx.set(hourlyRateLimitRef, {
+        windowStartMs: activeHourWindow ? hourWindowStart : now,
+        count: activeHourWindow ? hourCount + 1 : 1,
         updatedAt: FieldValue.serverTimestamp(),
       }, { merge: true });
 
@@ -432,25 +463,41 @@ export const startConversation = onCall(
 
     const ref = db.collection("conversations").doc(conversationId);
     const rateLimitRef = db.collection("rateLimits").doc("conversation:" + request.auth.uid);
+    const hourlyRateLimitRef = db.collection("rateLimits").doc("conversation-hour:" + request.auth.uid);
     const now = Date.now();
 
     await db.runTransaction(async (tx) => {
       const existing = await tx.get(ref);
       if (existing.exists) return;
 
-      const rateLimitSnap = await tx.get(rateLimitRef);
+      const [rateLimitSnap, hourlyRateSnap] = await Promise.all([
+        tx.get(rateLimitRef),
+        tx.get(hourlyRateLimitRef),
+      ]);
       const rate = rateLimitSnap.exists ? rateLimitSnap.data()! : {};
+      const hourlyRate = hourlyRateSnap.exists ? hourlyRateSnap.data()! : {};
       const windowStart = Number(rate.windowStartMs ?? 0);
       const count = Number(rate.count ?? 0);
+      const hourWindowStart = Number(hourlyRate.windowStartMs ?? 0);
+      const hourCount = Number(hourlyRate.count ?? 0);
       const activeWindow = Number.isSafeInteger(windowStart) && now - windowStart < 60_000;
+      const activeHourWindow = Number.isSafeInteger(hourWindowStart) && now - hourWindowStart < 3_600_000;
 
       if (activeWindow && count >= 10) {
         throw new HttpsError("resource-exhausted", "Çok fazla yeni sohbet başlatıldı. Lütfen biraz sonra tekrar deneyin.");
+      }
+      if (activeHourWindow && hourCount >= 100) {
+        throw new HttpsError("resource-exhausted", "Saatlik yeni sohbet kotanıza ulaştınız.");
       }
 
       tx.set(rateLimitRef, {
         windowStartMs: activeWindow ? windowStart : now,
         count: activeWindow ? count + 1 : 1,
+        updatedAt: FieldValue.serverTimestamp(),
+      }, { merge: true });
+      tx.set(hourlyRateLimitRef, {
+        windowStartMs: activeHourWindow ? hourWindowStart : now,
+        count: activeHourWindow ? hourCount + 1 : 1,
         updatedAt: FieldValue.serverTimestamp(),
       }, { merge: true });
 
@@ -494,13 +541,15 @@ export const createQuote = onCall(
     const requestRef = db.collection("jobRequests").doc(requestId);
     const quoteRef = db.collection("quotes").doc(quoteId);
     const rateLimitRef = db.collection("rateLimits").doc("quote:" + request.auth.uid);
+    const hourlyRateLimitRef = db.collection("rateLimits").doc("quote-hour:" + request.auth.uid);
 
     await db.runTransaction(async (tx) => {
-      const [providerSnap, requestSnap, quoteSnap, rateSnap] = await Promise.all([
+      const [providerSnap, requestSnap, quoteSnap, rateSnap, hourlyRateSnap] = await Promise.all([
         tx.get(providerRef),
         tx.get(requestRef),
         tx.get(quoteRef),
         tx.get(rateLimitRef),
+        tx.get(hourlyRateLimitRef),
       ]);
 
       if (!providerSnap.exists || providerSnap.data()?.ownerId !== request.auth!.uid) {
@@ -523,17 +572,29 @@ export const createQuote = onCall(
       }
 
       const rate = rateSnap.exists ? rateSnap.data()! : {};
+      const hourlyRate = hourlyRateSnap.exists ? hourlyRateSnap.data()! : {};
       const windowStart = Number(rate.windowStartMs ?? 0);
       const count = Number(rate.count ?? 0);
+      const hourWindowStart = Number(hourlyRate.windowStartMs ?? 0);
+      const hourCount = Number(hourlyRate.count ?? 0);
       const now = Date.now();
       const activeWindow = Number.isSafeInteger(windowStart) && now - windowStart < 60_000;
+      const activeHourWindow = Number.isSafeInteger(hourWindowStart) && now - hourWindowStart < 3_600_000;
       if (activeWindow && count >= 20) {
         throw new HttpsError("resource-exhausted", "Çok fazla teklif gönderildi. Lütfen biraz sonra tekrar deneyin.");
+      }
+      if (activeHourWindow && hourCount >= 200) {
+        throw new HttpsError("resource-exhausted", "Saatlik teklif kotanıza ulaştınız.");
       }
 
       tx.set(rateLimitRef, {
         windowStartMs: activeWindow ? windowStart : now,
         count: activeWindow ? count + 1 : 1,
+        updatedAt: FieldValue.serverTimestamp(),
+      }, { merge: true });
+      tx.set(hourlyRateLimitRef, {
+        windowStartMs: activeHourWindow ? hourWindowStart : now,
+        count: activeHourWindow ? hourCount + 1 : 1,
         updatedAt: FieldValue.serverTimestamp(),
       }, { merge: true });
 
