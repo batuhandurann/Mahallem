@@ -7,6 +7,7 @@ import com.example.data.model.SectorType
 import com.example.data.model.UrgencyMode
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.Query
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
@@ -20,6 +21,7 @@ class CloudMarketplaceRepository(
 
     fun observeProviders(): Flow<List<ServiceProviderEntity>> = callbackFlow {
         val listener = firestore.collection("publicProviders")
+            .orderBy("updatedAt", Query.Direction.DESCENDING)
             .limit(50)
             .addSnapshotListener { snapshot, error ->
             if (error != null) { close(error); return@addSnapshotListener }
@@ -33,6 +35,7 @@ class CloudMarketplaceRepository(
 
     fun observeRequests(): Flow<List<JobRequestEntity>> = callbackFlow {
         val listener = firestore.collection("publicJobRequests")
+            .orderBy("updatedAt", Query.Direction.DESCENDING)
             .limit(50)
             .addSnapshotListener { snapshot, error ->
             if (error != null) { close(error); return@addSnapshotListener }
