@@ -55,6 +55,15 @@ function isValidIsoDate(value: string): boolean {
     && date.getUTCDate() === day;
 }
 
+function optionalBoolean(data: Record<string, unknown>, key: string): boolean | null {
+  const value = data[key];
+  if (value == null) return null;
+  if (typeof value !== "boolean") {
+    throw new HttpsError("invalid-argument", `Geçersiz ${key}.`);
+  }
+  return value;
+}
+
 async function getUsableAuthUser(uid: string) {
   const authUser = await adminAuth.getUser(uid).catch((error: { code?: string }) => {
     if (error.code === "auth/user-not-found") {
@@ -295,8 +304,8 @@ export const updateProviderAvailability = onCall(
     const data = callableData(request.data);
     const providerId = requireString(data, "providerId", 120, 1);
     const dateIso = data.dateIso == null ? "" : requireString(data, "dateIso", 10, 0);
-    const dateBooked = data.dateBooked == null ? null : data.dateBooked === true;
-    const isOpenForOffers = data.isOpenForOffers == null ? null : data.isOpenForOffers === true;
+    const dateBooked = optionalBoolean(data, "dateBooked");
+    const isOpenForOffers = optionalBoolean(data, "isOpenForOffers");
 
     if (!ID_PATTERN.test(providerId)) {
       throw new HttpsError("invalid-argument", "Geçersiz hizmet sağlayıcı kimliği.");
