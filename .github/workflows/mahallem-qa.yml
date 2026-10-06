@@ -109,6 +109,6 @@ jobs:
       - name: Install backend dependencies
         run: npm install --ignore-scripts --audit
       - name: Install Firebase CLI
-        run: npm install --global firebase-tools@15.32.1@15.32.1 --ignore-scripts
+        run: npm install --global firebase-tools@15.32.1 --ignore-scripts
       - name: Test Firebase security rules in emulator
         run: npm run rules:test
