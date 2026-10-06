@@ -69,6 +69,24 @@ class MarketplaceRepositoryTest {
     }
 
     @Test
+    fun releaseEscrow_marksReceiptReleased() = runBlocking {
+        val receipt = DigitalReceiptEntity(
+            receiptCode = "MHL-2026-1234", requestId = 42, quoteId = 7,
+            jobTitle = "Test iş", customerName = "Test müşteri",
+            providerName = "Test usta", providerTitle = "Usta",
+            totalAmount = "1.000 ₺", escrowStatus = "LOCKED",
+            warrantyInfo = "2 Yıl", createdAtDate = "06.10.2026", district = "Kadıköy"
+        )
+        val dao = FakeDao(receipt = receipt)
+        val repo = MarketplaceRepository(dao)
+
+        repo.releaseEscrowPayment(42, 7, receipt.receiptCode)
+
+        assertEquals("COMPLETED", dao.requestStatuses[42L])
+        assertEquals("RELEASED", dao.receipt?.escrowStatus)
+    }
+
+    @Test
     fun sendQuote_insertsQuoteAndMovesRequestToQuoted() = runBlocking {
         val dao = FakeDao()
         val repo = MarketplaceRepository(dao)
@@ -124,11 +142,13 @@ class MarketplaceRepositoryTest {
         providers: List<ServiceProviderEntity> = emptyList(),
         requests: List<JobRequestEntity> = emptyList()
     ) : AppDao {
+        private var storedReceipt: DigitalReceiptEntity? = receipt
         private val providersFlow = MutableStateFlow(providers)
         private val requestsFlow = MutableStateFlow(requests)
         val favoriteUpdates = mutableListOf<Boolean>()
         val requestStatuses = mutableMapOf<Long, String>()
         val insertedQuotes = mutableListOf<QuoteEntity>()
+        var receipt: DigitalReceiptEntity? = receipt
 
         override fun getAllProviders(): Flow<List<ServiceProviderEntity>> = providersFlow
         override fun getProvidersBySector(sector: String): Flow<List<ServiceProviderEntity>> = flowOf(emptyList())
@@ -157,8 +177,10 @@ class MarketplaceRepositoryTest {
         override suspend fun updateQuoteEscrow(id: Long, funded: Boolean, receiptCode: String) = Unit
         override suspend fun updateRequestEscrow(id: Long, escrowStatus: String, escrowAmount: String) = Unit
 
-        override suspend fun insertReceipt(receipt: DigitalReceiptEntity) = Unit
-        override fun getReceiptByCode(code: String): Flow<DigitalReceiptEntity?> = flowOf(null)
+        override suspend fun insertReceipt(receipt: DigitalReceiptEntity) { storedReceipt = receipt }
+        override fun getReceiptByCode(code: String): Flow<DigitalReceiptEntity?> = flowOf(storedReceipt)
+        override suspend fun getReceiptByCodeDirect(code: String): DigitalReceiptEntity? =
+            storedReceipt?.takeIf { it.receiptCode == code }
         override fun getReceiptForRequest(requestId: Long): Flow<DigitalReceiptEntity?> = flowOf(null)
         override fun getAllReceipts(): Flow<List<DigitalReceiptEntity>> = flowOf(emptyList())
 
