@@ -97,6 +97,21 @@ class FunctionsRepository(
         return data["conversationId"] as? String ?: error("Sunucudan sohbet kimliği alınamadı.")
     }
 
+    suspend fun issueImageUploadGrant(
+        kind: String,
+        conversationId: String? = null,
+        requestId: String? = null
+    ): String {
+        require(kind in setOf("USER", "CHAT", "JOB_REQUEST")) { "Geçersiz yükleme türü." }
+        val data = buildMap<String, Any> {
+            put("kind", kind)
+            conversationId?.let { put("conversationId", it) }
+            requestId?.let { put("requestId", it) }
+        }
+        val result = call("issueImageUploadGrant", data)
+        return result["grantId"] as? String ?: error("Sunucudan geçersiz yükleme kimliği.")
+    }
+
     suspend fun registerDeviceToken(token: String, platform: String = "android"): Map<*, *> =
         call("registerDeviceToken", mapOf("token" to token, "platform" to platform))
 
