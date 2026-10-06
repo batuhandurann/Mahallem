@@ -235,11 +235,15 @@ export const saveProviderListing = onCall(
     const hourlyOrBasePrice = typeof data.hourlyOrBasePrice === "string"
       ? data.hourlyOrBasePrice.slice(0, 80)
       : "Anlaşmaya Bağlı";
-    const isEmergencyAvailable = data.isEmergencyAvailable === true;
+    const isEmergencyAvailable = data.isEmergencyAvailable == null
+      ? false
+      : optionalBoolean(data, "isEmergencyAvailable") === true;
     const experienceYears = Number(data.experienceYears);
     const latitude = Number(data.latitude);
     const longitude = Number(data.longitude);
-    const isOpenForOffers = data.isOpenForOffers === true;
+    const isOpenForOffers = data.isOpenForOffers == null
+      ? false
+      : optionalBoolean(data, "isOpenForOffers") === true;
 
     if (!ID_PATTERN.test(providerId)
       || !Number.isSafeInteger(experienceYears) || experienceYears < 0 || experienceYears > 80
