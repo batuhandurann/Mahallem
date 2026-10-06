@@ -250,7 +250,7 @@ export const createPaymentIntent = onCall(
       merchantKey
     );
 
-    await db.runTransaction(async (tx) => {
+    const tokenAction = await db.runTransaction(async (tx) => {
       const [rateSnap, hourlyRateSnap, paymentSnap] = await Promise.all([
         tx.get(rateLimitRef),
         tx.get(hourlyRateLimitRef),
@@ -259,8 +259,31 @@ export const createPaymentIntent = onCall(
 
       if (paymentSnap.exists) {
         const payment = paymentSnap.data()!;
-        if (String(payment.status ?? "") === "PENDING" && typeof payment.checkoutUrl === "string") return;
-        throw new HttpsError("already-exists", "Bu ödeme isteği daha önce başlatılmış.");
+        const status = String(payment.status ?? "");
+        if (status === "PENDING" && typeof payment.checkoutUrl === "string") {
+          return "REUSE" as const;
+        }
+        if (status === "CREATED") {
+          const startedAt = payment.tokenGenerationStartedAt;
+          const startedMillis = startedAt && typeof startedAt.toMillis === "function"
+            ? startedAt.toMillis()
+            : 0;
+          if (startedMillis > Date.now() - 2 * 60_000) {
+            return "IN_PROGRESS" as const;
+          }
+          tx.update(paymentRef, {
+            tokenGenerationStartedAt: FieldValue.serverTimestamp(),
+            updatedAt: FieldValue.serverTimestamp(),
+          });
+          return "START" as const;
+        }
+        if (status === "FAILED") {
+          throw new HttpsError(
+            "failed-precondition",
+            "Bu ödeme denemesi başarısız oldu. Yeni bir ödeme denemesi başlatın."
+          );
+        }
+        return "IN_PROGRESS" as const;
       }
 
       const rate = rateSnap.exists ? rateSnap.data()! : {};
@@ -302,10 +325,26 @@ export const createPaymentIntent = onCall(
         status: "CREATED",
         providerOrderId: merchantOid,
         idempotencyKeyHash: idemHash,
+        tokenGenerationStartedAt: FieldValue.serverTimestamp(),
         createdAt: FieldValue.serverTimestamp(),
         updatedAt: FieldValue.serverTimestamp(),
       });
+      return "START" as const;
     });
+
+    if (tokenAction === "REUSE") {
+      const current = await paymentRef.get();
+      if (current.exists && typeof current.data()?.checkoutUrl === "string") {
+        return current.data();
+      }
+      throw new HttpsError("aborted", "Ödeme işlemi durum değiştirirken tekrar deneyin.");
+    }
+    if (tokenAction === "IN_PROGRESS") {
+      throw new HttpsError(
+        "aborted",
+        "Aynı ödeme işlemi zaten başlatılıyor. Lütfen mevcut ödeme ekranını kontrol edin."
+      );
+    }
 
     let response: Response;
     try {
