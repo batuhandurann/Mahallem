@@ -20,6 +20,9 @@ import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.runtime.*
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.compose.ui.Modifier
@@ -187,8 +190,33 @@ private fun MarketplaceContent(
     val conversations by viewModel.conversations.collectAsStateWithLifecycle()
     val activeChatMessages by viewModel.activeChatMessages.collectAsStateWithLifecycle()
     val toastMessage by viewModel.toastMessage.collectAsStateWithLifecycle()
+    val paymentStatus by viewModel.paymentStatus.collectAsStateWithLifecycle()
+    val lifecycleOwner = LocalLifecycleOwner.current
 
     val snackbarHostState = remember { SnackbarHostState() }
+
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                viewModel.refreshLastPaymentStatus()
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+
+    LaunchedEffect(paymentStatus) {
+        when (paymentStatus) {
+            "PAID" -> snackbarHostState.showSnackbar("Ödeme PayTR tarafından başarılı olarak bildirildi.")
+            "FAILED" -> snackbarHostState.showSnackbar("Ödeme başarısız oldu veya onaylanmadı.")
+            "PENDING" -> Unit
+            "CREATED" -> Unit
+            "RELEASE_REQUESTED" -> snackbarHostState.showSnackbar("Ödeme serbest bırakma talebi alındı.")
+            "REFUND_REQUESTED" -> snackbarHostState.showSnackbar("İade talebi alındı.")
+            "REFUNDED" -> snackbarHostState.showSnackbar("Ödeme iade edildi.")
+            "RELEASED" -> snackbarHostState.showSnackbar("Ödeme satıcı aktarımı tamamlandı.")
+        }
+    }
     val coroutineScope = rememberCoroutineScope()
     val context = LocalContext.current
 
