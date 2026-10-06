@@ -1,5 +1,7 @@
 package com.example.auth
 
+import com.example.data.local.AppDatabase
+
 import com.example.notification.PushTokenRepository
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.FirebaseUser
