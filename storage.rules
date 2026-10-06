@@ -3,7 +3,11 @@ rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
     function signedIn() { return request.auth != null; }
-    function isAdmin() { return signedIn() && request.auth.token.admin == true; }
+
+    function isAdmin() {
+      return signedIn() && request.auth.token.admin == true;
+    }
+
     function accountActive(uid) {
       return signedIn()
         && (!firestore.exists(/databases/(default)/documents/users/$(uid))
@@ -17,41 +21,75 @@ service firebase.storage {
         && request.resource.contentType.matches('image/(jpeg|png|webp)');
     }
 
-    function safeImagePath(path) {
-      return path.matches('[A-Za-z0-9_-]{1,100}\\.jpg');
+    function validGrant(uid, grantId, kind) {
+      return firestore.exists(
+          /databases/(default)/documents/users/$(uid)/uploadGrants/$(grantId)
+        )
+        && firestore.get(
+          /databases/(default)/documents/users/$(uid)/uploadGrants/$(grantId)
+        ).data.ownerUid == uid
+        && firestore.get(
+          /databases/(default)/documents/users/$(uid)/uploadGrants/$(grantId)
+        ).data.kind == kind
+        && firestore.get(
+          /databases/(default)/documents/users/$(uid)/uploadGrants/$(grantId)
+        ).data.expiresAt > request.time;
     }
 
-    match /users/{uid}/images/{allPaths=**} {
+    function validChatGrant(uid, conversationId, grantId) {
+      return validGrant(uid, grantId, 'CHAT')
+        && firestore.get(
+          /databases/(default)/documents/users/$(uid)/uploadGrants/$(grantId)
+        ).data.conversationId == conversationId;
+    }
+
+    function validJobGrant(uid, requestId, grantId) {
+      return validGrant(uid, grantId, 'JOB_REQUEST')
+        && firestore.get(
+          /databases/(default)/documents/users/$(uid)/uploadGrants/$(grantId)
+        ).data.requestId == requestId;
+    }
+
+    match /users/{uid}/images/{grantId}.jpg {
       allow read: if accountActive(uid) && request.auth.uid == uid;
-      allow write: if accountActive(uid) && request.auth.uid == uid && safeImage();
+      allow write: if accountActive(uid)
+        && request.auth.uid == uid
+        && resource == null
+        && validGrant(uid, grantId, 'USER')
+        && safeImage();
       allow delete: if accountActive(uid) && request.auth.uid == uid;
     }
 
-    match /jobRequests/{ownerUid}/{requestId}/{allPaths=**} {
+    match /jobRequests/{ownerUid}/{requestId}/images/{grantId}.jpg {
       allow read: if accountActive(ownerUid) && request.auth.uid == ownerUid;
       allow write: if accountActive(ownerUid)
         && request.auth.uid == ownerUid
-        && safeImagePath(allPaths)
+        && resource == null
+        && validJobGrant(ownerUid, requestId, grantId)
         && firestore.exists(/databases/(default)/documents/jobRequests/$(requestId))
         && firestore.get(/databases/(default)/documents/jobRequests/$(requestId)).data.ownerId == ownerUid
         && safeImage();
       allow delete: if isAdmin()
         || (signedIn()
           && request.auth.uid == ownerUid
-          && safeImagePath(allPaths)
           && firestore.exists(/databases/(default)/documents/jobRequests/$(requestId))
           && firestore.get(/databases/(default)/documents/jobRequests/$(requestId)).data.ownerId == ownerUid);
     }
 
-    match /chatAttachments/{conversationId}/{senderUid}/{allPaths=**} {
+    match /chatAttachments/{conversationId}/{senderUid}/{grantId}.jpg {
       allow read: if accountActive(request.auth.uid)
         && firestore.exists(/databases/(default)/documents/conversations/$(conversationId))
-        && request.auth.uid in firestore.get(/databases/(default)/documents/conversations/$(conversationId)).data.participantIds;
+        && request.auth.uid in firestore.get(
+          /databases/(default)/documents/conversations/$(conversationId)
+        ).data.participantIds;
       allow write: if accountActive(senderUid)
         && request.auth.uid == senderUid
-        && safeImagePath(allPaths)
+        && resource == null
+        && validChatGrant(senderUid, conversationId, grantId)
         && firestore.exists(/databases/(default)/documents/conversations/$(conversationId))
-        && request.auth.uid in firestore.get(/databases/(default)/documents/conversations/$(conversationId)).data.participantIds
+        && request.auth.uid in firestore.get(
+          /databases/(default)/documents/conversations/$(conversationId)
+        ).data.participantIds
         && safeImage();
       allow delete: if isAdmin()
         || (accountActive(senderUid) && request.auth.uid == senderUid);
