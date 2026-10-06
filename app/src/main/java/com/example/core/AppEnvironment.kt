@@ -12,6 +12,8 @@ object AppEnvironment {
     }
 
     val isProduction: Boolean get() = mode == Mode.PRODUCTION
+    val isStaging: Boolean get() = mode == Mode.STAGING
+    val isLocal: Boolean get() = mode == Mode.LOCAL
     val isTest: Boolean get() = !isProduction
 
     /**
