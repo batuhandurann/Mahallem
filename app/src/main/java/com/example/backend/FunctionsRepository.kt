@@ -97,6 +97,12 @@ class FunctionsRepository(
         return data["conversationId"] as? String ?: error("Sunucudan sohbet kimliği alınamadı.")
     }
 
+    suspend fun registerDeviceToken(token: String, platform: String = "android"): Map<*, *> =
+        call("registerDeviceToken", mapOf("token" to token, "platform" to platform))
+
+    suspend fun unregisterDeviceToken(token: String): Map<*, *> =
+        call("unregisterDeviceToken", mapOf("token" to token))
+
     suspend fun requestRefund(paymentId: String): Map<*, *> {
         val result = functions.getHttpsCallable("requestRefund")
             .call(mapOf("paymentId" to paymentId))
