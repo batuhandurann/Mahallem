@@ -1,5 +1,6 @@
 package com.example.ui.screens
 
+import com.example.core.AppEnvironment
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -253,6 +254,8 @@ fun ProviderDetailScreen(
 
                         Spacer(modifier = Modifier.height(14.dp))
 
+                        val badgeSuffix = if (AppEnvironment.mode == AppEnvironment.Mode.LOCAL) " • Demo" else ""
+
                         // Badges Row
                         Row(
                             modifier = Modifier.fillMaxWidth(),
@@ -261,7 +264,7 @@ fun ProviderDetailScreen(
                             if (provider.verifiedSafeBadge) {
                                 BadgeChip(
                                     icon = Icons.Default.Security,
-                                    text = "Adli Sicil Onaylı",
+                                    text = "Adli Sicil Onaylı$badgeSuffix",
                                     bgColor = SafeBadgeGreenContainer,
                                     textColor = SafeBadgeText
                                 )
@@ -269,7 +272,7 @@ fun ProviderDetailScreen(
                             if (provider.mykCertified) {
                                 BadgeChip(
                                     icon = Icons.Default.WorkspacePremium,
-                                    text = "MYK Usta Belgesi",
+                                    text = "MYK Usta Belgesi$badgeSuffix",
                                     bgColor = TealContainer,
                                     textColor = OnTealContainer
                                 )
@@ -277,7 +280,7 @@ fun ProviderDetailScreen(
                             if (provider.childSafeCertified) {
                                 BadgeChip(
                                     icon = Icons.Default.ChildCare,
-                                    text = "Çocuk Dostu",
+                                    text = "Çocuk Dostu$badgeSuffix",
                                     bgColor = FestiveAmberLight,
                                     textColor = Color(0xFF92400E)
                                 )
