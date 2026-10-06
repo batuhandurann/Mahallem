@@ -11,6 +11,17 @@ service cloud.firestore {
       return signedIn()
         && (request.auth.token.phone_number != null || request.auth.token.email_verified == true);
     }
+    function boundedString(data, key, max) {
+      return !((key in data)) || (data[key] is string && data[key].size() <= max);
+    }
+    function validServiceArea(data) {
+      return !('serviceArea' in data) || (
+        data.serviceArea is map
+        && data.serviceArea.keys().hasOnly(['latitude','longitude'])
+        && (!('latitude' in data.serviceArea) || data.serviceArea.latitude is number)
+        && (!('longitude' in data.serviceArea) || data.serviceArea.longitude is number)
+      );
+    }
     function accountActive() {
       return signedIn()
         && (!exists(/databases/$(database)/documents/users/$(request.auth.uid))
