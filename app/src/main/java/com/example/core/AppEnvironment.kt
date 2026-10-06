@@ -7,6 +7,7 @@ object AppEnvironment {
 
     val mode: Mode = when (BuildConfig.BUILD_TYPE) {
         "release" -> Mode.PRODUCTION
+        "staging" -> Mode.STAGING
         else -> Mode.LOCAL
     }
 
