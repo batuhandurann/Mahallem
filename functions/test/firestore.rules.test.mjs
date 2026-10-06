@@ -184,6 +184,21 @@ async function run() {
     });
   });
 
+  await env.withSecurityRulesDisabled(async (ctx) => {
+    await setDoc(doc(ctx.firestore(), "users/alice/conversationState/conversation-1"), {
+      conversationId: "conversation-1",
+      unreadCount: 2,
+      updatedAt: new Date(),
+    });
+  });
+
+  assert.equal((await getDoc(doc(aliceDb, "users/alice/conversationState/conversation-1"))).exists(), true);
+  await assertFails(getDoc(doc(bobDb, "users/alice/conversationState/conversation-1")));
+  await assertFails(updateDoc(doc(aliceDb, "users/alice/conversationState/conversation-1"), {
+    unreadCount: 0,
+    updatedAt: new Date(),
+  }));
+
   await assertFails(
     setDoc(doc(bobDb, "messages/message-client-write"), {
       conversationId: "conversation-1",
