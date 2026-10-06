@@ -10,10 +10,11 @@ import com.google.firebase.storage.StorageMetadata
 import kotlinx.coroutines.tasks.await
 import java.io.File
 import java.io.FileOutputStream
-import java.util.UUID
+import com.example.backend.FunctionsRepository
 
 class StorageRepository(
-    private val storage: FirebaseStorage = FirebaseStorage.getInstance()
+    private val storage: FirebaseStorage = FirebaseStorage.getInstance(),
+    private val functions: FunctionsRepository = FunctionsRepository()
 ) {
     companion object {
         private const val MAX_INPUT_BYTES = 15L * 1024L * 1024L
@@ -27,10 +28,11 @@ class StorageRepository(
         contentResolver: ContentResolver
     ): String {
         require(uid.isNotBlank()) { "Kullanıcı kimliği gerekli." }
+        val grantId = functions.issueImageUploadGrant(kind = "USER")
         return uploadNormalizedImage(
             uri = uri,
             contentResolver = contentResolver,
-            ref = storage.reference.child("users/\${uid}/images/\${UUID.randomUUID()}.jpg")
+            ref = storage.reference.child("users/$uid/images/$grantId.jpg")
         )
     }
 
@@ -44,11 +46,12 @@ class StorageRepository(
         require(conversationId.matches(Regex("^[A-Fa-f0-9]{64}$"))) {
             "Geçersiz sohbet kimliği."
         }
+        val grantId = functions.issueImageUploadGrant(kind = "CHAT", conversationId = conversationId)
         return uploadNormalizedImage(
             uri = uri,
             contentResolver = contentResolver,
             ref = storage.reference.child(
-                "chatAttachments/$conversationId/$senderUid/${UUID.randomUUID()}.jpg"
+                "chatAttachments/$conversationId/$senderUid/$grantId.jpg"
             )
         )
     }
@@ -62,11 +65,12 @@ class StorageRepository(
         require(requestId.matches(Regex("^[A-Za-z0-9_-]{1,80}$"))) {
             "Geçersiz talep kimliği."
         }
+        val grantId = functions.issueImageUploadGrant(kind = "JOB_REQUEST", requestId = requestId)
         return uploadNormalizedImage(
             uri = uri,
             contentResolver = contentResolver,
             ref = storage.reference.child(
-                "jobRequests/\${ownerUid}/\${requestId}/images/\${UUID.randomUUID()}.jpg"
+                "jobRequests/$ownerUid/$requestId/images/$grantId.jpg"
             )
         )
     }
