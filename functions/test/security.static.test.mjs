@@ -52,6 +52,7 @@ assert.match(source, /function isValidTime/);
 assert.match(source, /isValidTime\(eventTime\)/);
 assert.match(source, /contentReports/);
 assert.match(source, /where\("reporterUid", "==", uid\)/);
+assert.match(source, /String\(existing\.data\(\)\?\.status \?\? ""\) !== "PENDING"/);
 assert.match(source, /reporterUid: anonymizedId/);
 assert.match(source, /report-day:/);
 
