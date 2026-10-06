@@ -27,6 +27,7 @@ class CloudChatRepository(
         val me = uid()
         val listener = firestore.collection("conversations")
             .whereArrayContains("participantIds", me)
+            .limit(50)
             .addSnapshotListener { snap, error ->
                 if (error != null) { close(error); return@addSnapshotListener }
                 val list = snap?.documents.orEmpty().map { d ->
@@ -48,6 +49,7 @@ class CloudChatRepository(
         uid()
         val listener = firestore.collection("messages")
             .whereEqualTo("conversationId", conversationId)
+            .limit(200)
             .addSnapshotListener { snap, error ->
                 if (error != null) { close(error); return@addSnapshotListener }
                 val list = snap?.documents.orEmpty().map { d ->
