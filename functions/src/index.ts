@@ -173,6 +173,167 @@ export const createPaymentIntent = onCall(
   }
 );
 
+export const saveProviderListing = onCall(
+  { enforceAppCheck: true },
+  async (request) => {
+    if (!request.auth) throw new HttpsError("unauthenticated", "Kimlik doğrulaması gerekli.");
+    await assertAccountActive(request.auth.uid);
+
+    const data = callableData(request.data);
+    const providerId = requireString(data, "providerId", 120, 1);
+    const displayName = requireString(data, "displayName", 120, 1);
+    const title = requireString(data, "title", 200, 1);
+    const bio = requireString(data, "bio", 2000, 0);
+    const sector = requireString(data, "sector", 64, 1);
+    const categoryId = requireString(data, "categoryId", 80, 1);
+    const district = requireString(data, "district", 80, 1);
+    const city = requireString(data, "city", 80, 1);
+    const experienceYears = Number(data.experienceYears);
+    const latitude = Number(data.latitude);
+    const longitude = Number(data.longitude);
+    const isOpenForOffers = data.isOpenForOffers === true;
+
+    if (!ID_PATTERN.test(providerId)
+      || !Number.isSafeInteger(experienceYears) || experienceYears < 0 || experienceYears > 80
+      || !Number.isFinite(latitude) || latitude < -90 || latitude > 90
+      || !Number.isFinite(longitude) || longitude < -180 || longitude > 180) {
+      throw new HttpsError("invalid-argument", "Geçersiz hizmet sağlayıcı verisi.");
+    }
+
+    const ref = db.collection("providers").doc(providerId);
+    const rateRef = db.collection("rateLimits").doc("provider-write-day:" + request.auth.uid);
+
+    await db.runTransaction(async (tx) => {
+      const [existing, rateSnap] = await Promise.all([tx.get(ref), tx.get(rateRef)]);
+      if (existing.exists && existing.data()?.ownerId !== request.auth!.uid) {
+        throw new HttpsError("permission-denied", "Bu hizmet ilanına erişemezsiniz.");
+      }
+
+      const rate = rateSnap.exists ? rateSnap.data()! : {};
+      const windowStart = Number(rate.windowStartMs ?? 0);
+      const count = Number(rate.count ?? 0);
+      const now = Date.now();
+      const activeWindow = Number.isSafeInteger(windowStart) && now - windowStart < 86_400_000;
+      if (activeWindow && count >= 10) {
+        throw new HttpsError("resource-exhausted", "Günlük hizmet ilanı değişikliği kotanıza ulaştınız.");
+      }
+
+      tx.set(rateRef, {
+        windowStartMs: activeWindow ? windowStart : now,
+        count: activeWindow ? count + 1 : 1,
+        updatedAt: FieldValue.serverTimestamp(),
+      }, { merge: true });
+
+      tx.set(ref, {
+        ownerId: request.auth!.uid,
+        displayName,
+        title,
+        bio,
+        sector,
+        categoryId,
+        district,
+        city,
+        experienceYears,
+        serviceArea: { latitude, longitude },
+        isOpenForOffers,
+        ...(existing.exists ? {} : { createdAt: FieldValue.serverTimestamp() }),
+        updatedAt: FieldValue.serverTimestamp(),
+      }, { merge: true });
+    });
+
+    return { saved: true, providerId };
+  }
+);
+
+export const saveJobRequest = onCall(
+  { enforceAppCheck: true },
+  async (request) => {
+    if (!request.auth) throw new HttpsError("unauthenticated", "Kimlik doğrulaması gerekli.");
+    await assertAccountActive(request.auth.uid);
+
+    const data = callableData(request.data);
+    const requestId = requireString(data, "requestId", 80, 1);
+    const title = requireString(data, "title", 200, 1);
+    const sector = requireString(data, "sector", 64, 1);
+    const categoryId = requireString(data, "categoryId", 80, 1);
+    const district = requireString(data, "district", 80, 1);
+    const urgencyMode = requireString(data, "urgencyMode", 32, 1);
+    const eventOrJobDate = requireString(data, "eventOrJobDate", 32, 0);
+    const eventTime = requireString(data, "eventTime", 32, 0);
+    const budgetEstimate = requireString(data, "budgetEstimate", 200, 0);
+
+    const ref = db.collection("jobRequests").doc(requestId);
+    const privateRef = db.collection("jobRequestPrivate").doc(requestId);
+    const rateRef = db.collection("rateLimits").doc("request-write-day:" + request.auth.uid);
+
+    await db.runTransaction(async (tx) => {
+      const [existing, rateSnap] = await Promise.all([tx.get(ref), tx.get(rateRef)]);
+      if (existing.exists) {
+        if (existing.data()?.ownerId !== request.auth!.uid) {
+          throw new HttpsError("permission-denied", "Bu talebe erişemezsiniz.");
+        }
+        if (!["PENDING", "QUOTED"].includes(String(existing.data()?.status ?? ""))) {
+          throw new HttpsError("failed-precondition", "Bu talep artık düzenlenemez.");
+        }
+      }
+
+      const rate = rateSnap.exists ? rateSnap.data()! : {};
+      const windowStart = Number(rate.windowStartMs ?? 0);
+      const count = Number(rate.count ?? 0);
+      const now = Date.now();
+      const activeWindow = Number.isSafeInteger(windowStart) && now - windowStart < 86_400_000;
+      if (activeWindow && count >= 20) {
+        throw new HttpsError("resource-exhausted", "Günlük talep oluşturma/değiştirme kotanıza ulaştınız.");
+      }
+
+      tx.set(rateRef, {
+        windowStartMs: activeWindow ? windowStart : now,
+        count: activeWindow ? count + 1 : 1,
+        updatedAt: FieldValue.serverTimestamp(),
+      }, { merge: true });
+
+      tx.set(ref, {
+        ownerId: request.auth!.uid,
+        title,
+        sector,
+        categoryId,
+        district,
+        urgencyMode,
+        eventOrJobDate,
+        eventTime,
+        budgetEstimate,
+        status: existing.exists ? existing.data()?.status : "PENDING",
+        ...(existing.exists ? {} : { createdAt: FieldValue.serverTimestamp() }),
+        updatedAt: FieldValue.serverTimestamp(),
+      }, { merge: true });
+
+      const privateData: Record<string, unknown> = {
+        ownerId: request.auth!.uid,
+        address: typeof data.address === "string" ? data.address.slice(0, 500) : "",
+        customerName: typeof data.customerName === "string" ? data.customerName.slice(0, 120) : "",
+        customerPhone: typeof data.customerPhone === "string" ? data.customerPhone.slice(0, 32) : "",
+        phoneVerified: data.phoneVerified === true,
+        areaSquareMeters: Number.isSafeInteger(Number(data.areaSquareMeters)) ? Number(data.areaSquareMeters) : 0,
+        roomCount: typeof data.roomCount === "string" ? data.roomCount.slice(0, 32) : "",
+        isFurnished: data.isFurnished === true,
+        materialsIncluded: data.materialsIncluded === true,
+        renovationNotes: typeof data.renovationNotes === "string" ? data.renovationNotes.slice(0, 2000) : "",
+        eventType: typeof data.eventType === "string" ? data.eventType.slice(0, 80) : "",
+        durationHours: Number.isSafeInteger(Number(data.durationHours)) ? Number(data.durationHours) : 0,
+        targetAgeGroup: typeof data.targetAgeGroup === "string" ? data.targetAgeGroup.slice(0, 80) : "",
+        selectedCostumeOrCharacter: typeof data.selectedCostumeOrCharacter === "string" ? data.selectedCostumeOrCharacter.slice(0, 120) : "",
+        extraServicesRequested: typeof data.extraServicesRequested === "string" ? data.extraServicesRequested.slice(0, 1000) : "",
+        latitude: Number.isFinite(Number(data.latitude)) ? Number(data.latitude) : 0,
+        longitude: Number.isFinite(Number(data.longitude)) ? Number(data.longitude) : 0,
+        updatedAt: FieldValue.serverTimestamp(),
+      };
+      tx.set(privateRef, privateData, { merge: true });
+    });
+
+    return { saved: true, requestId };
+  }
+);
+
 export const issueImageUploadGrant = onCall(
   { enforceAppCheck: true },
   async (request) => {
