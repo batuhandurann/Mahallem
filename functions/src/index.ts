@@ -61,6 +61,10 @@ async function assertAccountActive(uid: string) {
     throw new HttpsError("failed-precondition", "Kullanıcı hesabı devre dışı.");
   }
 
+  if (!authUser.emailVerified && !authUser.phoneNumber) {
+    throw new HttpsError("failed-precondition", "Bu işlem için doğrulanmış e-posta veya telefon gerekir.");
+  }
+
   if (userSnap.exists && ["REQUESTED", "PURGING"].includes(String(userSnap.data()?.deletionStatus ?? ""))) {
     throw new HttpsError("failed-precondition", "Hesap silme sürecinde olduğu için bu işlem kullanılamaz.");
   }
