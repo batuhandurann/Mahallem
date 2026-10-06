@@ -16,6 +16,7 @@ import com.example.data.model.FeedFlowType
 import com.example.data.model.SectorType
 import com.example.data.model.UrgencyMode
 import com.example.data.repository.MarketplaceRepository
+import com.example.core.AppEnvironment
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -274,22 +275,21 @@ class MarketplaceViewModel(application: Application) : AndroidViewModel(applicat
                 offerPrice = offerPrice
             )
 
-            // Simulate instant reply after 1.5 seconds like Letgo / Armut
-            delay(1500)
-            val autoReply = when {
-                isOffer -> "Teklifiniz için teşekkürler! $offerPrice makul görünüyor, detayları konuşalım."
-                text.contains("müsait", ignoreCase = true) -> "Evet, belirtilen gün ve saatte müsaitim. Konumu netleştirebilir miyiz?"
-                text.contains("indirim", ignoreCase = true) || text.contains("fiyat", ignoreCase = true) -> "İşin büyüklüğüne göre ufak bir ikram yapabilirim."
-                else -> "Mesajınızı aldım! Size en kısa sürede dönüş sağlayacağım."
+            if (AppEnvironment.mode == AppEnvironment.Mode.LOCAL) {
+                delay(1500)
+                val autoReply = when {
+                    isOffer -> "Teklifiniz için teşekkürler! $offerPrice makul görünüyor, detayları konuşalım."
+                    text.contains("müsait", ignoreCase = true) -> "Evet, belirtilen gün ve saatte müsaitim. Konumu netleştirebilir miyiz?"
+                    text.contains("indirim", ignoreCase = true) || text.contains("fiyat", ignoreCase = true) -> "İşin büyüklüğüne göre ufak bir ikram yapabilirim."
+                    else -> "Mesajınızı aldım! Size en kısa sürede dönüş sağlayacağım."
+                }
+                repository.sendChatMessage(
+                    conversationId = conversationId,
+                    senderName = "Hizmet Sağlayıcı",
+                    text = autoReply,
+                    isFromMe = false
+                )
             }
-
-            val conv = repository.getAllConversations()
-            repository.sendChatMessage(
-                conversationId = conversationId,
-                senderName = "Hizmet Sağlayıcı",
-                text = autoReply,
-                isFromMe = false
-            )
         }
     }
 
@@ -303,13 +303,15 @@ class MarketplaceViewModel(application: Application) : AndroidViewModel(applicat
                 isVoiceNote = true,
                 voiceDurationSeconds = durationSeconds
             )
-            delay(1500)
-            repository.sendChatMessage(
-                conversationId = conversationId,
-                senderName = "Hizmet Sağlayıcı",
-                text = "Sesli mesajınızı dinledim, gayet net anlaşıldı 👍",
-                isFromMe = false
-            )
+            if (AppEnvironment.mode == AppEnvironment.Mode.LOCAL) {
+                delay(1500)
+                repository.sendChatMessage(
+                    conversationId = conversationId,
+                    senderName = "Hizmet Sağlayıcı",
+                    text = "Sesli mesajınızı dinledim, gayet net anlaşıldı 👍",
+                    isFromMe = false
+                )
+            }
         }
     }
 
@@ -323,13 +325,15 @@ class MarketplaceViewModel(application: Application) : AndroidViewModel(applicat
                 hasPhotoAttachment = true,
                 photoDescription = desc
             )
-            delay(1500)
-            repository.sendChatMessage(
-                conversationId = conversationId,
-                senderName = "Hizmet Sağlayıcı",
-                text = "Fotoğrafları inceledim. Gerekli alet ve malzemeleri hazırlıyorum.",
-                isFromMe = false
-            )
+            if (AppEnvironment.mode == AppEnvironment.Mode.LOCAL) {
+                delay(1500)
+                repository.sendChatMessage(
+                    conversationId = conversationId,
+                    senderName = "Hizmet Sağlayıcı",
+                    text = "Fotoğrafları inceledim. Gerekli alet ve malzemeleri hazırlıyorum.",
+                    isFromMe = false
+                )
+            }
         }
     }
 
@@ -484,7 +488,9 @@ class MarketplaceViewModel(application: Application) : AndroidViewModel(applicat
                 budgetEstimate = budget
             )
             val newId = repository.createJobRequest(entity)
-            simulateProviderResponse(newId, category, urgency)
+            if (AppEnvironment.mode == AppEnvironment.Mode.LOCAL) {
+                simulateProviderResponse(newId, category, urgency)
+            }
             _toastMessage.value = "Talebiniz yayınlandı! Bölgedeki uygun esnaf ve sanatçılara iletildi 🎉"
             popToHome()
             navigateTo(ScreenDestination.MyRequests)
