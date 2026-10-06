@@ -48,6 +48,8 @@ assert.match(source, /messagesEnabled/);
 assert.match(source, /messages !== false/);
 assert.match(source, /function isValidIsoDate/);
 assert.match(source, /isValidIsoDate\(dateIso\)/);
+assert.match(source, /function isValidTime/);
+assert.match(source, /isValidTime\(eventTime\)/);
 assert.match(source, /contentReports/);
 assert.match(source, /where\("reporterUid", "==", uid\)/);
 assert.match(source, /reporterUid: anonymizedId/);
