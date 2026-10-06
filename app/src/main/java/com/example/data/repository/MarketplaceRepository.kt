@@ -279,8 +279,10 @@ class MarketplaceRepository(private val dao: AppDao) {
     suspend fun releaseEscrowPayment(requestId: Long, quoteId: Long, receiptCode: String) {
         dao.updateRequestEscrow(requestId, "RELEASED", "")
         dao.updateRequestStatus(requestId, "COMPLETED")
-        val existingReceipt = dao.getReceiptByCode(receiptCode)
-        // If receipt exists, insert updated version
+        val existingReceipt = dao.getReceiptByCodeDirect(receiptCode)
+        if (existingReceipt != null) {
+            dao.insertReceipt(existingReceipt.copy(escrowStatus = "RELEASED"))
+        }
     }
 
     fun getReceiptByCode(code: String): Flow<com.example.data.local.DigitalReceiptEntity?> =
