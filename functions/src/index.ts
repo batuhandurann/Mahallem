@@ -1266,6 +1266,18 @@ async function anonymizeAccount(uid: string): Promise<void> {
     );
 
     await processQueryInPages(
+      db.collection("contentReports").where("reporterUid", "==", uid),
+      async (reports) => {
+        for (const report of reports) {
+          writer.set(report.ref, {
+            reporterUid: anonymizedId,
+            accountDeletedAt: FieldValue.serverTimestamp(),
+          }, { merge: true });
+        }
+      }
+    );
+
+    await processQueryInPages(
       db.collection("conversations").where("participantIds", "array-contains", uid),
       async (conversations) => {
         for (const conversation of conversations) {
