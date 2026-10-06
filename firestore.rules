@@ -11,6 +11,11 @@ service cloud.firestore {
       return signedIn()
         && (request.auth.token.phone_number != null || request.auth.token.email_verified == true);
     }
+    function accountActive() {
+      return signedIn()
+        && (!exists(/databases/$(database)/documents/users/$(request.auth.uid))
+          || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.deletionStatus != 'REQUESTED');
+    }
 
     match /users/{uid} {
       allow read: if ownsUser(uid) || isAdmin();
@@ -29,16 +34,16 @@ service cloud.firestore {
 
     match /providers/{providerId} {
       allow read: if signedIn();
-      allow create: if verifiedContact() && request.resource.data.ownerId == request.auth.uid && request.resource.data.keys().hasOnly(['ownerId','displayName','title','bio','sector','categoryId','district','city','experienceYears','serviceArea','isOpenForOffers','createdAt','updatedAt']);
+      allow create: if verifiedContact() && accountActive() && request.resource.data.ownerId == request.auth.uid && request.resource.data.keys().hasOnly(['ownerId','displayName','title','bio','sector','categoryId','district','city','experienceYears','serviceArea','isOpenForOffers','createdAt','updatedAt']);
       allow update: if isAdmin() || (ownsProvider() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['displayName','title','bio','sector','categoryId','district','city','experienceYears','serviceArea','isOpenForOffers','updatedAt']));
       allow delete: if isAdmin();
     }
 
     match /jobRequests/{requestId} {
       allow read: if signedIn();
-      allow create: if verifiedContact() && request.resource.data.ownerId == request.auth.uid && request.resource.data.status == 'PENDING' && request.resource.data.keys().hasOnly(['ownerId','title','sector','categoryId','district','urgencyMode','eventOrJobDate','eventTime','budgetEstimate','status','createdAt','updatedAt']);
+      allow create: if verifiedContact() && accountActive() && request.resource.data.ownerId == request.auth.uid && request.resource.data.status == 'PENDING' && request.resource.data.keys().hasOnly(['ownerId','title','sector','categoryId','district','urgencyMode','eventOrJobDate','eventTime','budgetEstimate','status','createdAt','updatedAt']);
       allow update: if isAdmin()
-        || (ownsRequest()
+        || (accountActive() && ownsRequest()
           && resource.data.status in ['PENDING', 'QUOTED']
           && request.resource.data.status == resource.data.status
           && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['title','sector','categoryId','district','urgencyMode','eventOrJobDate','eventTime','budgetEstimate','updatedAt']));
@@ -48,6 +53,7 @@ service cloud.firestore {
     match /jobRequestPrivate/{requestId} {
       allow read: if isAdmin() || (signedIn() && resource.data.ownerId == request.auth.uid);
       allow create: if verifiedContact()
+        && accountActive()
         && request.resource.data.ownerId == request.auth.uid
         && exists(/databases/$(database)/documents/jobRequests/$(requestId))
         && get(/databases/$(database)/documents/jobRequests/$(requestId)).data.ownerId == request.auth.uid
@@ -62,7 +68,7 @@ service cloud.firestore {
           'longitude','updatedAt'
         ]);
       allow update: if isAdmin()
-        || (signedIn()
+        || (accountActive()
           && resource.data.ownerId == request.auth.uid
           && exists(/databases/$(database)/documents/jobRequests/$(requestId))
           && get(/databases/$(database)/documents/jobRequests/$(requestId)).data.ownerId == request.auth.uid
@@ -82,6 +88,7 @@ service cloud.firestore {
     match /quotes/{quoteId} {
       allow read: if isAdmin() || (signedIn() && (resource.data.customerId == request.auth.uid || resource.data.providerOwnerId == request.auth.uid));
       allow create: if signedIn()
+        && accountActive()
         && request.resource.data.providerOwnerId == request.auth.uid
         && request.resource.data.status == 'PENDING'
         && request.resource.data.amountMinor is int
@@ -100,7 +107,7 @@ service cloud.firestore {
         && get(/databases/$(database)/documents/providers/$(request.resource.data.providerId)).data.ownerId == request.auth.uid
         && get(/databases/$(database)/documents/jobRequests/$(request.resource.data.requestId)).data.status == 'PENDING';
       allow update: if isAdmin()
-        || (signedIn()
+        || (accountActive()
           && resource.data.providerOwnerId == request.auth.uid
           && resource.data.status == 'PENDING'
           && request.resource.data.status == 'PENDING'
