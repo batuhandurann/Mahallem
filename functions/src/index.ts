@@ -995,8 +995,8 @@ export const paytrWebhook = onRequest(
         }
 
         const currentStatus = String(payment.status ?? "");
-        const terminalNonSuccess = ["PAID", "HELD", "RELEASE_REQUESTED", "REFUND_REQUESTED"];
-        if (status !== "success" && terminalNonSuccess.includes(currentStatus)) {
+        const callbackEligibleStatuses = ["CREATED", "PENDING"];
+        if (!callbackEligibleStatuses.includes(currentStatus)) {
           return;
         }
 
