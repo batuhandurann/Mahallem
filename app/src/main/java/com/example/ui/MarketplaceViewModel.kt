@@ -707,6 +707,14 @@ class MarketplaceViewModel(application: Application) : AndroidViewModel(applicat
         budget: String
     ) {
         viewModelScope.launch {
+            val authPhone = if (AppEnvironment.mode == AppEnvironment.Mode.LOCAL) {
+                ""
+            } else {
+                com.google.firebase.auth.FirebaseAuth.getInstance().currentUser?.phoneNumber.orEmpty()
+            }
+            val resolvedCustomerPhone = customerPhone.ifBlank { authPhone }
+            val resolvedPhoneVerified = resolvedCustomerPhone.isNotBlank()
+
             val entity = JobRequestEntity(
                 title = title,
                 sector = sector.name,
@@ -718,8 +726,8 @@ class MarketplaceViewModel(application: Application) : AndroidViewModel(applicat
                 address = address,
                 status = "PENDING",
                 customerName = customerName.ifBlank { "Mahalle Sakini" },
-                customerPhone = customerPhone.ifBlank { "05xx xxx xx xx" },
-                phoneVerified = true,
+                customerPhone = if (resolvedCustomerPhone.isBlank()) "05xx xxx xx xx" else resolvedCustomerPhone,
+                phoneVerified = if (AppEnvironment.mode == AppEnvironment.Mode.LOCAL) true else resolvedPhoneVerified,
                 daysRemaining = 7,
                 isReported = false,
                 areaSquareMeters = areaSquareMeters,
