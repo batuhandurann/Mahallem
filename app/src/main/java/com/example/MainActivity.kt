@@ -19,6 +19,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.core.AppEnvironment
 import com.example.privacy.ConsentRepository
+import com.example.notification.PushTokenRepository
 import com.example.data.local.DigitalReceiptEntity
 import com.example.data.local.JobRequestEntity
 import com.example.data.local.QuoteEntity
@@ -78,6 +79,9 @@ fun MarketplaceApp() {
     if (currentUser == null) {
         PhoneAuthScreen(onAuthenticated = {})
     } else {
+        LaunchedEffect(currentUser?.uid) {
+            runCatching { PushTokenRepository().registerCurrentDevice() }
+        }
         val consent = remember { ConsentRepository(androidx.compose.ui.platform.LocalContext.current) }
         if (!consent.privacyNoticeAcknowledged) {
             PrivacyConsentScreen(
