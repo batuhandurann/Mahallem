@@ -1,4 +1,4 @@
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { initializeApp } from "firebase-admin/app";
 import { getAuth } from "firebase-admin/auth";
 import { getFirestore, FieldValue, Timestamp as FirestoreTimestamp } from "firebase-admin/firestore";
@@ -170,6 +170,91 @@ export const createPaymentIntent = onCall(
       "unimplemented",
       "PayTR Marketplace checkout token generation is pending merchant configuration."
     );
+  }
+);
+
+export const issueImageUploadGrant = onCall(
+  { enforceAppCheck: true },
+  async (request) => {
+    if (!request.auth) throw new HttpsError("unauthenticated", "Kimlik doğrulaması gerekli.");
+    await assertAccountActive(request.auth.uid);
+
+    const data = callableData(request.data);
+    const kind = requireString(data, "kind", 20, 1);
+    if (!["USER", "CHAT", "JOB_REQUEST"].includes(kind)) {
+      throw new HttpsError("invalid-argument", "Geçersiz yükleme türü.");
+    }
+
+    const conversationId = data.conversationId == null ? "" : requireString(data, "conversationId", 64, 1);
+    const requestId = data.requestId == null ? "" : requireString(data, "requestId", 80, 1);
+
+    if (kind === "CHAT" && !/^[a-f0-9]{64}$/.test(conversationId)) {
+      throw new HttpsError("invalid-argument", "Geçersiz sohbet kimliği.");
+    }
+    if (kind === "JOB_REQUEST" && !ID_PATTERN.test(requestId)) {
+      throw new HttpsError("invalid-argument", "Geçersiz talep kimliği.");
+    }
+    if (kind === "USER" && (conversationId || requestId)) {
+      throw new HttpsError("invalid-argument", "Kullanıcı görseli için hedef alanı gönderilmemeli.");
+    }
+
+    const uid = request.auth.uid;
+    const rateRef = db.collection("rateLimits").doc("storage-grant-hour:" + uid);
+    const grantId = randomUUID().replace(/-/g, "");
+    const grantRef = db.collection("users").doc(uid).collection("uploadGrants").doc(grantId);
+    const now = Date.now();
+
+    await db.runTransaction(async (tx) => {
+      const [rateSnap, grantSnap] = await Promise.all([
+        tx.get(rateRef),
+        tx.get(grantRef),
+      ]);
+
+      if (grantSnap.exists) {
+        throw new HttpsError("aborted", "Yükleme kimliği çakıştı; tekrar deneyin.");
+      }
+
+      const rate = rateSnap.exists ? rateSnap.data()! : {};
+      const windowStart = Number(rate.windowStartMs ?? 0);
+      const count = Number(rate.count ?? 0);
+      const activeWindow = Number.isSafeInteger(windowStart) && now - windowStart < 3_600_000;
+
+      if (activeWindow && count >= 20) {
+        throw new HttpsError("resource-exhausted", "Saatlik görsel yükleme kotanıza ulaştınız.");
+      }
+
+      if (kind === "CHAT") {
+        const conversationSnap = await tx.get(db.collection("conversations").doc(conversationId));
+        const participants = conversationSnap.exists ? conversationSnap.data()?.participantIds : null;
+        if (!conversationSnap.exists || !Array.isArray(participants) || !participants.includes(uid)) {
+          throw new HttpsError("permission-denied", "Bu sohbete görsel yükleyemezsiniz.");
+        }
+      }
+
+      if (kind === "JOB_REQUEST") {
+        const requestSnap = await tx.get(db.collection("jobRequests").doc(requestId));
+        if (!requestSnap.exists || requestSnap.data()?.ownerId !== uid) {
+          throw new HttpsError("permission-denied", "Bu talep için görsel yükleyemezsiniz.");
+        }
+      }
+
+      tx.set(rateRef, {
+        windowStartMs: activeWindow ? windowStart : now,
+        count: activeWindow ? count + 1 : 1,
+        updatedAt: FieldValue.serverTimestamp(),
+      }, { merge: true });
+
+      tx.create(grantRef, {
+        ownerUid: uid,
+        kind,
+        conversationId: kind === "CHAT" ? conversationId : FieldValue.delete(),
+        requestId: kind === "JOB_REQUEST" ? requestId : FieldValue.delete(),
+        expiresAt: FirestoreTimestamp.fromMillis(now + 10 * 60_000),
+        createdAt: FieldValue.serverTimestamp(),
+      });
+    });
+
+    return { grantId, expiresInSeconds: 600 };
   }
 );
 
