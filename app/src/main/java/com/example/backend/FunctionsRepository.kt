@@ -33,6 +33,24 @@ class FunctionsRepository(
         return (result.data as? Map<*, *>) ?: error("Sunucudan geçersiz ödeme yanıtı.")
     }
 
+    suspend fun startConversation(
+        targetId: String,
+        relatedItemId: String = "",
+        relatedItemTitle: String = ""
+    ): String {
+        val result = functions.getHttpsCallable("startConversation")
+            .call(
+                mapOf(
+                    "targetId" to targetId,
+                    "relatedItemId" to relatedItemId,
+                    "relatedItemTitle" to relatedItemTitle
+                )
+            )
+            .await()
+        val data = result.data as? Map<*, *> ?: error("Sunucudan geçersiz sohbet yanıtı.")
+        return data["conversationId"] as? String ?: error("Sunucudan sohbet kimliği alınamadı.")
+    }
+
     suspend fun requestRefund(paymentId: String): Map<*, *> {
         val result = functions.getHttpsCallable("requestRefund")
             .call(mapOf("paymentId" to paymentId))
