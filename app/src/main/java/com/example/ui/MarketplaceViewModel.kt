@@ -285,15 +285,36 @@ class MarketplaceViewModel(application: Application) : AndroidViewModel(applicat
     }
 
     // --- Report / Spam Prevention ---
-    fun reportListing(providerId: String?, requestId: Long?) {
+    fun reportListing(providerId: String?, requestId: Long?, reason: String = "") {
         viewModelScope.launch {
+            if (AppEnvironment.mode != AppEnvironment.Mode.LOCAL) {
+                val targetType = if (providerId != null) "PROVIDER" else "JOB_REQUEST"
+                val targetId = providerId ?: requestId?.toString().orEmpty()
+                if (targetId.isBlank()) {
+                    _toastMessage.value = "Şikayet hedefi bulunamadı."
+                    return@launch
+                }
+                runCatching {
+                    com.example.backend.FunctionsRepository().reportContent(
+                        targetType = targetType,
+                        targetId = targetId,
+                        reason = reason
+                    )
+                }.onSuccess {
+                    _toastMessage.value = "Şikayetiniz güvenli şekilde alındı. Güvenlik ekibimiz inceleyecek. 🛡️"
+                }.onFailure {
+                    _toastMessage.value = it.message ?: "Şikayet gönderilemedi."
+                }
+                return@launch
+            }
+
             if (providerId != null) {
                 repository.reportProvider(providerId)
             }
             if (requestId != null) {
                 repository.reportJobRequest(requestId)
             }
-            _toastMessage.value = "Şikayetiniz alındı. Güvenlik ekibimiz ilanı inceliyor. Teşekkür ederiz! 🛡️"
+            _toastMessage.value = "Demo şikayetiniz alındı. 🛡️"
         }
     }
 
