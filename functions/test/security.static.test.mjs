@@ -11,6 +11,10 @@ assert.equal((source.match(/enforceAppCheck:\s*true/g) || []).length, 15);
 
 assert.match(source, /hashDeviceToken/);
 assert.match(source, /deviceTokenOwners/);
+assert.match(source, /adminAuth\.getUser\(uid\)/);
+assert.match(source, /bucket\.deleteFiles/);
+assert.match(source, /users.*devices/);
+assert.match(source, /String\(jobRequest\.status \?\? ""\) === "CLOSED"/);
 assert.match(source, /requireRecentAuthentication\(request.auth.token.auth_time\)/);
 assert.match(source, /validateUploadedImage/);
 assert.match(source, /validated: true/);
