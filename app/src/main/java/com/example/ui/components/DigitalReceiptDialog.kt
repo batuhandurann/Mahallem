@@ -46,7 +46,7 @@ fun DigitalReceiptDialog(
                         modifier = Modifier.size(24.dp)
                     )
                     Spacer(modifier = Modifier.width(8.dp))
-                    Text("Dijital Hizmet Fişi", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                    Text("Dijital Hizmet Fişi (Demo)", fontWeight = FontWeight.Bold, fontSize = 16.sp)
                 }
 
                 Surface(
@@ -54,7 +54,7 @@ fun DigitalReceiptDialog(
                     color = if (isCompleted) SafeBadgeGreenContainer else TealContainer
                 ) {
                     Text(
-                        text = if (isCompleted) "✓ TAMAMLANDI" else "🔒 HAVUZDA KİLİTLİ",
+                        text = if (isCompleted) "✓ DEMO TAMAMLANDI" else "DEMO • TEST",
                         fontSize = 10.sp,
                         fontWeight = FontWeight.Bold,
                         color = if (isCompleted) SafeBadgeText else OnTealContainer,
@@ -80,8 +80,8 @@ fun DigitalReceiptDialog(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Column {
-                        Text("MAHALLEMDE GÜVENCESİ", fontWeight = FontWeight.Bold, fontSize = 12.sp, color = TealDark)
-                        Text("Resmi İş Onay Belgesi", fontSize = 10.sp, color = Slate500)
+                        Text("MAHALLEM DEMO", fontWeight = FontWeight.Bold, fontSize = 12.sp, color = TealDark)
+                        Text("Yerel test fişi • Gerçek belge değildir", fontSize = 10.sp, color = Slate500)
                     }
                     Text(
                         text = receipt.receiptCode,
@@ -110,7 +110,7 @@ fun DigitalReceiptDialog(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text("Ödenen / Bloke Tutar:", fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                    Text("Demo işlem tutarı:", fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
                     Text(receipt.totalAmount, fontWeight = FontWeight.Bold, fontSize = 17.sp, color = TealPrimary)
                 }
 
@@ -128,8 +128,8 @@ fun DigitalReceiptDialog(
                         Icon(Icons.Default.QrCode2, contentDescription = null, tint = Slate700, modifier = Modifier.size(32.dp))
                         Spacer(modifier = Modifier.width(8.dp))
                         Column {
-                            Text("QR Doğrulama ve Tüketici Hakları", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Slate700)
-                            Text("Karekod ile işçilik garantisini sorgulayabilirsiniz.", fontSize = 9.sp, color = Slate500)
+                            Text("Demo doğrulama alanı", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Slate700)
+                            Text("Bu alan yerel test içindir; gerçek QR doğrulaması yapmaz.", fontSize = 9.sp, color = Slate500)
                         }
                     }
                 }
@@ -145,7 +145,7 @@ fun DigitalReceiptDialog(
                 ) {
                     Icon(Icons.Default.CheckCircle, contentDescription = null, modifier = Modifier.size(16.dp))
                     Spacer(modifier = Modifier.width(6.dp))
-                    Text("İşi Onayladım & Ödemeyi Ustaya Aktar", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    Text("Demo işi onayla & demo ödemeyi serbest bırak", fontSize = 12.sp, fontWeight = FontWeight.Bold)
                 }
             } else {
                 Button(onClick = onDismiss, shape = RoundedCornerShape(10.dp)) {
