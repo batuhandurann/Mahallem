@@ -287,6 +287,44 @@ async function run() {
   await assertFails(getDoc(doc(deletingDb, "quotes/quote-visible")));
   await assertFails(getDoc(doc(deletingDb, "payments/payment-visible")));
 
+  await assertFails(getDoc(doc(aliceDb, "users/alice/devices/device-1")));
+  await assertFails(
+    setDoc(doc(aliceDb, "quotes/client-created-quote"), {
+      providerId: "provider-1",
+      providerOwnerId: "alice",
+      customerId: "bob",
+      requestId: "request-1",
+      price: "100",
+      amountMinor: 10000,
+      status: "PENDING",
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    })
+  );
+
+  await env.withSecurityRulesDisabled(async (ctx) => {
+    await setDoc(doc(ctx.firestore(), "users/alice-purging"), {
+      uid: "alice-purging",
+      role: "user",
+      deletionStatus: "PURGING",
+    });
+  });
+  const purgingDb = env.authenticatedContext("alice-purging", { email_verified: true }).firestore();
+  await assertFails(getDoc(doc(purgingDb, "providers/provider-visible")));
+  await assertFails(
+    setDoc(doc(purgingDb, "jobRequests/purging-request"), {
+      ownerId: "alice-purging",
+      title: "Bloklanmalı",
+      sector: "CLEANING",
+      categoryId: "cleaning",
+      district: "Karşıyaka",
+      urgencyMode: "NORMAL",
+      status: "PENDING",
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    })
+  );
+
   await assertFails(
     setDoc(doc(deletingDb, "jobRequests/deleting-request"), {
       ownerId: "alice-deleting",
