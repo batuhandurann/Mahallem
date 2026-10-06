@@ -10,11 +10,11 @@ service cloud.firestore {
 
     match /users/{uid} {
       allow read: if ownsUser(uid) || isAdmin();
-      allow create: if ownsUser(uid) && request.resource.data.uid == uid && (!('role' in request.resource.data) || request.resource.data.role == 'user');
+      allow create: if ownsUser(uid) && request.resource.data.uid == uid && (!('role' in request.resource.data) || request.resource.data.role == 'user') && request.resource.data.keys().hasOnly(['uid','displayName','photoUrl','phoneNumber','role','createdAt','updatedAt','district','city','language','notificationPreferences']);
       allow update: if isAdmin() || (ownsUser(uid) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['displayName','photoUrl','district','city','language','notificationPreferences','updatedAt']));
       allow delete: if ownsUser(uid) || isAdmin();
       match /devices/{tokenId} {
-        allow read, write, delete: if ownsUser(uid);
+        allow read, write, delete: if ownsUser(uid) && (request.resource == null || request.resource.data.keys().hasOnly(['platform','updatedAt']));
       }
     }
 
@@ -34,7 +34,7 @@ service cloud.firestore {
 
     match /jobRequestPrivate/{requestId} {
       allow read: if isAdmin() || (signedIn() && resource.data.ownerId == request.auth.uid);
-      allow create: if signedIn() && request.resource.data.ownerId == request.auth.uid;
+      allow create: if signedIn() && request.resource.data.ownerId == request.auth.uid && request.resource.data.keys().hasOnly(['ownerId','phoneNumber','address','notes','createdAt','updatedAt']);
       allow update, delete: if isAdmin() || (signedIn() && resource.data.ownerId == request.auth.uid);
     }
 
