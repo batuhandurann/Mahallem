@@ -489,6 +489,9 @@ private fun MarketplaceContent(
                             },
                             onCheckoutUrl = { url ->
                                 runCatching {
+                                    require(com.example.integration.isAllowedPaytrCheckoutUrl(url)) {
+                                        "Ödeme adresi güvenlik nedeniyle reddedildi."
+                                    }
                                     context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
                                 }.onFailure {
                                     coroutineScope.launch {
