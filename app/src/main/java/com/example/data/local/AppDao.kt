@@ -91,6 +91,9 @@ interface AppDao {
     @Query("SELECT * FROM digital_receipts WHERE receiptCode = :code LIMIT 1")
     fun getReceiptByCode(code: String): Flow<DigitalReceiptEntity?>
 
+    @Query("SELECT * FROM digital_receipts WHERE receiptCode = :code LIMIT 1")
+    suspend fun getReceiptByCodeDirect(code: String): DigitalReceiptEntity?
+
     @Query("SELECT * FROM digital_receipts WHERE requestId = :requestId LIMIT 1")
     fun getReceiptForRequest(requestId: Long): Flow<DigitalReceiptEntity?>
 
