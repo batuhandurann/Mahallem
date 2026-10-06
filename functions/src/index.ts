@@ -496,16 +496,21 @@ async function anonymizeAccount(uid: string): Promise<void> {
   const providerQuotes = await db.collection("quotes")
     .where("providerOwnerId", "==", uid)
     .get();
-  const quoteBatch = db.batch();
-  [...customerQuotes.docs, ...providerQuotes.docs].forEach((doc) => {
-    const data = doc.data();
-    quoteBatch.set(doc.ref, {
-      ...(data.customerId === uid ? { customerId: anonymizedId } : {}),
-      ...(data.providerOwnerId === uid ? { providerOwnerId: anonymizedId } : {}),
-      accountDeletedAt: FieldValue.serverTimestamp(),
-    }, { merge: true });
-  });
-  if (customerQuotes.size + providerQuotes.size > 0) await quoteBatch.commit();
+  const quoteDocs = Array.from(
+    new Map([...customerQuotes.docs, ...providerQuotes.docs].map((doc) => [doc.id, doc])).values()
+  );
+  if (quoteDocs.length > 0) {
+    const quoteBatch = db.batch();
+    quoteDocs.forEach((doc) => {
+      const data = doc.data();
+      quoteBatch.set(doc.ref, {
+        ...(data.customerId === uid ? { customerId: anonymizedId } : {}),
+        ...(data.providerOwnerId === uid ? { providerOwnerId: anonymizedId } : {}),
+        accountDeletedAt: FieldValue.serverTimestamp(),
+      }, { merge: true });
+    });
+    await quoteBatch.commit();
+  }
 
   const customerPayments = await db.collection("payments")
     .where("customerId", "==", uid)
@@ -513,16 +518,21 @@ async function anonymizeAccount(uid: string): Promise<void> {
   const providerPayments = await db.collection("payments")
     .where("providerId", "==", uid)
     .get();
-  const paymentBatch = db.batch();
-  [...customerPayments.docs, ...providerPayments.docs].forEach((doc) => {
-    const data = doc.data();
-    paymentBatch.set(doc.ref, {
-      ...(data.customerId === uid ? { customerId: anonymizedId } : {}),
-      ...(data.providerId === uid ? { providerId: anonymizedId } : {}),
-      accountDeletedAt: FieldValue.serverTimestamp(),
-    }, { merge: true });
-  });
-  if (customerPayments.size + providerPayments.size > 0) await paymentBatch.commit();
+  const paymentDocs = Array.from(
+    new Map([...customerPayments.docs, ...providerPayments.docs].map((doc) => [doc.id, doc])).values()
+  );
+  if (paymentDocs.length > 0) {
+    const paymentBatch = db.batch();
+    paymentDocs.forEach((doc) => {
+      const data = doc.data();
+      paymentBatch.set(doc.ref, {
+        ...(data.customerId === uid ? { customerId: anonymizedId } : {}),
+        ...(data.providerId === uid ? { providerId: anonymizedId } : {}),
+        accountDeletedAt: FieldValue.serverTimestamp(),
+      }, { merge: true });
+    });
+    await paymentBatch.commit();
+  }
 
   const conversations = await db.collection("conversations")
     .where("participantIds", "array-contains", uid)
