@@ -132,13 +132,23 @@ export const sendMessage = onCall(
     if (!text.trim() && !attachmentUrl) {
       throw new HttpsError("invalid-argument", "Mesaj içeriği boş olamaz.");
     }
-    if (attachmentUrl && attachmentUrl.length > 2048) {
-      throw new HttpsError("invalid-argument", "Ek bağlantısı çok uzun.");
+    if (attachmentUrl && attachmentUrl.length > 512) {
+      throw new HttpsError("invalid-argument", "Ek dosya yolu çok uzun.");
     }
-    if (attachmentUrl
-      && !attachmentUrl.startsWith("gs://")
-      && !attachmentUrl.startsWith("https://firebasestorage.googleapis.com/")) {
-      throw new HttpsError("invalid-argument", "Geçersiz medya bağlantısı.");
+    if (messageType === "IMAGE" && !attachmentUrl) {
+      throw new HttpsError("invalid-argument", "Fotoğraf mesajı için ek dosya gerekli.");
+    }
+    if (attachmentUrl) {
+      const allowedPrefixes = [
+        "users/" + request.auth.uid + "/images/",
+        "jobRequests/" + request.auth.uid + "/",
+      ];
+      if (!allowedPrefixes.some((prefix) => attachmentUrl.startsWith(prefix))) {
+        throw new HttpsError("permission-denied", "Bu medya dosyasına mesajda erişim yetkiniz yok.");
+      }
+      if (attachmentUrl.includes("..") || attachmentUrl.includes("?") || attachmentUrl.includes("#")) {
+        throw new HttpsError("invalid-argument", "Geçersiz medya yolu.");
+      }
     }
 
     const conversationRef = db.collection("conversations").doc(conversationId);
