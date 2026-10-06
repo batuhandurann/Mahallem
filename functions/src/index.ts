@@ -81,6 +81,23 @@ export const createPaymentIntent = onCall(
     const rateLimitRef = db.collection("rateLimits").doc("payment-intent:" + request.auth.uid);
     const paymentRef = db.collection("payments").doc(idemHash);
 
+    const existing = await paymentRef.get();
+    if (existing.exists) {
+      const existingPayment = existing.data()!;
+      if (
+        String(existingPayment.requestId ?? "") !== requestId ||
+        String(existingPayment.quoteId ?? "") !== quoteId ||
+        Number(existingPayment.amountMinor ?? 0) !== amountMinor ||
+        String(existingPayment.customerId ?? "") !== request.auth.uid
+      ) {
+        throw new HttpsError(
+          "already-exists",
+          "Idempotency anahtarı farklı bir ödeme işlemi için kullanılmış."
+        );
+      }
+      return existingPayment;
+    }
+
     await db.runTransaction(async (tx) => {
       const rateLimitSnap = await tx.get(rateLimitRef);
       const rate = rateLimitSnap.exists ? rateLimitSnap.data()! : {};
@@ -99,23 +116,6 @@ export const createPaymentIntent = onCall(
         updatedAt: FieldValue.serverTimestamp(),
       }, { merge: true });
     });
-    const existing = await paymentRef.get();
-    if (existing.exists) {
-      const existingPayment = existing.data()!;
-      if (
-        String(existingPayment.requestId ?? "") !== requestId ||
-        String(existingPayment.quoteId ?? "") !== quoteId ||
-        Number(existingPayment.amountMinor ?? 0) !== amountMinor ||
-        String(existingPayment.customerId ?? "") !== request.auth.uid
-      ) {
-        throw new HttpsError(
-          "already-exists",
-          "Idempotency anahtarı farklı bir ödeme işlemi için kullanılmış."
-        );
-      }
-      return existingPayment;
-    }
-
     if (!paytrKey.value() || !paytrSalt.value()) {
       throw new HttpsError(
         "failed-precondition",
@@ -687,19 +687,32 @@ export const requestAccountDeletion = onCall(
     requireRecentAuthentication(request.auth.token.auth_time);
 
     const ref = db.collection("users").doc(request.auth.uid);
-    const snap = await ref.get();
-    if (snap.exists && snap.data()?.deletionStatus === "REQUESTED") {
-      return { requested: true, alreadyRequested: true };
-    }
+    let alreadyRequested = false;
 
-    await ref.set({
-      deletionStatus: "REQUESTED",
-      deletionRequestedAt: FieldValue.serverTimestamp(),
-      deletionDueAt: new Date(Date.now() + ACCOUNT_DELETION_DELAY_MS),
-      updatedAt: FieldValue.serverTimestamp(),
-    }, { merge: true });
+    await db.runTransaction(async (tx) => {
+      const snap = await tx.get(ref);
+      const status = snap.exists ? String(snap.data()?.deletionStatus ?? "ACTIVE") : "ACTIVE";
 
-    return { requested: true, dueInDays: 30 };
+      if (status === "REQUESTED") {
+        alreadyRequested = true;
+        return;
+      }
+      if (status === "PURGING") {
+        throw new HttpsError("failed-precondition", "Hesap silme işlemi devam ediyor.");
+      }
+      if (status !== "ACTIVE") {
+        throw new HttpsError("failed-precondition", "Hesap silme durumu geçersiz.");
+      }
+
+      tx.set(ref, {
+        deletionStatus: "REQUESTED",
+        deletionRequestedAt: FieldValue.serverTimestamp(),
+        deletionDueAt: new Date(Date.now() + ACCOUNT_DELETION_DELAY_MS),
+        updatedAt: FieldValue.serverTimestamp(),
+      }, { merge: true });
+    });
+
+    return { requested: true, alreadyRequested, dueInDays: 30 };
   }
 );
 
