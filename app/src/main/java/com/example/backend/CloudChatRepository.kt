@@ -25,24 +25,60 @@ class CloudChatRepository(
 
     fun observeConversations(): Flow<List<ConversationEntity>> = callbackFlow {
         val me = uid()
-        val listener = firestore.collection("conversations")
+        var conversations = emptyList<ConversationEntity>()
+        var unreadByConversation: Map<String, Int> = emptyMap()
+
+        fun emitCombined() {
+            trySend(
+                conversations.map { conversation ->
+                    conversation.copy(unreadCount = unreadByConversation[conversation.id] ?: 0)
+                }.sortedByDescending { it.lastTimestamp }
+            )
+        }
+
+        val conversationListener = firestore.collection("conversations")
             .whereArrayContains("participantIds", me)
             .limit(50)
             .addSnapshotListener { snap, error ->
-                if (error != null) { close(error); return@addSnapshotListener }
-                val list = snap?.documents.orEmpty().map { d ->
+                if (error != null) {
+                    close(error)
+                    return@addSnapshotListener
+                }
+                conversations = snap?.documents.orEmpty().map { d ->
                     val participants = d.get("participantIds") as? List<*> ?: emptyList<Any?>()
                     val other = participants.firstOrNull { it != me }?.toString().orEmpty()
                     ConversationEntity(
-                        id = d.id, participantId = other, participantName = "Mahalle Hizmet Vereni",
-                        participantTitle = "Hizmet", lastMessage = d.getString("lastMessagePreview") ?: "Sohbet başlatıldı",
-                        lastTimestamp = (d.getTimestamp("updatedAt")?.toDate()?.time ?: System.currentTimeMillis()),
-                        unreadCount = 0, relatedItemTitle = d.getString("relatedItemTitle") ?: ""
+                        id = d.id,
+                        participantId = other,
+                        participantName = "Mahalle Hizmet Vereni",
+                        participantTitle = "Hizmet",
+                        lastMessage = d.getString("lastMessagePreview") ?: "Sohbet başlatıldı",
+                        lastTimestamp = d.getTimestamp("updatedAt")?.toDate()?.time ?: System.currentTimeMillis(),
+                        unreadCount = 0,
+                        relatedItemTitle = d.getString("relatedItemTitle") ?: ""
                     )
-                }.sortedByDescending { it.lastTimestamp }
-                trySend(list)
+                }
+                emitCombined()
             }
-        awaitClose { listener.remove() }
+
+        val stateListener = firestore.collection("users").document(me)
+            .collection("conversationState")
+            .limit(50)
+            .addSnapshotListener { snap, error ->
+                if (error != null) {
+                    close(error)
+                    return@addSnapshotListener
+                }
+                unreadByConversation = snap?.documents.orEmpty().associate { d ->
+                    d.id to ((d.getLong("unreadCount") ?: 0L).coerceAtLeast(0L).coerceAtMost(999L).toInt())
+                }
+                emitCombined()
+            }
+
+        awaitClose {
+            conversationListener.remove()
+            stateListener.remove()
+        }
     }
 
     fun observeMessages(conversationId: String): Flow<List<ChatMessageEntity>> = callbackFlow {
@@ -69,6 +105,10 @@ class CloudChatRepository(
                 trySend(list)
             }
         awaitClose { listener.remove() }
+    }
+
+    suspend fun markConversationRead(conversationId: String) {
+        FunctionsRepository().markConversationRead(conversationId)
     }
 
     suspend fun startOrGetConversationForRequest(requestId: Long, relatedItemTitle: String): String {
