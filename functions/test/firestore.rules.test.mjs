@@ -19,6 +19,7 @@ const env = await initializeTestEnvironment({
 async function run() {
   const alice = env.authenticatedContext("alice");
   const bob = env.authenticatedContext("bob");
+  const admin = env.authenticatedContext("admin", { admin: true });
 
   const aliceDb = alice.firestore();
   const bobDb = bob.firestore();
@@ -116,8 +117,18 @@ async function run() {
     })
   );
 
-  await assertSucceeds(
+  await assertFails(
     setDoc(doc(aliceDb, "conversations/conversation-1"), {
+      participantIds: ["alice", "bob"],
+      relatedItemId: "request-1",
+      relatedItemTitle: "Temizlik",
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    })
+  );
+
+  await assertSucceeds(
+    setDoc(doc(admin.firestore(), "conversations/conversation-1"), {
       participantIds: ["alice", "bob"],
       relatedItemId: "request-1",
       relatedItemTitle: "Temizlik",
@@ -143,6 +154,17 @@ async function run() {
       text: "Yetkisiz",
       messageType: "TEXT",
       createdAt: new Date(),
+    })
+  );
+
+  await assertFails(
+    setDoc(doc(bobDb, "messages/message-3"), {
+      conversationId: "conversation-1",
+      senderId: "bob",
+      text: "Alan kaçırma",
+      messageType: "TEXT",
+      createdAt: new Date(),
+      participantIds: ["alice", "bob"],
     })
   );
 
