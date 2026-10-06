@@ -1,7 +1,7 @@
 import { strict as assert } from "node:assert";
 import { test } from "node:test";
 import { createHmac } from "node:crypto";
-import { createPaytrCallbackHash, verifyPaytrCallback } from "../src/payments/paytr.js";
+import { createPaytrCallbackHash, verifyPaytrCallback } from "../lib/payments/paytr.js";
 
 test("PayTR callback hash verifies valid payload", () => {
   const key = "key";
