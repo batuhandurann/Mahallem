@@ -70,44 +70,30 @@ class CloudMarketplaceRepository(
         awaitClose { listener.remove() }
     }
     suspend fun saveProvider(provider: ServiceProviderEntity) {
-        val uid = requireUid()
-        val ref = firestore.collection("providers").document(provider.id)
-        val exists = ref.get().await().exists()
-
-        val data = mutableMapOf<String, Any>(
-            "ownerId" to uid,
-            "displayName" to provider.name,
-            "title" to provider.title,
-            "bio" to provider.bio,
-            "sector" to provider.sector,
-            "categoryId" to provider.categoryId,
-            "district" to provider.district,
-            "city" to provider.city,
-            "experienceYears" to provider.experienceYears,
-            "serviceArea" to mapOf(
+        requireUid()
+        FunctionsRepository().saveProviderListing(
+            mapOf(
+                "providerId" to provider.id,
+                "displayName" to provider.name,
+                "title" to provider.title,
+                "bio" to provider.bio,
+                "sector" to provider.sector,
+                "categoryId" to provider.categoryId,
+                "district" to provider.district,
+                "city" to provider.city,
+                "experienceYears" to provider.experienceYears,
                 "latitude" to provider.latitude,
-                "longitude" to provider.longitude
-            ),
-            "isOpenForOffers" to provider.isOpenForOffers,
-            "updatedAt" to com.google.firebase.Timestamp.now()
+                "longitude" to provider.longitude,
+                "isOpenForOffers" to provider.isOpenForOffers
+            )
         )
-        if (!exists) {
-            data["createdAt"] = com.google.firebase.Timestamp.now()
-        }
-        ref.set(data, SetOptions.merge()).await()
     }
 
     suspend fun saveJobRequest(request: JobRequestEntity) {
-        val uid = requireUid()
-        val id = request.id.toString()
-        val publicRef = firestore.collection("jobRequests").document(id)
-        val privateRef = firestore.collection("jobRequestPrivate").document(id)
-        val batch = firestore.batch()
-
-        batch.set(
-            publicRef,
+        requireUid()
+        FunctionsRepository().saveJobRequest(
             mapOf(
-                "ownerId" to uid,
+                "requestId" to request.id.toString(),
                 "title" to request.title,
                 "sector" to request.sector,
                 "categoryId" to request.categoryId,
@@ -116,17 +102,6 @@ class CloudMarketplaceRepository(
                 "eventOrJobDate" to request.eventOrJobDate,
                 "eventTime" to request.eventTime,
                 "budgetEstimate" to request.budgetEstimate,
-                "status" to request.status,
-                "createdAt" to request.createdAt,
-                "updatedAt" to com.google.firebase.Timestamp.now()
-            ),
-            SetOptions.merge()
-        )
-
-        batch.set(
-            privateRef,
-            mapOf(
-                "ownerId" to uid,
                 "address" to request.address,
                 "customerName" to request.customerName,
                 "customerPhone" to request.customerPhone,
@@ -142,13 +117,9 @@ class CloudMarketplaceRepository(
                 "selectedCostumeOrCharacter" to request.selectedCostumeOrCharacter,
                 "extraServicesRequested" to request.extraServicesRequested,
                 "latitude" to request.latitude,
-                "longitude" to request.longitude,
-                "updatedAt" to com.google.firebase.Timestamp.now()
-            ),
-            SetOptions.merge()
+                "longitude" to request.longitude
+            )
         )
-
-        batch.commit().await()
     }
 
     suspend fun saveQuote(quote: QuoteEntity, providerOwnerId: String) {
