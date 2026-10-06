@@ -16,15 +16,15 @@ Do not commit service-account JSON files or server secrets. `google-services.jso
 
 ## 2. Authentication
 
-Enable Firebase Authentication providers from the Firebase Console.
+Enable Firebase Authentication in each environment.
 
-Recommended first phase:
-- Email/password
-- Phone authentication
+- LOCAL/debug: the app does not require a remote Firebase Auth session and routes Firebase SDKs to the local emulators.
+- STAGING: enable Phone authentication and configure Firebase fictional/test phone numbers; never use a real personal phone number in automated tests.
+- PRODUCTION: enable Phone authentication for real users and configure the final reCAPTCHA/App Check/Play Integrity policy.
 
-For phone-auth testing, configure Firebase's **fictional/test phone numbers** in the Firebase Console. Do not use a real phone number or real SMS during automated tests.
+The Android app uses Firebase Phone Auth directly. The legacy `ProductionSmsVerificationGateway` is only an abstraction boundary for a future external SMS provider and must not be treated as an active production SMS implementation.
 
-The existing non-production demo verification contract remains `123456`. It must never be accepted by production authentication.
+The non-production demo verification code `123456` is retained only for local/demo flows and must never be accepted by Firebase production authentication.
 
 ## 3. Firestore
 
@@ -66,9 +66,19 @@ Never store raw card numbers, CVV, or payment secrets in Mahallem.
 
 ## 6. Environments
 
-- LOCAL: Room + test gateways; no real SMS/payment.
-- STAGING: Firebase staging project + SMS/payment sandbox.
-- PRODUCTION: separate Firebase project + live providers.
+Use separate Firebase projects for staging and production. Firebase's Google Services Gradle plugin supports build-type-specific `google-services.json` files, so Mahallem uses:
+
+- LOCAL/debug: no remote Firebase dependency required for the main demo flow; SDKs point to emulators when Firebase is initialized.
+- STAGING: `app/src/staging/google-services.json`
+- PRODUCTION: `app/src/release/google-services.json`
+
+STAGING and PRODUCTION must never share the same Firebase project.
+
+Payment and SMS integrations follow the same separation:
+- STAGING: sandbox/test credentials only.
+- PRODUCTION: live credentials only, injected as deployment secrets.
+
+Account deletion uses a 30-day grace period. The user can cancel during the grace period. The scheduled cleanup anonymizes marketplace/audit references, removes private request/profile data, removes the Firebase Auth account, and preserves financial records needed for accounting/audit retention.
 
 Production secrets must be supplied through deployment secrets, not Git.
 
