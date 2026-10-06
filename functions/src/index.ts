@@ -90,6 +90,96 @@ export const createPaymentIntent = onCall(
   }
 );
 
+export const sendMessage = onCall(
+  { region: "europe-west1", enforceAppCheck: true },
+  async (request) => {
+    if (!request.auth) {
+      throw new HttpsError("unauthenticated", "Kimlik doğrulaması gerekli.");
+    }
+
+    const data = request.data as Record<string, unknown>;
+    const conversationId = String(data.conversationId ?? "");
+    const text = String(data.text ?? "");
+    const messageType = String(data.messageType ?? "TEXT");
+    const attachmentUrl = data.attachmentUrl == null ? null : String(data.attachmentUrl);
+
+    if (!conversationId) {
+      throw new HttpsError("invalid-argument", "conversationId gerekli.");
+    }
+    if (!["TEXT", "OFFER", "VOICE", "IMAGE"].includes(messageType)) {
+      throw new HttpsError("invalid-argument", "Geçersiz mesaj tipi.");
+    }
+    if (text.length > 2000) {
+      throw new HttpsError("invalid-argument", "Mesaj en fazla 2000 karakter olabilir.");
+    }
+    if (!text.trim() && !attachmentUrl) {
+      throw new HttpsError("invalid-argument", "Mesaj içeriği boş olamaz.");
+    }
+    if (attachmentUrl && attachmentUrl.length > 2048) {
+      throw new HttpsError("invalid-argument", "Ek bağlantısı çok uzun.");
+    }
+
+    const conversationRef = db.collection("conversations").doc(conversationId);
+    const rateLimitRef = db.collection("rateLimits").doc(
+      "message:" + request.auth.uid
+    );
+
+    const messageRef = db.collection("messages").doc();
+    const now = Date.now();
+
+    await db.runTransaction(async (tx) => {
+      const [conversationSnap, rateLimitSnap] = await Promise.all([
+        tx.get(conversationRef),
+        tx.get(rateLimitRef),
+      ]);
+
+      if (!conversationSnap.exists) {
+        throw new HttpsError("not-found", "Sohbet bulunamadı.");
+      }
+
+      const participants = conversationSnap.data()?.participantIds;
+      if (!Array.isArray(participants) || !participants.includes(request.auth!.uid)) {
+        throw new HttpsError("permission-denied", "Bu sohbete mesaj gönderemezsiniz.");
+      }
+
+      const rate = rateLimitSnap.exists ? rateLimitSnap.data()! : {};
+      const windowStart = Number(rate.windowStartMs ?? 0);
+      const count = Number(rate.count ?? 0);
+      const windowMs = 60_000;
+
+      const activeWindow = Number.isSafeInteger(windowStart)
+        && now - windowStart < windowMs;
+
+      if (activeWindow && count >= 30) {
+        throw new HttpsError("resource-exhausted", "Çok fazla mesaj gönderildi. Lütfen biraz sonra tekrar deneyin.");
+      }
+
+      tx.set(rateLimitRef, {
+        windowStartMs: activeWindow ? windowStart : now,
+        count: activeWindow ? count + 1 : 1,
+        updatedAt: FieldValue.serverTimestamp(),
+      }, { merge: true });
+
+      tx.create(messageRef, {
+        conversationId,
+        senderId: request.auth!.uid,
+        text,
+        attachmentUrl,
+        messageType,
+        createdAt: FieldValue.serverTimestamp(),
+      });
+
+      tx.update(conversationRef, {
+        lastMessageAt: FieldValue.serverTimestamp(),
+        lastMessagePreview: messageType === "IMAGE" ? "📷 Fotoğraf" : text.slice(0, 200),
+        updatedAt: FieldValue.serverTimestamp(),
+      });
+    });
+
+    return { messageId: messageRef.id };
+  }
+);
+
 export const startConversation = onCall(
   { region: "europe-west1", enforceAppCheck: true },
   async (request) => {
