@@ -347,6 +347,95 @@ export const startConversation = onCall(
   }
 );
 
+export const createQuote = onCall(
+  { region: "europe-west1", enforceAppCheck: true },
+  async (request) => {
+    if (!request.auth) throw new HttpsError("unauthenticated", "Kimlik doğrulaması gerekli.");
+    await assertAccountActive(request.auth.uid);
+
+    const data = request.data as Record<string, unknown>;
+    const quoteId = String(data.quoteId ?? "");
+    const requestId = String(data.requestId ?? "");
+    const providerId = String(data.providerId ?? "");
+    const price = String(data.price ?? "");
+    const durationOrArrival = String(data.durationOrArrival ?? "");
+    const notes = String(data.notes ?? "");
+    const amountMinor = Number(data.amountMinor ?? 0);
+
+    if (!/^[A-Za-z0-9_-]{1,80}$/.test(quoteId) ||
+        !/^[A-Za-z0-9_-]{1,80}$/.test(requestId) ||
+        !providerId ||
+        !Number.isSafeInteger(amountMinor) || amountMinor <= 0 ||
+        price.length > 200 || durationOrArrival.length > 200 || notes.length > 1000) {
+      throw new HttpsError("invalid-argument", "Geçersiz teklif verisi.");
+    }
+
+    const providerRef = db.collection("providers").doc(providerId);
+    const requestRef = db.collection("jobRequests").doc(requestId);
+    const quoteRef = db.collection("quotes").doc(quoteId);
+    const rateLimitRef = db.collection("rateLimits").doc("quote:" + request.auth.uid);
+
+    await db.runTransaction(async (tx) => {
+      const [providerSnap, requestSnap, quoteSnap, rateSnap] = await Promise.all([
+        tx.get(providerRef),
+        tx.get(requestRef),
+        tx.get(quoteRef),
+        tx.get(rateLimitRef),
+      ]);
+
+      if (!providerSnap.exists || providerSnap.data()?.ownerId !== request.auth!.uid) {
+        throw new HttpsError("permission-denied", "Bu hizmet sağlayıcı adına teklif veremezsiniz.");
+      }
+      if (providerSnap.data()?.isOpenForOffers !== true) {
+        throw new HttpsError("failed-precondition", "Hizmet sağlayıcı yeni tekliflere kapalı.");
+      }
+      if (!requestSnap.exists || requestSnap.data()?.status !== "PENDING") {
+        throw new HttpsError("failed-precondition", "Talep artık yeni teklif kabul etmiyor.");
+      }
+
+      const customerId = String(requestSnap.data()?.ownerId ?? "");
+      if (!customerId || customerId === request.auth.uid) {
+        throw new HttpsError("permission-denied", "Geçerli bir müşteri talebi bulunamadı.");
+      }
+
+      if (quoteSnap.exists) {
+        throw new HttpsError("already-exists", "Bu teklif kimliği zaten kullanılmış.");
+      }
+
+      const rate = rateSnap.exists ? rateSnap.data()! : {};
+      const windowStart = Number(rate.windowStartMs ?? 0);
+      const count = Number(rate.count ?? 0);
+      const now = Date.now();
+      const activeWindow = Number.isSafeInteger(windowStart) && now - windowStart < 60_000;
+      if (activeWindow && count >= 20) {
+        throw new HttpsError("resource-exhausted", "Çok fazla teklif gönderildi. Lütfen biraz sonra tekrar deneyin.");
+      }
+
+      tx.set(rateLimitRef, {
+        windowStartMs: activeWindow ? windowStart : now,
+        count: activeWindow ? count + 1 : 1,
+        updatedAt: FieldValue.serverTimestamp(),
+      }, { merge: true });
+
+      tx.create(quoteRef, {
+        providerId,
+        providerOwnerId: request.auth!.uid,
+        customerId,
+        requestId,
+        price,
+        amountMinor,
+        durationOrArrival,
+        notes,
+        status: "PENDING",
+        createdAt: FieldValue.serverTimestamp(),
+        updatedAt: FieldValue.serverTimestamp(),
+      });
+    });
+
+    return { created: true, quoteId };
+  }
+);
+
 export const acceptQuote = onCall({ region: "europe-west1", enforceAppCheck: true }, async (request) => {
   if (!request.auth) throw new HttpsError("unauthenticated", "Kimlik doğrulaması gerekli.");
     await assertAccountActive(request.auth.uid);
