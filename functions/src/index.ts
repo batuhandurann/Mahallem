@@ -1940,15 +1940,39 @@ export const notifyNewMessage = onDocumentCreated(
 
     if (recipientIds.length === 0) return;
 
-    const tokenDocs = await Promise.all(
-      recipientIds.map((uid) => db.collection("users").doc(uid).collection("devices").get())
+    const messageCreatedAt = event.data?.data()?.createdAt;
+    const candidateRegistrations = await Promise.all(
+      recipientIds.map(async (uid) => {
+        const [profileSnap, tokenSnap, stateSnap] = await Promise.all([
+          db.collection("users").doc(uid).get(),
+          db.collection("users").doc(uid).collection("devices").get(),
+          db.collection("users").doc(uid).collection("conversationState").doc(conversationId).get(),
+        ]);
+
+        const preferences = profileSnap.data()?.notificationPreferences;
+        const messagesEnabled = preferences == null || preferences.messages !== false;
+        if (!messagesEnabled) return [];
+
+        const lastReadAt = stateSnap.data()?.lastReadAt;
+        if (messageCreatedAt && lastReadAt) {
+          const messageMillis = typeof messageCreatedAt?.toMillis === "function"
+            ? messageCreatedAt.toMillis()
+            : Number(messageCreatedAt);
+          const readMillis = typeof lastReadAt?.toMillis === "function"
+            ? lastReadAt.toMillis()
+            : Number(lastReadAt);
+          if (Number.isFinite(messageMillis) && Number.isFinite(readMillis) && readMillis >= messageMillis) {
+            return [];
+          }
+        }
+
+        return tokenSnap.docs
+          .map((doc) => ({ ref: doc.ref, token: String(doc.data()?.token ?? "") }))
+          .filter((entry) => entry.token.length > 0);
+      })
     );
 
-    const registrations = tokenDocs.flatMap((snap) =>
-      snap.docs.map((doc) => ({ ref: doc.ref, token: String(doc.data()?.token ?? "") }))
-        .filter((entry) => entry.token.length > 0)
-    );
-
+    const registrations = candidateRegistrations.flat();
     if (registrations.length === 0) return;
 
     const payload = {
@@ -1957,7 +1981,7 @@ export const notifyNewMessage = onDocumentCreated(
         body: "Yeni bir mesajınız var.",
       },
       data: {
-        conversationId: String(message.conversationId ?? ""),
+        conversationId,
       },
     };
 
