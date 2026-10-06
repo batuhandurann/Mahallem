@@ -35,7 +35,7 @@ service cloud.firestore {
     match /providers/{providerId} {
       allow read: if signedIn();
       allow create: if verifiedContact() && accountActive() && request.resource.data.ownerId == request.auth.uid && request.resource.data.keys().hasOnly(['ownerId','displayName','title','bio','sector','categoryId','district','city','experienceYears','serviceArea','isOpenForOffers','createdAt','updatedAt']);
-      allow update: if isAdmin() || (ownsProvider() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['displayName','title','bio','sector','categoryId','district','city','experienceYears','serviceArea','isOpenForOffers','updatedAt']));
+      allow update: if isAdmin() || (accountActive() && ownsProvider() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['displayName','title','bio','sector','categoryId','district','city','experienceYears','serviceArea','isOpenForOffers','updatedAt']));
       allow delete: if isAdmin();
     }
 
