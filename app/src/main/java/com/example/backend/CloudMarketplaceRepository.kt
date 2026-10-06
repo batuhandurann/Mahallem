@@ -20,7 +20,9 @@ class CloudMarketplaceRepository(
     private fun requireUid(): String = auth.currentUser?.uid ?: error("Giriş gerekli.")
 
     fun observeProviders(): Flow<List<ServiceProviderEntity>> = callbackFlow {
-        val listener = firestore.collection("providers").addSnapshotListener { snapshot, error ->
+        val listener = firestore.collection("providers")
+            .limit(200)
+            .addSnapshotListener { snapshot, error ->
             if (error != null) { close(error); return@addSnapshotListener }
             val providers = snapshot?.documents.orEmpty().mapNotNull { doc ->
                 runCatching { providerFromDocument(doc.id, doc.data.orEmpty()) }.getOrNull()
@@ -31,7 +33,9 @@ class CloudMarketplaceRepository(
     }
 
     fun observeRequests(): Flow<List<JobRequestEntity>> = callbackFlow {
-        val listener = firestore.collection("jobRequests").addSnapshotListener { snapshot, error ->
+        val listener = firestore.collection("jobRequests")
+            .limit(200)
+            .addSnapshotListener { snapshot, error ->
             if (error != null) { close(error); return@addSnapshotListener }
             val requests = snapshot?.documents.orEmpty().mapNotNull { doc ->
                 runCatching { requestFromDocument(doc.id, doc.data.orEmpty()) }.getOrNull()
@@ -66,48 +70,84 @@ class CloudMarketplaceRepository(
     }
     suspend fun saveProvider(provider: ServiceProviderEntity) {
         val uid = requireUid()
-        firestore.collection("providers").document(provider.id).set(
-            mapOf(
-                "ownerId" to uid, "displayName" to provider.name, "title" to provider.title,
-                "bio" to provider.bio, "sector" to provider.sector, "categoryId" to provider.categoryId,
-                "district" to provider.district, "city" to provider.city,
-                "experienceYears" to provider.experienceYears, "serviceArea" to mapOf(
-                    "latitude" to provider.latitude, "longitude" to provider.longitude
-                ), "isOpenForOffers" to provider.isOpenForOffers,
-                "createdAt" to com.google.firebase.Timestamp.now(),
-                "updatedAt" to com.google.firebase.Timestamp.now()
-            ), SetOptions.merge()
-        ).await()
+        val ref = firestore.collection("providers").document(provider.id)
+        val exists = ref.get().await().exists()
+
+        val data = mutableMapOf<String, Any>(
+            "ownerId" to uid,
+            "displayName" to provider.name,
+            "title" to provider.title,
+            "bio" to provider.bio,
+            "sector" to provider.sector,
+            "categoryId" to provider.categoryId,
+            "district" to provider.district,
+            "city" to provider.city,
+            "experienceYears" to provider.experienceYears,
+            "serviceArea" to mapOf(
+                "latitude" to provider.latitude,
+                "longitude" to provider.longitude
+            ),
+            "isOpenForOffers" to provider.isOpenForOffers,
+            "updatedAt" to com.google.firebase.Timestamp.now()
+        )
+        if (!exists) {
+            data["createdAt"] = com.google.firebase.Timestamp.now()
+        }
+        ref.set(data, SetOptions.merge()).await()
     }
 
     suspend fun saveJobRequest(request: JobRequestEntity) {
         val uid = requireUid()
         val id = request.id.toString()
-        firestore.collection("jobRequests").document(id).set(
+        val publicRef = firestore.collection("jobRequests").document(id)
+        val privateRef = firestore.collection("jobRequestPrivate").document(id)
+        val batch = firestore.batch()
+
+        batch.set(
+            publicRef,
             mapOf(
-                "ownerId" to uid, "title" to request.title, "sector" to request.sector,
-                "categoryId" to request.categoryId, "district" to request.district,
-                "urgencyMode" to request.urgencyMode, "eventOrJobDate" to request.eventOrJobDate,
-                "eventTime" to request.eventTime, "budgetEstimate" to request.budgetEstimate,
-                "status" to request.status, "createdAt" to request.createdAt,
+                "ownerId" to uid,
+                "title" to request.title,
+                "sector" to request.sector,
+                "categoryId" to request.categoryId,
+                "district" to request.district,
+                "urgencyMode" to request.urgencyMode,
+                "eventOrJobDate" to request.eventOrJobDate,
+                "eventTime" to request.eventTime,
+                "budgetEstimate" to request.budgetEstimate,
+                "status" to request.status,
+                "createdAt" to request.createdAt,
                 "updatedAt" to com.google.firebase.Timestamp.now()
-            ), SetOptions.merge()
-        ).await()
-        firestore.collection("jobRequestPrivate").document(id).set(
+            ),
+            SetOptions.merge()
+        )
+
+        batch.set(
+            privateRef,
             mapOf(
-                "ownerId" to uid, "address" to request.address,
-                "customerName" to request.customerName, "customerPhone" to request.customerPhone,
-                "phoneVerified" to request.phoneVerified, "areaSquareMeters" to request.areaSquareMeters,
-                "roomCount" to request.roomCount, "isFurnished" to request.isFurnished,
-                "materialsIncluded" to request.materialsIncluded, "renovationNotes" to request.renovationNotes,
-                "eventType" to request.eventType, "durationHours" to request.durationHours,
+                "ownerId" to uid,
+                "address" to request.address,
+                "customerName" to request.customerName,
+                "customerPhone" to request.customerPhone,
+                "phoneVerified" to request.phoneVerified,
+                "areaSquareMeters" to request.areaSquareMeters,
+                "roomCount" to request.roomCount,
+                "isFurnished" to request.isFurnished,
+                "materialsIncluded" to request.materialsIncluded,
+                "renovationNotes" to request.renovationNotes,
+                "eventType" to request.eventType,
+                "durationHours" to request.durationHours,
                 "targetAgeGroup" to request.targetAgeGroup,
                 "selectedCostumeOrCharacter" to request.selectedCostumeOrCharacter,
                 "extraServicesRequested" to request.extraServicesRequested,
-                "latitude" to request.latitude, "longitude" to request.longitude,
+                "latitude" to request.latitude,
+                "longitude" to request.longitude,
                 "updatedAt" to com.google.firebase.Timestamp.now()
-            ), SetOptions.merge()
-        ).await()
+            ),
+            SetOptions.merge()
+        )
+
+        batch.commit().await()
     }
 
     suspend fun saveQuote(quote: QuoteEntity, providerOwnerId: String) {
