@@ -26,6 +26,8 @@ assert.match(source, /saveProviderListing/);
 assert.match(source, /saveJobRequest/);
 assert.match(source, /reportContent/);
 assert.match(source, /contentReports/);
+assert.match(source, /where\("reporterUid", "==", uid\)/);
+assert.match(source, /reporterUid: anonymizedId/);
 assert.match(source, /report-day:/);
 assert.match(source, /hourlyRateLimitRef/);
 assert.match(source, /parseTryAmountMinor\(price\) !== amountMinor/);
