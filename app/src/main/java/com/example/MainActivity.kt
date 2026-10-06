@@ -119,7 +119,7 @@ private fun MarketplaceContent(
             currentScreen is ScreenDestination.ConversationsList
 
     Scaffold(
-        containerColor = androidx.compose.ui.graphics.Color.White,
+        containerColor = MaterialTheme.colorScheme.background,
         modifier = Modifier.fillMaxSize(),
         snackbarHost = { SnackbarHost(snackbarHostState) },
         bottomBar = {
@@ -135,7 +135,7 @@ private fun MarketplaceContent(
             }
         }
     ) { innerPadding ->
-        Box(modifier = Modifier.fillMaxSize().background(androidx.compose.ui.graphics.Color.White).padding(innerPadding)) {
+        Box(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(innerPadding)) {
             when (val screen = currentScreen) {
                 is ScreenDestination.Home -> {
                     HomeScreen(
