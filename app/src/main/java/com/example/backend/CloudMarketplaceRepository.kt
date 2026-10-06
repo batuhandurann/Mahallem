@@ -44,6 +44,21 @@ class CloudMarketplaceRepository(
         awaitClose { listener.remove() }
     }
 
+    fun observeMyRequests(): Flow<List<JobRequestEntity>> = callbackFlow {
+        val me = requireUid()
+        val listener = firestore.collection("jobRequests")
+            .whereEqualTo("ownerId", me)
+            .limit(50)
+            .addSnapshotListener { snapshot, error ->
+                if (error != null) { close(error); return@addSnapshotListener }
+                val requests = snapshot?.documents.orEmpty().mapNotNull { doc ->
+                    runCatching { requestFromDocument(doc.id, doc.data.orEmpty()) }.getOrNull()
+                }
+                trySend(requests)
+            }
+        awaitClose { listener.remove() }
+    }
+
     fun observeQuotes(): kotlinx.coroutines.flow.Flow<List<QuoteEntity>> = kotlinx.coroutines.flow.callbackFlow {
         val me = requireUid()
         val listener = firestore.collection("quotes")
