@@ -81,6 +81,9 @@ class FunctionsRepository(
         return (result.data as? Map<*, *>) ?: error("Sunucudan geçersiz teklif yanıtı.")
     }
 
+    suspend fun markConversationRead(conversationId: String): Map<*, *> =
+        call("markConversationRead", mapOf("conversationId" to conversationId))
+
     suspend fun sendMessage(
         conversationId: String,
         text: String,
