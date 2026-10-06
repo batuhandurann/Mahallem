@@ -520,7 +520,7 @@ private fun MarketplaceContent(
                     itemTitle = title,
                     onDismiss = { reportingTarget = null },
                     onConfirmReport = { reason ->
-                        viewModel.reportListing(providerId, reqId)
+                        viewModel.reportListing(providerId, reqId, reason)
                         reportingTarget = null
                     }
                 )
