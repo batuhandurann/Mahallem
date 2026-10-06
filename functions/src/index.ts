@@ -19,6 +19,13 @@ const adminAuth = getAuth();
 const paytrKey = defineSecret("PAYTR_MERCHANT_KEY");
 const paytrSalt = defineSecret("PAYTR_MERCHANT_SALT");
 
+async function assertAccountActive(uid: string) {
+  const userSnap = await db.collection("users").doc(uid).get();
+  if (userSnap.exists && userSnap.data()?.deletionStatus === "REQUESTED") {
+    throw new HttpsError("failed-precondition", "Hesap silme sürecinde olduğu için bu işlem kullanılamaz.");
+  }
+}
+
 export const createPaymentIntent = onCall(
   { region: "europe-west1", enforceAppCheck: true, secrets: [paytrKey, paytrSalt] },
   async (request) => {
@@ -113,6 +120,7 @@ export const sendMessage = onCall(
     if (!request.auth) {
       throw new HttpsError("unauthenticated", "Kimlik doğrulaması gerekli.");
     }
+    await assertAccountActive(request.auth.uid);
 
     const data = request.data as Record<string, unknown>;
     const conversationId = String(data.conversationId ?? "");
@@ -216,6 +224,7 @@ export const startConversation = onCall(
     if (!request.auth) {
       throw new HttpsError("unauthenticated", "Kimlik doğrulaması gerekli.");
     }
+    await assertAccountActive(request.auth.uid);
 
     const data = request.data as Record<string, unknown>;
     const targetId = String(data.targetId ?? "");
@@ -314,328 +323,9 @@ export const startConversation = onCall(
   }
 );
 
-export const sendMessage = onCall(
-  { region: "europe-west1", enforceAppCheck: true },
-  async (request) => {
-    if (!request.auth) {
-      throw new HttpsError("unauthenticated", "Kimlik doğrulaması gerekli.");
-    }
-
-    const data = request.data as Record<string, unknown>;
-    const conversationId = String(data.conversationId ?? "");
-    const text = String(data.text ?? "");
-    const messageType = String(data.messageType ?? "TEXT");
-    const attachmentUrl = data.attachmentUrl == null ? null : String(data.attachmentUrl);
-
-    if (!conversationId) {
-      throw new HttpsError("invalid-argument", "conversationId gerekli.");
-    }
-    if (!["TEXT", "OFFER", "VOICE", "IMAGE"].includes(messageType)) {
-      throw new HttpsError("invalid-argument", "Geçersiz mesaj tipi.");
-    }
-    if (text.length > 2000) {
-      throw new HttpsError("invalid-argument", "Mesaj en fazla 2000 karakter olabilir.");
-    }
-    if (!text.trim() && !attachmentUrl) {
-      throw new HttpsError("invalid-argument", "Mesaj içeriği boş olamaz.");
-    }
-    if (attachmentUrl && attachmentUrl.length > 2048) {
-      throw new HttpsError("invalid-argument", "Ek bağlantısı çok uzun.");
-    }
-
-    const conversationRef = db.collection("conversations").doc(conversationId);
-    const rateLimitRef = db.collection("rateLimits").doc(
-      "message:" + request.auth.uid
-    );
-
-    const messageRef = db.collection("messages").doc();
-    const now = Date.now();
-
-    await db.runTransaction(async (tx) => {
-      const [conversationSnap, rateLimitSnap] = await Promise.all([
-        tx.get(conversationRef),
-        tx.get(rateLimitRef),
-      ]);
-
-      if (!conversationSnap.exists) {
-        throw new HttpsError("not-found", "Sohbet bulunamadı.");
-      }
-
-      const participants = conversationSnap.data()?.participantIds;
-      if (!Array.isArray(participants) || !participants.includes(request.auth!.uid)) {
-        throw new HttpsError("permission-denied", "Bu sohbete mesaj gönderemezsiniz.");
-      }
-
-      const rate = rateLimitSnap.exists ? rateLimitSnap.data()! : {};
-      const windowStart = Number(rate.windowStartMs ?? 0);
-      const count = Number(rate.count ?? 0);
-      const windowMs = 60_000;
-
-      const activeWindow = Number.isSafeInteger(windowStart)
-        && now - windowStart < windowMs;
-
-      if (activeWindow && count >= 30) {
-        throw new HttpsError("resource-exhausted", "Çok fazla mesaj gönderildi. Lütfen biraz sonra tekrar deneyin.");
-      }
-
-      tx.set(rateLimitRef, {
-        windowStartMs: activeWindow ? windowStart : now,
-        count: activeWindow ? count + 1 : 1,
-        updatedAt: FieldValue.serverTimestamp(),
-      }, { merge: true });
-
-      tx.create(messageRef, {
-        conversationId,
-        senderId: request.auth!.uid,
-        text,
-        attachmentUrl,
-        messageType,
-        createdAt: FieldValue.serverTimestamp(),
-      });
-
-      tx.update(conversationRef, {
-        lastMessageAt: FieldValue.serverTimestamp(),
-        lastMessagePreview: messageType === "IMAGE" ? "📷 Fotoğraf" : text.slice(0, 200),
-        updatedAt: FieldValue.serverTimestamp(),
-      });
-    });
-
-    return { messageId: messageRef.id };
-  }
-);
-
-export const startConversation = onCall(
-  { region: "europe-west1", enforceAppCheck: true },
-  async (request) => {
-    if (!request.auth) {
-      throw new HttpsError("unauthenticated", "Kimlik doğrulaması gerekli.");
-    }
-
-    const data = request.data as Record<string, unknown>;
-    const targetId = String(data.targetId ?? "");
-    const relatedItemId = String(data.relatedItemId ?? "");
-    const relatedItemTitle = String(data.relatedItemTitle ?? "");
-
-    if (!targetId || !relatedItemId && targetId === request.auth.uid) {
-      throw new HttpsError("invalid-argument", "Geçerli bir sohbet hedefi gerekli.");
-    }
-
-    let participantUid = "";
-    const providerSnap = await db.collection("providers").doc(targetId).get();
-
-    if (providerSnap.exists) {
-      participantUid = String(providerSnap.data()?.ownerId ?? "");
-      if (!participantUid || participantUid === request.auth.uid) {
-        throw new HttpsError("failed-precondition", "Geçerli bir hizmet sağlayıcı bulunamadı.");
-      }
-      if (relatedItemId && relatedItemId !== targetId) {
-        throw new HttpsError("invalid-argument", "Hizmet sağlayıcı sohbet bağlantısı geçersiz.");
-      }
-    } else {
-      if (!relatedItemId) {
-        throw new HttpsError("permission-denied", "Doğrudan kullanıcılar arası sohbet desteklenmiyor.");
-      }
-
-      const requestSnap = await db.collection("jobRequests").doc(relatedItemId).get();
-      if (!requestSnap.exists || requestSnap.data()?.ownerId !== targetId) {
-        throw new HttpsError("permission-denied", "Talep ve sohbet katılımcısı eşleşmiyor.");
-      }
-
-      const status = String(requestSnap.data()?.status ?? "");
-      if (!["PENDING", "QUOTED", "ACCEPTED"].includes(status)) {
-        throw new HttpsError("failed-precondition", "Bu talep artık sohbet başlatılabilir durumda değil.");
-      }
-
-      const providerQuery = await db.collection("providers")
-        .where("ownerId", "==", request.auth.uid)
-        .limit(1)
-        .get();
-
-      if (providerQuery.empty) {
-        throw new HttpsError("permission-denied", "Bu talep için sohbet başlatma yetkiniz yok.");
-      }
-
-      participantUid = targetId;
-    }
-
-    if (!participantUid || participantUid === request.auth.uid) {
-      throw new HttpsError("failed-precondition", "Geçerli bir sohbet katılımcısı bulunamadı.");
-    }
-
-    const participantIds = [request.auth.uid, participantUid].sort();
-    const conversationId = createHash("sha256")
-      .update(participantIds.join(":") + ":" + relatedItemId)
-      .digest("hex");
-
-    const ref = db.collection("conversations").doc(conversationId);
-    await db.runTransaction(async (tx) => {
-      const existing = await tx.get(ref);
-      if (existing.exists) return;
-
-      tx.create(ref, {
-        participantIds,
-        relatedItemId,
-        relatedItemTitle,
-        createdAt: FieldValue.serverTimestamp(),
-        updatedAt: FieldValue.serverTimestamp(),
-      });
-    });
-
-    return { conversationId };
-  }
-);
-
-export const sendMessage = onCall(
-  { region: "europe-west1", enforceAppCheck: true },
-  async (request) => {
-    if (!request.auth) {
-      throw new HttpsError("unauthenticated", "Kimlik doğrulaması gerekli.");
-    }
-
-    const data = request.data as Record<string, unknown>;
-    const conversationId = String(data.conversationId ?? "");
-    const text = String(data.text ?? "");
-    const messageType = String(data.messageType ?? "TEXT");
-    const attachmentUrl = data.attachmentUrl == null ? null : String(data.attachmentUrl);
-
-    if (!conversationId) {
-      throw new HttpsError("invalid-argument", "conversationId gerekli.");
-    }
-    if (!["TEXT", "OFFER", "VOICE", "IMAGE"].includes(messageType)) {
-      throw new HttpsError("invalid-argument", "Geçersiz mesaj tipi.");
-    }
-    if (text.length > 2000) {
-      throw new HttpsError("invalid-argument", "Mesaj en fazla 2000 karakter olabilir.");
-    }
-    if (!text.trim() && !attachmentUrl) {
-      throw new HttpsError("invalid-argument", "Mesaj içeriği boş olamaz.");
-    }
-    if (attachmentUrl && attachmentUrl.length > 2048) {
-      throw new HttpsError("invalid-argument", "Ek bağlantısı çok uzun.");
-    }
-
-    const conversationRef = db.collection("conversations").doc(conversationId);
-    const rateLimitRef = db.collection("rateLimits").doc(
-      "message:" + request.auth.uid
-    );
-
-    const messageRef = db.collection("messages").doc();
-    const now = Date.now();
-
-    await db.runTransaction(async (tx) => {
-      const [conversationSnap, rateLimitSnap] = await Promise.all([
-        tx.get(conversationRef),
-        tx.get(rateLimitRef),
-      ]);
-
-      if (!conversationSnap.exists) {
-        throw new HttpsError("not-found", "Sohbet bulunamadı.");
-      }
-
-      const participants = conversationSnap.data()?.participantIds;
-      if (!Array.isArray(participants) || !participants.includes(request.auth!.uid)) {
-        throw new HttpsError("permission-denied", "Bu sohbete mesaj gönderemezsiniz.");
-      }
-
-      const rate = rateLimitSnap.exists ? rateLimitSnap.data()! : {};
-      const windowStart = Number(rate.windowStartMs ?? 0);
-      const count = Number(rate.count ?? 0);
-      const windowMs = 60_000;
-
-      const activeWindow = Number.isSafeInteger(windowStart)
-        && now - windowStart < windowMs;
-
-      if (activeWindow && count >= 30) {
-        throw new HttpsError("resource-exhausted", "Çok fazla mesaj gönderildi. Lütfen biraz sonra tekrar deneyin.");
-      }
-
-      tx.set(rateLimitRef, {
-        windowStartMs: activeWindow ? windowStart : now,
-        count: activeWindow ? count + 1 : 1,
-        updatedAt: FieldValue.serverTimestamp(),
-      }, { merge: true });
-
-      tx.create(messageRef, {
-        conversationId,
-        senderId: request.auth!.uid,
-        text,
-        attachmentUrl,
-        messageType,
-        createdAt: FieldValue.serverTimestamp(),
-      });
-
-      tx.update(conversationRef, {
-        lastMessageAt: FieldValue.serverTimestamp(),
-        lastMessagePreview: messageType === "IMAGE" ? "📷 Fotoğraf" : text.slice(0, 200),
-        updatedAt: FieldValue.serverTimestamp(),
-      });
-    });
-
-    return { messageId: messageRef.id };
-  }
-);
-
-export const startConversation = onCall(
-  { region: "europe-west1", enforceAppCheck: true },
-  async (request) => {
-    if (!request.auth) {
-      throw new HttpsError("unauthenticated", "Kimlik doğrulaması gerekli.");
-    }
-
-    const data = request.data as Record<string, unknown>;
-    const targetId = String(data.targetId ?? "");
-    const relatedItemId = String(data.relatedItemId ?? "");
-    const relatedItemTitle = String(data.relatedItemTitle ?? "");
-
-    if (!targetId || targetId === request.auth.uid) {
-      throw new HttpsError("invalid-argument", "Geçerli bir sohbet hedefi gerekli.");
-    }
-
-    let participantUid = targetId;
-    const userSnap = await db.collection("users").doc(targetId).get();
-    if (!userSnap.exists) {
-      const providerSnap = await db.collection("providers").doc(targetId).get();
-      if (!providerSnap.exists) {
-        throw new HttpsError("not-found", "Sohbet hedefi bulunamadı.");
-      }
-      participantUid = String(providerSnap.data()?.ownerId ?? "");
-    }
-
-    if (!participantUid || participantUid === request.auth.uid) {
-      throw new HttpsError("failed-precondition", "Geçerli bir sohbet katılımcısı bulunamadı.");
-    }
-
-    const existing = await db.collection("conversations")
-      .where("participantIds", "array-contains", request.auth.uid)
-      .get();
-
-    const match = existing.docs.find((doc) => {
-      const ids = doc.data().participantIds;
-      return Array.isArray(ids)
-        && ids.length === 2
-        && ids.includes(participantUid)
-        && (!relatedItemId || String(doc.data().relatedItemId ?? "") === relatedItemId);
-    });
-
-    if (match) {
-      return { conversationId: match.id };
-    }
-
-    const ref = db.collection("conversations").doc();
-    await ref.create({
-      participantIds: [request.auth.uid, participantUid],
-      relatedItemId,
-      relatedItemTitle,
-      createdAt: FieldValue.serverTimestamp(),
-      updatedAt: FieldValue.serverTimestamp(),
-    });
-
-    return { conversationId: ref.id };
-  }
-);
-
 export const acceptQuote = onCall({ region: "europe-west1", enforceAppCheck: true }, async (request) => {
   if (!request.auth) throw new HttpsError("unauthenticated", "Kimlik doğrulaması gerekli.");
+    await assertAccountActive(request.auth.uid);
   const quoteId = String((request.data as Record<string, unknown>).quoteId ?? "");
   if (!quoteId) throw new HttpsError("invalid-argument", "quoteId gerekli.");
   const quoteRef = db.collection("quotes").doc(quoteId);
@@ -684,6 +374,7 @@ export const acceptQuote = onCall({ region: "europe-west1", enforceAppCheck: tru
 
 export const rejectQuote = onCall({ region: "europe-west1", enforceAppCheck: true }, async (request) => {
   if (!request.auth) throw new HttpsError("unauthenticated", "Kimlik doğrulaması gerekli.");
+    await assertAccountActive(request.auth.uid);
   const quoteId = String((request.data as Record<string, unknown>).quoteId ?? "");
   if (!quoteId) throw new HttpsError("invalid-argument", "quoteId gerekli.");
   const quoteRef = db.collection("quotes").doc(quoteId);
@@ -706,6 +397,7 @@ export const rejectQuote = onCall({ region: "europe-west1", enforceAppCheck: tru
 
 export const releaseEscrowPayment = onCall({ region: "europe-west1", enforceAppCheck: true }, async (request) => {
   if (!request.auth) throw new HttpsError("unauthenticated", "Kimlik doğrulaması gerekli.");
+    await assertAccountActive(request.auth.uid);
   const paymentId = String((request.data as Record<string, unknown>).paymentId ?? "");
   if (!paymentId) throw new HttpsError("invalid-argument", "paymentId gerekli.");
   const paymentRef = db.collection("payments").doc(paymentId);
@@ -730,6 +422,7 @@ export const requestRefund = onCall(
   { region: "europe-west1", enforceAppCheck: true },
   async (request) => {
     if (!request.auth) throw new HttpsError("unauthenticated", "Kimlik doğrulaması gerekli.");
+    await assertAccountActive(request.auth.uid);
     const paymentId = String((request.data as Record<string, unknown>).paymentId ?? "");
     if (!paymentId) throw new HttpsError("invalid-argument", "paymentId gerekli.");
     const paymentRef = db.collection("payments").doc(paymentId);
