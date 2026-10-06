@@ -44,7 +44,10 @@ service firebase.storage {
       return validGrant(uid, grantId, 'CHAT')
         && firestore.get(
           /databases/(default)/documents/users/$(uid)/uploadGrants/$(grantId)
-        ).data.conversationId == conversationId;
+        ).data.conversationId == conversationId
+        && request.auth.uid in firestore.get(
+          /databases/(default)/documents/users/$(uid)/uploadGrants/$(grantId)
+        ).data.participantIds;
     }
 
     function validActiveChatGrant(uid, conversationId, grantId) {
@@ -107,16 +110,252 @@ service firebase.storage {
         && resource == null
         && fileName.matches('^[A-Za-z0-9_-]{1,80}\\.jpg$')
         && validActiveJobGrant(ownerUid, requestId, filenameGrantId(fileName))
-        && firestore.exists(/databases/(default)/documents/jobRequests/$(requestId))
-        && firestore.get(/databases/(default)/documents/jobRequests/$(requestId)).data.ownerId == ownerUid
         && safeImage();
 
       allow delete: if isAdmin()
         || (accountActive(ownerUid)
           && request.auth.uid == ownerUid
-          && fileName.matches('^[A-Za-z0-9_-]{1,80}\\.jpg$')
-          && firestore.exists(/databases/(default)/documents/jobRequests/$(requestId))
-          && firestore.get(/databases/(default)/documents/jobRequests/$(requestId)).data.ownerId == ownerUid);
+          && fileName.matches('^[A-Za-z0-9_-]{1,80}\\.jpg
+    }
+
+    match /chatAttachments/{conversationId}/{senderUid}/{fileName} {
+      allow read: if accountActive(request.auth.uid)
+        && fileName.matches('^[A-Za-z0-9_-]{1,80}\\.jpg
+
+      allow write: if accountActive(senderUid)
+        && request.auth.uid == senderUid
+        && resource == null
+        && fileName.matches('^[A-Za-z0-9_-]{1,80}\\.jpg
+
+      allow delete: if isAdmin()
+        || (accountActive(senderUid)
+          && request.auth.uid == senderUid
+          && fileName.matches('^[A-Za-z0-9_-]{1,80}\\.jpg$'));
+    }
+
+    match /providers/{providerId}/{allPaths=**} {
+      // Legacy provider-media namespace: current app media uses grant-scoped paths above.
+      allow read, write, delete: if isAdmin();
+    }
+
+    match /admin/{allPaths=**} {
+      allow read, write: if isAdmin();
+    }
+  }
+}
+));
+    }
+
+    match /chatAttachments/{conversationId}/{senderUid}/{fileName} {
+      allow read: if accountActive(senderUid)
+        && fileName.matches('^[A-Za-z0-9_-]{1,80}\\.jpg$')
+        && firestore.exists(/databases/(default)/documents/conversations/$(conversationId))
+        && request.auth.uid in firestore.get(
+          /databases/(default)/documents/conversations/$(conversationId)
+        ).data.participantIds
+        && validChatGrant(senderUid, conversationId, filenameGrantId(fileName))
+        && firestore.get(
+          /databases/(default)/documents/users/$(senderUid)/uploadGrants/$(filenameGrantId(fileName))
+        ).data.validated == true;
+
+      allow write: if accountActive(senderUid)
+        && request.auth.uid == senderUid
+        && resource == null
+        && fileName.matches('^[A-Za-z0-9_-]{1,80}\\.jpg$')
+        && validActiveChatGrant(senderUid, conversationId, filenameGrantId(fileName))
+        && firestore.exists(/databases/(default)/documents/conversations/$(conversationId))
+        && request.auth.uid in firestore.get(
+          /databases/(default)/documents/conversations/$(conversationId)
+        ).data.participantIds
+        && safeImage();
+
+      allow delete: if isAdmin()
+        || (accountActive(senderUid)
+          && request.auth.uid == senderUid
+          && fileName.matches('^[A-Za-z0-9_-]{1,80}\\.jpg$'));
+    }
+
+    match /providers/{providerId}/{allPaths=**} {
+      // Legacy provider-media namespace: current app media uses grant-scoped paths above.
+      allow read, write, delete: if isAdmin();
+    }
+
+    match /admin/{allPaths=**} {
+      allow read, write: if isAdmin();
+    }
+  }
+}
+)
+        && validChatGrant(senderUid, conversationId, filenameGrantId(fileName))
+        && firestore.get(
+          /databases/(default)/documents/users/$(senderUid)/uploadGrants/$(filenameGrantId(fileName))
+        ).data.validated == true;
+
+      allow write: if accountActive(senderUid)
+        && request.auth.uid == senderUid
+        && resource == null
+        && fileName.matches('^[A-Za-z0-9_-]{1,80}\\.jpg$')
+        && validActiveChatGrant(senderUid, conversationId, filenameGrantId(fileName))
+        && firestore.exists(/databases/(default)/documents/conversations/$(conversationId))
+        && request.auth.uid in firestore.get(
+          /databases/(default)/documents/conversations/$(conversationId)
+        ).data.participantIds
+        && safeImage();
+
+      allow delete: if isAdmin()
+        || (accountActive(senderUid)
+          && request.auth.uid == senderUid
+          && fileName.matches('^[A-Za-z0-9_-]{1,80}\\.jpg$'));
+    }
+
+    match /providers/{providerId}/{allPaths=**} {
+      // Legacy provider-media namespace: current app media uses grant-scoped paths above.
+      allow read, write, delete: if isAdmin();
+    }
+
+    match /admin/{allPaths=**} {
+      allow read, write: if isAdmin();
+    }
+  }
+}
+));
+    }
+
+    match /chatAttachments/{conversationId}/{senderUid}/{fileName} {
+      allow read: if accountActive(senderUid)
+        && fileName.matches('^[A-Za-z0-9_-]{1,80}\\.jpg$')
+        && firestore.exists(/databases/(default)/documents/conversations/$(conversationId))
+        && request.auth.uid in firestore.get(
+          /databases/(default)/documents/conversations/$(conversationId)
+        ).data.participantIds
+        && validChatGrant(senderUid, conversationId, filenameGrantId(fileName))
+        && firestore.get(
+          /databases/(default)/documents/users/$(senderUid)/uploadGrants/$(filenameGrantId(fileName))
+        ).data.validated == true;
+
+      allow write: if accountActive(senderUid)
+        && request.auth.uid == senderUid
+        && resource == null
+        && fileName.matches('^[A-Za-z0-9_-]{1,80}\\.jpg$')
+        && validActiveChatGrant(senderUid, conversationId, filenameGrantId(fileName))
+        && firestore.exists(/databases/(default)/documents/conversations/$(conversationId))
+        && request.auth.uid in firestore.get(
+          /databases/(default)/documents/conversations/$(conversationId)
+        ).data.participantIds
+        && safeImage();
+
+      allow delete: if isAdmin()
+        || (accountActive(senderUid)
+          && request.auth.uid == senderUid
+          && fileName.matches('^[A-Za-z0-9_-]{1,80}\\.jpg$'));
+    }
+
+    match /providers/{providerId}/{allPaths=**} {
+      // Legacy provider-media namespace: current app media uses grant-scoped paths above.
+      allow read, write, delete: if isAdmin();
+    }
+
+    match /admin/{allPaths=**} {
+      allow read, write: if isAdmin();
+    }
+  }
+}
+)
+        && validActiveChatGrant(senderUid, conversationId, filenameGrantId(fileName))
+        && safeImage();
+
+      allow delete: if isAdmin()
+        || (accountActive(senderUid)
+          && request.auth.uid == senderUid
+          && fileName.matches('^[A-Za-z0-9_-]{1,80}\\.jpg$'));
+    }
+
+    match /providers/{providerId}/{allPaths=**} {
+      // Legacy provider-media namespace: current app media uses grant-scoped paths above.
+      allow read, write, delete: if isAdmin();
+    }
+
+    match /admin/{allPaths=**} {
+      allow read, write: if isAdmin();
+    }
+  }
+}
+));
+    }
+
+    match /chatAttachments/{conversationId}/{senderUid}/{fileName} {
+      allow read: if accountActive(senderUid)
+        && fileName.matches('^[A-Za-z0-9_-]{1,80}\\.jpg$')
+        && firestore.exists(/databases/(default)/documents/conversations/$(conversationId))
+        && request.auth.uid in firestore.get(
+          /databases/(default)/documents/conversations/$(conversationId)
+        ).data.participantIds
+        && validChatGrant(senderUid, conversationId, filenameGrantId(fileName))
+        && firestore.get(
+          /databases/(default)/documents/users/$(senderUid)/uploadGrants/$(filenameGrantId(fileName))
+        ).data.validated == true;
+
+      allow write: if accountActive(senderUid)
+        && request.auth.uid == senderUid
+        && resource == null
+        && fileName.matches('^[A-Za-z0-9_-]{1,80}\\.jpg$')
+        && validActiveChatGrant(senderUid, conversationId, filenameGrantId(fileName))
+        && firestore.exists(/databases/(default)/documents/conversations/$(conversationId))
+        && request.auth.uid in firestore.get(
+          /databases/(default)/documents/conversations/$(conversationId)
+        ).data.participantIds
+        && safeImage();
+
+      allow delete: if isAdmin()
+        || (accountActive(senderUid)
+          && request.auth.uid == senderUid
+          && fileName.matches('^[A-Za-z0-9_-]{1,80}\\.jpg$'));
+    }
+
+    match /providers/{providerId}/{allPaths=**} {
+      // Legacy provider-media namespace: current app media uses grant-scoped paths above.
+      allow read, write, delete: if isAdmin();
+    }
+
+    match /admin/{allPaths=**} {
+      allow read, write: if isAdmin();
+    }
+  }
+}
+)
+        && validChatGrant(senderUid, conversationId, filenameGrantId(fileName))
+        && firestore.get(
+          /databases/(default)/documents/users/$(senderUid)/uploadGrants/$(filenameGrantId(fileName))
+        ).data.validated == true;
+
+      allow write: if accountActive(senderUid)
+        && request.auth.uid == senderUid
+        && resource == null
+        && fileName.matches('^[A-Za-z0-9_-]{1,80}\\.jpg$')
+        && validActiveChatGrant(senderUid, conversationId, filenameGrantId(fileName))
+        && firestore.exists(/databases/(default)/documents/conversations/$(conversationId))
+        && request.auth.uid in firestore.get(
+          /databases/(default)/documents/conversations/$(conversationId)
+        ).data.participantIds
+        && safeImage();
+
+      allow delete: if isAdmin()
+        || (accountActive(senderUid)
+          && request.auth.uid == senderUid
+          && fileName.matches('^[A-Za-z0-9_-]{1,80}\\.jpg$'));
+    }
+
+    match /providers/{providerId}/{allPaths=**} {
+      // Legacy provider-media namespace: current app media uses grant-scoped paths above.
+      allow read, write, delete: if isAdmin();
+    }
+
+    match /admin/{allPaths=**} {
+      allow read, write: if isAdmin();
+    }
+  }
+}
+));
     }
 
     match /chatAttachments/{conversationId}/{senderUid}/{fileName} {
