@@ -33,6 +33,8 @@ export const createPaymentIntent = onCall(
       throw new HttpsError("unauthenticated", "Kimlik doğrulaması gerekli.");
     }
 
+    await assertAccountActive(request.auth.uid);
+
     const authTime = Number(request.auth.token.auth_time ?? 0);
     if (!Number.isFinite(authTime) || Date.now() - authTime * 1000 > 15 * 60 * 1000) {
       throw new HttpsError("failed-precondition", "Ödeme işlemi için yakın zamanda yeniden doğrulama gerekli.");
@@ -265,6 +267,7 @@ export const startConversation = onCall(
       if (providerQuery.empty) {
         throw new HttpsError("permission-denied", "Bu talep için sohbet başlatma yetkiniz yok.");
       }
+      await assertAccountActive(participantUid);
     } else {
       const providerSnap = await db.collection("providers").doc(targetId).get();
       if (!providerSnap.exists) {
