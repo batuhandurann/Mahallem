@@ -478,7 +478,7 @@ private fun MarketplaceContent(
                     quote = quote,
                     jobTitle = req.title,
                     onDismiss = { escrowTargetQuote = null },
-                    onConfirmPayment = { q ->
+                    onConfirmPayment = { q, customerEmail ->
                         viewModel.fundEscrowPayment(
                             quote = q,
                             jobTitle = req.title,
