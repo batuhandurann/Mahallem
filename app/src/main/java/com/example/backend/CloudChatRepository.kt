@@ -4,7 +4,6 @@ import com.example.data.local.ChatMessageEntity
 import com.example.data.local.ConversationEntity
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
-import com.google.firebase.firestore.SetOptions
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
@@ -17,17 +16,6 @@ class CloudChatRepository(
     private fun uid() = auth.currentUser?.uid ?: error("Giriş gerekli.")
 
     suspend fun startOrGetConversation(providerOrUserId: String, relatedItemTitle: String): String {
-        val me = uid()
-        val existing = firestore.collection("conversations")
-            .whereArrayContains("participantIds", me)
-            .get().await().documents.firstOrNull { doc ->
-                providerOrUserId in (doc.get("participantIds") as? List<*> ?: emptyList<Any?>())
-            }
-        if (existing != null) return existing.id
-        val ownerDoc = firestore.collection("users").document(providerOrUserId).get().await()
-        val participant = if (ownerDoc.exists()) providerOrUserId else
-            firestore.collection("providers").document(providerOrUserId).get().await().getString("ownerId")
-        val participantUid = participant ?: error("Sohbet katılımcısı bulunamadı.")
         return FunctionsRepository().startConversation(
             targetId = providerOrUserId,
             relatedItemId = providerOrUserId,
@@ -77,20 +65,13 @@ class CloudChatRepository(
     }
 
     suspend fun startOrGetConversationForRequest(requestId: Long, relatedItemTitle: String): String {
-        val me = uid()
-        val request = firestore.collection("jobRequests").document(requestId.toString()).get().await()
-        val ownerId = request.getString("ownerId") ?: error("Talep sahibi bulunamadı.")
-        val existing = firestore.collection("conversations").whereArrayContains("participantIds", me).get().await().documents.firstOrNull { doc ->
-            val ids = doc.get("participantIds") as? List<*> ?: emptyList<Any?>()
-            ownerId in ids && doc.getString("relatedItemId") == requestId.toString()
-        }
-        if (existing != null) return existing.id
         return FunctionsRepository().startConversation(
-            targetId = ownerId,
+            targetId = "request-owner",
             relatedItemId = requestId.toString(),
             relatedItemTitle = relatedItemTitle
         )
     }
+
     suspend fun sendMessage(
         conversationId: String, text: String, messageType: String = "TEXT", attachmentUrl: String? = null
     ) {
