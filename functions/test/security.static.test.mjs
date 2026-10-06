@@ -54,6 +54,8 @@ assert.match(source, /reporterUid: anonymizedId/);
 assert.match(source, /report-day:/);
 
 assert.match(source, /hourlyRateLimitRef/);
+assert.match(source, /const consumePaymentAttempt = \(\) =>/);
+assert.match(source, /consumePaymentAttempt\(\);/);
 assert.match(source, /parseTryAmountMinor\(price\) !== amountMinor/);
 assert.match(source, /tokenGenerationStartedAt/);
 assert.match(source, /next\.size > 366/);
