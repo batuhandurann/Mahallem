@@ -58,114 +58,19 @@ service cloud.firestore {
     match /providers/{providerId} {
       allow get: if isAdmin() || (accountActive() && resource.data.ownerId == request.auth.uid);
       allow list: if false;
-      allow create: if verifiedContact() && accountActive() && request.resource.data.ownerId == request.auth.uid
-        && request.resource.data.keys().hasOnly(['ownerId','displayName','title','bio','sector','categoryId','district','city','experienceYears','serviceArea','isOpenForOffers','createdAt','updatedAt'])
-        && (!('displayName' in request.resource.data) || (request.resource.data.displayName is string && request.resource.data.displayName.size() <= 120))
-        && (!('title' in request.resource.data) || (request.resource.data.title is string && request.resource.data.title.size() <= 200))
-        && (!('bio' in request.resource.data) || (request.resource.data.bio is string && request.resource.data.bio.size() <= 2000))
-        && (!('sector' in request.resource.data) || (request.resource.data.sector is string && request.resource.data.sector.size() <= 64))
-        && (!('categoryId' in request.resource.data) || (request.resource.data.categoryId is string && request.resource.data.categoryId.size() <= 80))
-        && (!('district' in request.resource.data) || (request.resource.data.district is string && request.resource.data.district.size() <= 80))
-        && (!('city' in request.resource.data) || (request.resource.data.city is string && request.resource.data.city.size() <= 80))
-        && validServiceArea(request.resource.data)
-        && (!('isOpenForOffers' in request.resource.data) || request.resource.data.isOpenForOffers is bool);
-      allow update: if isAdmin() || (accountActive() && ownsProvider()
-        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['displayName','title','bio','sector','categoryId','district','city','experienceYears','serviceArea','isOpenForOffers','updatedAt'])
-        && (!('displayName' in request.resource.data) || (request.resource.data.displayName is string && request.resource.data.displayName.size() <= 120))
-        && (!('title' in request.resource.data) || (request.resource.data.title is string && request.resource.data.title.size() <= 200))
-        && (!('bio' in request.resource.data) || (request.resource.data.bio is string && request.resource.data.bio.size() <= 2000))
-        && (!('sector' in request.resource.data) || (request.resource.data.sector is string && request.resource.data.sector.size() <= 64))
-        && (!('categoryId' in request.resource.data) || (request.resource.data.categoryId is string && request.resource.data.categoryId.size() <= 80))
-        && (!('district' in request.resource.data) || (request.resource.data.district is string && request.resource.data.district.size() <= 80))
-        && (!('city' in request.resource.data) || (request.resource.data.city is string && request.resource.data.city.size() <= 80))
-        && validServiceArea(request.resource.data)
-        && (!('isOpenForOffers' in request.resource.data) || request.resource.data.isOpenForOffers is bool));
+      allow create, update: if false;
       allow delete: if isAdmin();
     }
 
     match /jobRequests/{requestId} {
       allow get: if isAdmin() || (accountActive() && resource.data.ownerId == request.auth.uid);
       allow list: if false;
-      allow create: if verifiedContact() && accountActive() && request.resource.data.ownerId == request.auth.uid && request.resource.data.status == 'PENDING'
-        && request.resource.data.keys().hasOnly(['ownerId','title','sector','categoryId','district','urgencyMode','eventOrJobDate','eventTime','budgetEstimate','status','createdAt','updatedAt'])
-        && (!('title' in request.resource.data) || (request.resource.data.title is string && request.resource.data.title.size() <= 200))
-        && (!('sector' in request.resource.data) || (request.resource.data.sector is string && request.resource.data.sector.size() <= 64))
-        && (!('categoryId' in request.resource.data) || (request.resource.data.categoryId is string && request.resource.data.categoryId.size() <= 80))
-        && (!('district' in request.resource.data) || (request.resource.data.district is string && request.resource.data.district.size() <= 80))
-        && (!('urgencyMode' in request.resource.data) || (request.resource.data.urgencyMode is string && request.resource.data.urgencyMode.size() <= 32))
-        && (!('eventOrJobDate' in request.resource.data) || (request.resource.data.eventOrJobDate is string && request.resource.data.eventOrJobDate.size() <= 32))
-        && (!('eventTime' in request.resource.data) || (request.resource.data.eventTime is string && request.resource.data.eventTime.size() <= 32))
-        && (!('budgetEstimate' in request.resource.data) || (request.resource.data.budgetEstimate is string && request.resource.data.budgetEstimate.size() <= 200));
-      allow update: if isAdmin()
-        || (accountActive() && ownsRequest()
-          && resource.data.status in ['PENDING', 'QUOTED']
-          && request.resource.data.status == resource.data.status
-          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['title','sector','categoryId','district','urgencyMode','eventOrJobDate','eventTime','budgetEstimate','updatedAt'])
-          && (!('title' in request.resource.data) || (request.resource.data.title is string && request.resource.data.title.size() <= 200))
-          && (!('budgetEstimate' in request.resource.data) || (request.resource.data.budgetEstimate is string && request.resource.data.budgetEstimate.size() <= 200)));
+      allow create, update: if false;
       allow delete: if isAdmin() || (ownsRequest() && resource.data.status == 'PENDING');
     }
 
     match /jobRequestPrivate/{requestId} {
       allow read: if isAdmin() || (accountActive() && resource.data.ownerId == request.auth.uid);
-      allow create: if verifiedContact()
-        && accountActive()
-        && request.resource.data.ownerId == request.auth.uid
-        && exists(/databases/$(database)/documents/jobRequests/$(requestId))
-        && get(/databases/$(database)/documents/jobRequests/$(requestId)).data.ownerId == request.auth.uid
-        && (!('phoneVerified' in request.resource.data)
-          || request.resource.data.phoneVerified == false
-          || request.resource.data.customerPhone == request.auth.token.phone_number)
-        && request.resource.data.keys().hasOnly([
-          'ownerId','address','customerName','customerPhone','phoneVerified',
-          'areaSquareMeters','roomCount','isFurnished','materialsIncluded',
-          'renovationNotes','eventType','durationHours','targetAgeGroup',
-          'selectedCostumeOrCharacter','extraServicesRequested','latitude',
-          'longitude','updatedAt'
-        ])
-        && boundedString(request.resource.data, 'address', 500)
-        && boundedString(request.resource.data, 'customerName', 120)
-        && boundedString(request.resource.data, 'customerPhone', 32)
-        && boundedString(request.resource.data, 'renovationNotes', 2000)
-        && boundedString(request.resource.data, 'eventType', 80)
-        && boundedString(request.resource.data, 'targetAgeGroup', 80)
-        && boundedString(request.resource.data, 'selectedCostumeOrCharacter', 120)
-        && boundedString(request.resource.data, 'extraServicesRequested', 1000);
-      allow update: if isAdmin()
-        || (accountActive()
-          && resource.data.ownerId == request.auth.uid
-          && exists(/databases/$(database)/documents/jobRequests/$(requestId))
-          && get(/databases/$(database)/documents/jobRequests/$(requestId)).data.ownerId == request.auth.uid
-          && (!('phoneVerified' in request.resource.data)
-            || request.resource.data.phoneVerified == false
-            || request.resource.data.customerPhone == request.auth.token.phone_number)
-          && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
-            'address','customerName','customerPhone','phoneVerified',
-            'areaSquareMeters','roomCount','isFurnished','materialsIncluded',
-            'renovationNotes','eventType','durationHours','targetAgeGroup',
-            'selectedCostumeOrCharacter','extraServicesRequested','latitude',
-            'longitude','updatedAt'
-          ])
-          && boundedString(request.resource.data, 'address', 500)
-          && boundedString(request.resource.data, 'customerName', 120)
-          && boundedString(request.resource.data, 'customerPhone', 32)
-          && boundedString(request.resource.data, 'renovationNotes', 2000)
-          && boundedString(request.resource.data, 'eventType', 80)
-          && boundedString(request.resource.data, 'targetAgeGroup', 80)
-          && boundedString(request.resource.data, 'selectedCostumeOrCharacter', 120)
-          && boundedString(request.resource.data, 'extraServicesRequested', 1000));
-      allow delete: if isAdmin() || (signedIn() && resource.data.ownerId == request.auth.uid);
-    }
-
-    match /publicProviders/{providerId} {
-      allow get: if isAdmin() || accountActive();
-      allow list: if isAdmin() || (accountActive() && request.query.limit <= 50);
-      allow create, update, delete: if false;
-    }
-
-    match /publicJobRequests/{requestId} {
-      allow get: if isAdmin() || accountActive();
-      allow list: if isAdmin() || (accountActive() && request.query.limit <= 50);
       allow create, update, delete: if false;
     }
 
