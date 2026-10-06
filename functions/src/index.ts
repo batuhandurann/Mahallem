@@ -976,32 +976,71 @@ export const purgeDeletedAccounts = onSchedule(
   { schedule: "every day 03:15", region: "europe-west1", timeZone: "Europe/Istanbul" },
   async () => {
     const now = Date.now();
-    const snapshot = await db.collection("users")
+    const staleCutoff = new Date(now - 60 * 60 * 1000);
+
+    const requestedSnapshot = await db.collection("users")
       .where("deletionStatus", "==", "REQUESTED")
       .where("deletionDueAt", "<=", new Date(now))
       .orderBy("deletionDueAt")
       .limit(20)
       .get();
 
-    for (const doc of snapshot.docs) {
+    const stalePurgingSnapshot = await db.collection("users")
+      .where("deletionStatus", "==", "PURGING")
+      .where("purgeStartedAt", "<=", staleCutoff)
+      .orderBy("purgeStartedAt")
+      .limit(20)
+      .get();
+
+    const candidates = new Map<string, FirebaseFirestore.QueryDocumentSnapshot>();
+    for (const doc of requestedSnapshot.docs) candidates.set(doc.id, doc);
+    for (const doc of stalePurgingSnapshot.docs) candidates.set(doc.id, doc);
+
+    for (const doc of candidates.values()) {
       const ref = doc.ref;
       let shouldPurge = false;
 
       await db.runTransaction(async (tx) => {
         const fresh = await tx.get(ref);
-        if (!fresh.exists || fresh.data()?.deletionStatus !== "REQUESTED") return;
+        if (!fresh.exists) return;
 
-        const dueAt = fresh.data()?.deletionDueAt as FirestoreTimestamp | Date | undefined;
-        const dueMillis = dueAt instanceof Date
-          ? dueAt.getTime()
-          : dueAt && "toMillis" in dueAt
-            ? dueAt.toMillis()
+        const data = fresh.data() ?? {};
+        const status = String(data.deletionStatus ?? "");
+
+        if (status === "REQUESTED") {
+          const dueAt = data.deletionDueAt as FirestoreTimestamp | Date | undefined;
+          const dueMillis = dueAt instanceof Date
+            ? dueAt.getTime()
+            : dueAt && "toMillis" in dueAt
+              ? dueAt.toMillis()
+              : Number.POSITIVE_INFINITY;
+
+          if (dueMillis <= now) {
+            tx.update(ref, {
+              deletionStatus: "PURGING",
+              purgeStartedAt: FieldValue.serverTimestamp(),
+              purgeLastErrorAt: FieldValue.delete(),
+              updatedAt: FieldValue.serverTimestamp(),
+            });
+            shouldPurge = true;
+          }
+          return;
+        }
+
+        if (status !== "PURGING") return;
+
+        const startedAt = data.purgeStartedAt as FirestoreTimestamp | Date | undefined;
+        const startedMillis = startedAt instanceof Date
+          ? startedAt.getTime()
+          : startedAt && "toMillis" in startedAt
+            ? startedAt.toMillis()
             : Number.POSITIVE_INFINITY;
 
-        if (dueMillis <= now) {
+        if (startedMillis <= now - 60 * 60 * 1000) {
+          const retryCount = Number(data.purgeRetryCount ?? 0);
           tx.update(ref, {
-            deletionStatus: "PURGING",
             purgeStartedAt: FieldValue.serverTimestamp(),
+            purgeRetryCount: Number.isSafeInteger(retryCount) ? retryCount + 1 : 1,
             updatedAt: FieldValue.serverTimestamp(),
           });
           shouldPurge = true;
@@ -1013,20 +1052,19 @@ export const purgeDeletedAccounts = onSchedule(
       try {
         await anonymizeAccount(doc.id);
       } catch (error) {
-        logger.error("Account purge failed; returning account to REQUESTED", {
+        logger.error("Account purge failed; account remains locked in PURGING for retry", {
           uid: doc.id,
           error,
         });
         await ref.set({
-          deletionStatus: "REQUESTED",
-          purgeStartedAt: FieldValue.delete(),
+          deletionStatus: "PURGING",
+          purgeLastErrorAt: FieldValue.serverTimestamp(),
           updatedAt: FieldValue.serverTimestamp(),
         }, { merge: true });
       }
     }
   }
 );
-
 export const paytrWebhook = onRequest(
   { region: "europe-west1", secrets: [paytrKey, paytrSalt] },
   async (req, res) => {
