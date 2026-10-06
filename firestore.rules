@@ -40,8 +40,18 @@ service cloud.firestore {
 
     match /quotes/{quoteId} {
       allow read: if isAdmin() || (signedIn() && (resource.data.customerId == request.auth.uid || resource.data.providerOwnerId == request.auth.uid));
-      allow create: if signedIn() && request.resource.data.providerOwnerId == request.auth.uid;
-      allow update: if isAdmin() || (signedIn() && (resource.data.customerId == request.auth.uid || resource.data.providerOwnerId == request.auth.uid) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['price','durationOrArrival','notes','updatedAt']));
+      allow create: if signedIn()
+        && request.resource.data.providerOwnerId == request.auth.uid
+        && request.resource.data.requestId is string
+        && exists(/databases/$(database)/documents/jobRequests/$(request.resource.data.requestId))
+        && get(/databases/$(database)/documents/jobRequests/$(request.resource.data.requestId)).data.ownerId == request.resource.data.customerId
+        && request.resource.data.customerId != request.auth.uid
+        && get(/databases/$(database)/documents/providers/$(request.resource.data.providerId)).data.ownerId == request.auth.uid
+        && get(/databases/$(database)/documents/jobRequests/$(request.resource.data.requestId)).data.status == 'PENDING';
+      allow update: if isAdmin()
+        || (signedIn()
+          && resource.data.providerOwnerId == request.auth.uid
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['price','durationOrArrival','notes','updatedAt']));
       allow delete: if isAdmin();
     }
 
