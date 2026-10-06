@@ -84,6 +84,7 @@ data class QuoteEntity(
     val providerTitle: String,
     val providerRating: Double,
     val price: String,
+    val amountMinor: Long = 0,
     val durationOrArrival: String,
     val notes: String,
     val status: String = "PENDING", // PENDING, ACCEPTED, REJECTED
