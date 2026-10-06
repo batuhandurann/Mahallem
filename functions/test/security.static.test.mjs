@@ -41,7 +41,16 @@ assert.match(rules, /allow list: if false;/);
 
 assert.match(storage, /validGrant/);
 assert.match(storage, /data.validated == true/);
-assert.match(storage, /\.jpg/);
+assert.match(storage, /filenameGrantId\(fileName\)/);
+assert.match(storage, /fileName\.matches\('\^\[A-Za-z0-9_-\]\{1,80\}\\\\\.jpg\
+
+console.log("Security static regression tests passed.");
+
+assert.match(source, /body:\s*"Yeni bir mesajınız var\."\s*,/);
+/);
+assert.doesNotMatch(storage, /match \/users\/\{uid\}\/images\/\{grantId\}\.jpg/);
+assert.doesNotMatch(storage, /allow read: if signedIn\(\);/);
+assert.match(storage, /Legacy provider-media namespace/);
 
 console.log("Security static regression tests passed.");
 
