@@ -483,15 +483,27 @@ function deletedAccountId(uid: string): string {
   return "deleted:" + createHash("sha256").update(uid).digest("hex").slice(0, 24);
 }
 
+async function commitInChunks<T>(
+  items: T[],
+  apply: (batch: FirebaseFirestore.WriteBatch, item: T) => void,
+  chunkSize = 450
+): Promise<void> {
+  for (let i = 0; i < items.length; i += chunkSize) {
+    const batch = db.batch();
+    for (const item of items.slice(i, i + chunkSize)) {
+      apply(batch, item);
+    }
+    await batch.commit();
+  }
+}
+
 async function anonymizeAccount(uid: string): Promise<void> {
   const anonymizedId = deletedAccountId(uid);
 
   const providerQuery = await db.collection("providers")
     .where("ownerId", "==", uid)
     .get();
-  const providerBatch = db.batch();
-  providerQuery.docs.forEach((doc) => providerBatch.delete(doc.ref));
-  if (!providerQuery.empty) await providerBatch.commit();
+  await commitInChunks(providerQuery.docs, (batch, doc) => batch.delete(doc.ref));
 
   const requestQuery = await db.collection("jobRequests")
     .where("ownerId", "==", uid)
@@ -516,18 +528,14 @@ async function anonymizeAccount(uid: string): Promise<void> {
   const quoteDocs = Array.from(
     new Map([...customerQuotes.docs, ...providerQuotes.docs].map((doc) => [doc.id, doc])).values()
   );
-  if (quoteDocs.length > 0) {
-    const quoteBatch = db.batch();
-    quoteDocs.forEach((doc) => {
-      const data = doc.data();
-      quoteBatch.set(doc.ref, {
-        ...(data.customerId === uid ? { customerId: anonymizedId } : {}),
-        ...(data.providerOwnerId === uid ? { providerOwnerId: anonymizedId } : {}),
-        accountDeletedAt: FieldValue.serverTimestamp(),
-      }, { merge: true });
-    });
-    await quoteBatch.commit();
-  }
+  await commitInChunks(quoteDocs, (batch, doc) => {
+    const data = doc.data();
+    batch.set(doc.ref, {
+      ...(data.customerId === uid ? { customerId: anonymizedId } : {}),
+      ...(data.providerOwnerId === uid ? { providerOwnerId: anonymizedId } : {}),
+      accountDeletedAt: FieldValue.serverTimestamp(),
+    }, { merge: true });
+  });
 
   const customerPayments = await db.collection("payments")
     .where("customerId", "==", uid)
@@ -538,18 +546,14 @@ async function anonymizeAccount(uid: string): Promise<void> {
   const paymentDocs = Array.from(
     new Map([...customerPayments.docs, ...providerPayments.docs].map((doc) => [doc.id, doc])).values()
   );
-  if (paymentDocs.length > 0) {
-    const paymentBatch = db.batch();
-    paymentDocs.forEach((doc) => {
-      const data = doc.data();
-      paymentBatch.set(doc.ref, {
-        ...(data.customerId === uid ? { customerId: anonymizedId } : {}),
-        ...(data.providerId === uid ? { providerId: anonymizedId } : {}),
-        accountDeletedAt: FieldValue.serverTimestamp(),
-      }, { merge: true });
-    });
-    await paymentBatch.commit();
-  }
+  await commitInChunks(paymentDocs, (batch, doc) => {
+    const data = doc.data();
+    batch.set(doc.ref, {
+      ...(data.customerId === uid ? { customerId: anonymizedId } : {}),
+      ...(data.providerId === uid ? { providerId: anonymizedId } : {}),
+      accountDeletedAt: FieldValue.serverTimestamp(),
+    }, { merge: true });
+  });
 
   const conversations = await db.collection("conversations")
     .where("participantIds", "array-contains", uid)
@@ -566,16 +570,13 @@ async function anonymizeAccount(uid: string): Promise<void> {
     const messages = await db.collection("messages")
       .where("conversationId", "==", conversation.id)
       .get();
-    const messageBatch = db.batch();
-    messages.docs.forEach((message) => {
-      if (message.data().senderId === uid) {
-        messageBatch.set(message.ref, {
-          senderId: anonymizedId,
-          accountDeletedAt: FieldValue.serverTimestamp(),
-        }, { merge: true });
-      }
+    const ownedMessages = messages.docs.filter((message) => message.data().senderId === uid);
+    await commitInChunks(ownedMessages, (batch, message) => {
+      batch.set(message.ref, {
+        senderId: anonymizedId,
+        accountDeletedAt: FieldValue.serverTimestamp(),
+      }, { merge: true });
     });
-    if (!messages.empty) await messageBatch.commit();
   }
 
   await db.recursiveDelete(db.collection("users").doc(uid));
