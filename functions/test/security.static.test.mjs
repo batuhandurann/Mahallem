@@ -12,7 +12,7 @@ assert.match(
 
 const onCallCount = (source.match(/export const [A-Za-z0-9_]+ = onCall\(/g) || []).length;
 const appCheckCount = (source.match(/enforceAppCheck:\s*true/g) || []).length;
-assert.equal(onCallCount, 18, "Unexpected callable-function count; review App Check coverage.");
+assert.equal(onCallCount, 19, "Unexpected callable-function count; review App Check coverage.");
 assert.equal(appCheckCount, onCallCount, "Every callable function must enforce App Check.");
 
 assert.match(source, /hashDeviceToken/);
@@ -58,6 +58,7 @@ assert.match(source, /const consumePaymentAttempt = \(\) =>/);
 assert.match(source, /consumePaymentAttempt\(\);/);
 assert.match(source, /parseTryAmountMinor\(price\) !== amountMinor/);
 assert.match(source, /tokenGenerationStartedAt/);
+assert.match(source, /getPaymentStatus/);
 assert.match(source, /next\.size > 366/);
 assert.match(source, /Takvimde en fazla 366 gün tutulabilir/);
 assert.match(source, /status === "PURGING"/);
