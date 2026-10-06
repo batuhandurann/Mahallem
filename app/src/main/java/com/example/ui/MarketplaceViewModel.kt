@@ -17,6 +17,7 @@ import com.example.data.model.SectorType
 import com.example.data.model.UrgencyMode
 import com.example.data.repository.MarketplaceRepository
 import com.example.core.AppEnvironment
+import com.example.payment.parseTryAmountMinor
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -607,6 +608,11 @@ class MarketplaceViewModel(application: Application) : AndroidViewModel(applicat
         notes: String
     ) {
         viewModelScope.launch {
+            val amountMinor = parseTryAmountMinor(price)
+            if (amountMinor == null) {
+                _toastMessage.value = "Teklif tutarı tek bir kesin TL tutarı olmalı. Örn: 3.500 ₺"
+                return@launch
+            }
             val quote = QuoteEntity(
                 requestId = requestId,
                 providerId = provider.id,
@@ -614,6 +620,7 @@ class MarketplaceViewModel(application: Application) : AndroidViewModel(applicat
                 providerTitle = provider.title,
                 providerRating = provider.rating,
                 price = price,
+                amountMinor = amountMinor,
                 durationOrArrival = arrival,
                 notes = notes,
                 status = "PENDING"
