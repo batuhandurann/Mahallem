@@ -56,8 +56,8 @@ service cloud.firestore {
     }
 
     match /providers/{providerId} {
-      allow get: if isAdmin() || accountActive();
-      allow list: if isAdmin() || (accountActive() && request.query.limit <= 50);
+      allow get: if isAdmin() || (accountActive() && resource.data.ownerId == request.auth.uid);
+      allow list: if false;
       allow create: if verifiedContact() && accountActive() && request.resource.data.ownerId == request.auth.uid
         && request.resource.data.keys().hasOnly(['ownerId','displayName','title','bio','sector','categoryId','district','city','experienceYears','serviceArea','isOpenForOffers','createdAt','updatedAt'])
         && (!('displayName' in request.resource.data) || (request.resource.data.displayName is string && request.resource.data.displayName.size() <= 120))
@@ -84,8 +84,8 @@ service cloud.firestore {
     }
 
     match /jobRequests/{requestId} {
-      allow get: if isAdmin() || accountActive();
-      allow list: if isAdmin() || (accountActive() && request.query.limit <= 50);
+      allow get: if isAdmin() || (accountActive() && resource.data.ownerId == request.auth.uid);
+      allow list: if false;
       allow create: if verifiedContact() && accountActive() && request.resource.data.ownerId == request.auth.uid && request.resource.data.status == 'PENDING'
         && request.resource.data.keys().hasOnly(['ownerId','title','sector','categoryId','district','urgencyMode','eventOrJobDate','eventTime','budgetEstimate','status','createdAt','updatedAt'])
         && (!('title' in request.resource.data) || (request.resource.data.title is string && request.resource.data.title.size() <= 200))
@@ -155,6 +155,18 @@ service cloud.firestore {
           && boundedString(request.resource.data, 'selectedCostumeOrCharacter', 120)
           && boundedString(request.resource.data, 'extraServicesRequested', 1000));
       allow delete: if isAdmin() || (signedIn() && resource.data.ownerId == request.auth.uid);
+    }
+
+    match /publicProviders/{providerId} {
+      allow get: if isAdmin() || accountActive();
+      allow list: if isAdmin() || (accountActive() && request.query.limit <= 50);
+      allow create, update, delete: if false;
+    }
+
+    match /publicJobRequests/{requestId} {
+      allow get: if isAdmin() || accountActive();
+      allow list: if isAdmin() || (accountActive() && request.query.limit <= 50);
+      allow create, update, delete: if false;
     }
 
     match /quotes/{quoteId} {
