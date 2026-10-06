@@ -29,7 +29,7 @@ jobs:
           distribution: temurin
           java-version: "17"
       - name: Set up Gradle
-        uses: gradle/actions/setup-gradle@v6
+        uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6
         with:
           gradle-version: "9.3.1"
       - name: Unit tests, lint and debug build
@@ -49,7 +49,7 @@ jobs:
           distribution: temurin
           java-version: "17"
       - name: Set up Gradle
-        uses: gradle/actions/setup-gradle@v6
+        uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6
         with:
           gradle-version: "9.3.1"
       - name: Run Compose UI tests on emulator
