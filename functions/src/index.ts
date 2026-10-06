@@ -1806,6 +1806,11 @@ export const syncPublicProvider = onDocumentWritten(
         };
       })(),
       isOpenForOffers: provider.isOpenForOffers === true,
+      bookedDates: Array.isArray(provider.bookedDates)
+        ? provider.bookedDates.filter((value: unknown): value is string =>
+            typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value)
+          ).slice(0, 366)
+        : [],
       createdAt: provider.createdAt ?? FieldValue.serverTimestamp(),
       updatedAt: FieldValue.serverTimestamp(),
     }, { merge: false });
