@@ -501,13 +501,20 @@ class MarketplaceViewModel(application: Application) : AndroidViewModel(applicat
                 phone = phone.ifBlank { "05xx xxx xx xx" },
                 bio = bio.ifBlank { "Garantili ve güvenilir hizmet sunuyorum." }
             )
-            repository.publishProviderListing(entity)
             if (AppEnvironment.mode != AppEnvironment.Mode.LOCAL) {
-                runCatching { cloudRepository.saveProvider(entity) }
-                    .onFailure { _toastMessage.value = "Buluta yayınlanamadı: ${it.message ?: "Bilinmeyen hata"}" }
-                    .onSuccess { _toastMessage.value = "Hizmet ilanınız güvenli şekilde yayına alındı." }
+                val result = runCatching { cloudRepository.saveProvider(entity) }
+                result.exceptionOrNull()?.let {
+                    _toastMessage.value = "Hizmet ilanı yayınlanamadı: ${it.message ?: "Bilinmeyen hata"}"
+                    return@launch
+                }
             }
-            _toastMessage.value = "Hizmet ilanınız başarıyla yayına alındı! Mahalle sakinleri artık profilinize ulaşabilir 🎉"
+
+            repository.publishProviderListing(entity)
+            _toastMessage.value = if (AppEnvironment.mode == AppEnvironment.Mode.LOCAL) {
+                "Demo hizmet ilanı hazır."
+            } else {
+                "Hizmet ilanınız güvenli şekilde yayına alındı."
+            }
             popToHome()
         }
     }
@@ -566,14 +573,23 @@ class MarketplaceViewModel(application: Application) : AndroidViewModel(applicat
             )
             val newId = repository.createJobRequest(entity)
             val storedEntity = entity.copy(id = newId)
+
             if (AppEnvironment.mode != AppEnvironment.Mode.LOCAL) {
-                runCatching { cloudRepository.saveJobRequest(storedEntity) }
-                    .onFailure { _toastMessage.value = "Talep buluta kaydedilemedi: ${it.message ?: "Bilinmeyen hata"}" }
-            }
-            if (AppEnvironment.mode == AppEnvironment.Mode.LOCAL) {
+                val result = runCatching { cloudRepository.saveJobRequest(storedEntity) }
+                result.exceptionOrNull()?.let {
+                    repository.deleteJobRequest(newId)
+                    _toastMessage.value = "Talep yayınlanamadı: ${it.message ?: "Bilinmeyen hata"}"
+                    return@launch
+                }
+            } else {
                 simulateProviderResponse(newId, category, urgency)
             }
-            _toastMessage.value = "Talebiniz yayınlandı! Bölgedeki uygun esnaf ve sanatçılara iletildi 🎉"
+
+            _toastMessage.value = if (AppEnvironment.mode == AppEnvironment.Mode.LOCAL) {
+                "Demo talebi hazır."
+            } else {
+                "Talebiniz güvenli şekilde yayınlandı ve uygun hizmet verenlere iletilmek üzere sisteme alındı."
+            }
             popToHome()
             navigateTo(ScreenDestination.MyRequests)
         }
@@ -663,10 +679,18 @@ class MarketplaceViewModel(application: Application) : AndroidViewModel(applicat
             )
             val quoteId = repository.sendQuote(quote)
             if (AppEnvironment.mode != AppEnvironment.Mode.LOCAL) {
-                runCatching { cloudRepository.saveQuote(quote.copy(id = quoteId), provider.id) }
-                    .onFailure { _toastMessage.value = "Teklif buluta gönderilemedi: ${it.message ?: "Bilinmeyen hata"}" }
+                val result = runCatching { cloudRepository.saveQuote(quote.copy(id = quoteId), provider.id) }
+                result.exceptionOrNull()?.let {
+                    repository.deleteQuote(quoteId)
+                    _toastMessage.value = "Teklif gönderilemedi: ${it.message ?: "Bilinmeyen hata"}"
+                    return@launch
+                }
             }
-            _toastMessage.value = "Teklifiniz müşteriye başarıyla iletildi 🚀"
+            _toastMessage.value = if (AppEnvironment.mode == AppEnvironment.Mode.LOCAL) {
+                "Demo teklifi hazır."
+            } else {
+                "Teklifiniz güvenli şekilde müşteriye iletildi."
+            }
         }
     }
 
