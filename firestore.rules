@@ -22,6 +22,14 @@ service cloud.firestore {
         && (!('longitude' in data.serviceArea) || data.serviceArea.longitude is number)
       );
     }
+    function validNotificationPreferences(data) {
+      return !('notificationPreferences' in data) || (
+        data.notificationPreferences is map
+        && data.notificationPreferences.keys().hasOnly(['messages','offers'])
+        && (!('messages' in data.notificationPreferences) || data.notificationPreferences.messages is bool)
+        && (!('offers' in data.notificationPreferences) || data.notificationPreferences.offers is bool)
+      );
+    }
     function accountActive() {
       return signedIn()
         && exists(/databases/$(database)/documents/users/$(request.auth.uid))
@@ -41,14 +49,16 @@ service cloud.firestore {
         && boundedString(request.resource.data, 'phoneNumber', 32)
         && boundedString(request.resource.data, 'district', 80)
         && boundedString(request.resource.data, 'city', 80)
-        && boundedString(request.resource.data, 'language', 16);
+        && boundedString(request.resource.data, 'language', 16)
+        && validNotificationPreferences(request.resource.data);
       allow update: if isAdmin() || (accountActive() && ownsUser(uid)
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['displayName','photoUrl','district','city','language','notificationPreferences','updatedAt'])
         && boundedString(request.resource.data, 'displayName', 120)
         && boundedString(request.resource.data, 'photoUrl', 500)
         && boundedString(request.resource.data, 'district', 80)
         && boundedString(request.resource.data, 'city', 80)
-        && boundedString(request.resource.data, 'language', 16));
+        && boundedString(request.resource.data, 'language', 16)
+        && validNotificationPreferences(request.resource.data));
       allow delete: if isAdmin();
       match /devices/{tokenId} {
         allow read, write: if false;
