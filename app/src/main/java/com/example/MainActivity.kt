@@ -15,6 +15,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.core.AppEnvironment
 import com.example.data.local.DigitalReceiptEntity
 import com.example.data.local.JobRequestEntity
 import com.example.data.local.QuoteEntity
@@ -28,6 +29,7 @@ import com.example.ui.components.DigitalReceiptDialog
 import com.example.ui.components.EscrowPaymentDialog
 import com.example.ui.components.ReportListingDialog
 import com.example.ui.screens.*
+import com.google.firebase.auth.FirebaseAuth
 import com.example.ui.theme.MyApplicationTheme
 
 class MainActivity : ComponentActivity() {
@@ -43,7 +45,42 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
-fun MarketplaceApp(
+fun MarketplaceApp() {
+    if (AppEnvironment.mode == AppEnvironment.Mode.LOCAL) {
+        MarketplaceContent()
+        return
+    }
+
+    val auth = remember { runCatching { FirebaseAuth.getInstance() }.getOrNull() }
+    if (auth == null) {
+        Box(
+            modifier = Modifier.fillMaxSize(),
+            contentAlignment = androidx.compose.ui.Alignment.Center
+        ) {
+            androidx.compose.material3.Text(
+                "Firebase yapılandırması eksik. Staging/production için google-services.json gerekir.",
+                modifier = Modifier.padding(24.dp)
+            )
+        }
+        return
+    }
+
+    var currentUser by remember { mutableStateOf(auth.currentUser) }
+    DisposableEffect(auth) {
+        val listener = FirebaseAuth.AuthStateListener { currentUser = it.currentUser }
+        auth.addAuthStateListener(listener)
+        onDispose { auth.removeAuthStateListener(listener) }
+    }
+
+    if (currentUser == null) {
+        PhoneAuthScreen(onAuthenticated = {})
+    } else {
+        MarketplaceContent()
+    }
+}
+
+@Composable
+private fun MarketplaceContent(
     viewModel: MarketplaceViewModel = viewModel()
 ) {
     val currentScreen by viewModel.currentScreen.collectAsStateWithLifecycle()
