@@ -1565,6 +1565,48 @@ export const releaseEscrowPayment = onCall({ region: "europe-west1", enforceAppC
   return { accepted: true, paymentId, status: "RELEASE_REQUESTED" };
 });
 
+export const getPaymentStatus = onCall(
+  { region: "europe-west1", enforceAppCheck: true },
+  async (request) => {
+    if (!request.auth) throw new HttpsError("unauthenticated", "Kimlik doğrulaması gerekli.");
+    await assertAccountActive(request.auth.uid);
+
+    const data = callableData(request.data);
+    const paymentId = requireString(data, "paymentId", 64, 64);
+    if (!/^[a-f0-9]{64}$/.test(paymentId)) {
+      throw new HttpsError("invalid-argument", "Geçersiz ödeme kimliği.");
+    }
+
+    const snap = await db.collection("payments").doc(paymentId).get();
+    if (!snap.exists) throw new HttpsError("not-found", "Ödeme bulunamadı.");
+
+    const payment = snap.data()!;
+    const isCustomer = payment.customerId === request.auth.uid;
+    const providerId = String(payment.providerId ?? "");
+    let isProvider = false;
+
+    if (!isCustomer && providerId) {
+      const providerSnap = await db.collection("providers").doc(providerId).get();
+      isProvider = providerSnap.exists && providerSnap.data()?.ownerId === request.auth.uid;
+    }
+
+    if (!isCustomer && !isProvider && request.auth.token.admin !== true) {
+      throw new HttpsError("permission-denied", "Bu ödemenin durumunu görüntüleyemezsiniz.");
+    }
+
+    return {
+      id: paymentId,
+      status: String(payment.status ?? "UNKNOWN"),
+      amountMinor: Number(payment.amountMinor ?? 0),
+      currency: String(payment.currency ?? "TRY"),
+      requestId: String(payment.requestId ?? ""),
+      quoteId: String(payment.quoteId ?? ""),
+      providerOrderId: String(payment.providerOrderId ?? ""),
+      updatedAt: payment.updatedAt ?? null,
+    };
+  }
+);
+
 export const requestRefund = onCall(
   { region: "europe-west1", enforceAppCheck: true },
   async (request) => {
