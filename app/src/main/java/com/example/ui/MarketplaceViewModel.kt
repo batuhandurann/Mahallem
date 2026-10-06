@@ -309,14 +309,18 @@ class MarketplaceViewModel(application: Application) : AndroidViewModel(applicat
     fun sendChatMessage(conversationId: String, text: String, isOffer: Boolean = false, offerPrice: String = "") {
         if (text.isBlank() && offerPrice.isBlank()) return
         viewModelScope.launch {
-            repository.sendChatMessage(
-                conversationId = conversationId,
-                senderName = "Ben",
-                text = text,
-                isFromMe = true,
-                isOffer = isOffer,
-                offerPrice = offerPrice
-            )
+            if (AppEnvironment.mode == AppEnvironment.Mode.LOCAL) {
+                repository.sendChatMessage(
+                    conversationId = conversationId, senderName = "Ben", text = text, isFromMe = true,
+                    isOffer = isOffer, offerPrice = offerPrice
+                )
+            } else {
+                cloudChatRepository.sendMessage(
+                    conversationId = conversationId,
+                    text = if (isOffer) "Fiyat Teklifi: " + offerPrice + if (text.isBlank()) "" else " — " + text else text,
+                    messageType = if (isOffer) "OFFER" else "TEXT"
+                )
+            }
 
             if (AppEnvironment.mode == AppEnvironment.Mode.LOCAL) {
                 delay(1500)
@@ -338,14 +342,14 @@ class MarketplaceViewModel(application: Application) : AndroidViewModel(applicat
 
     fun sendVoiceNote(conversationId: String, durationSeconds: Int) {
         viewModelScope.launch {
-            repository.sendChatMessage(
-                conversationId = conversationId,
-                senderName = "Ben",
-                text = "🎙️ Sesli Not",
-                isFromMe = true,
-                isVoiceNote = true,
-                voiceDurationSeconds = durationSeconds
-            )
+            if (AppEnvironment.mode == AppEnvironment.Mode.LOCAL) {
+                repository.sendChatMessage(
+                    conversationId = conversationId, senderName = "Ben", text = "🎙️ Sesli Not",
+                    isFromMe = true, isVoiceNote = true, voiceDurationSeconds = durationSeconds
+                )
+            } else {
+                cloudChatRepository.sendMessage(conversationId, "🎙️ Sesli Not ($durationSeconds sn)", "VOICE")
+            }
             if (AppEnvironment.mode == AppEnvironment.Mode.LOCAL) {
                 delay(1500)
                 repository.sendChatMessage(
@@ -360,14 +364,14 @@ class MarketplaceViewModel(application: Application) : AndroidViewModel(applicat
 
     fun sendPhotoMessage(conversationId: String, desc: String) {
         viewModelScope.launch {
-            repository.sendChatMessage(
-                conversationId = conversationId,
-                senderName = "Ben",
-                text = desc,
-                isFromMe = true,
-                hasPhotoAttachment = true,
-                photoDescription = desc
-            )
+            if (AppEnvironment.mode == AppEnvironment.Mode.LOCAL) {
+                repository.sendChatMessage(
+                    conversationId = conversationId, senderName = "Ben", text = desc, isFromMe = true,
+                    hasPhotoAttachment = true, photoDescription = desc
+                )
+            } else {
+                cloudChatRepository.sendMessage(conversationId, desc, "IMAGE")
+            }
             if (AppEnvironment.mode == AppEnvironment.Mode.LOCAL) {
                 delay(1500)
                 repository.sendChatMessage(
