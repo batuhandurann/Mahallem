@@ -361,6 +361,18 @@ async function run() {
 
   await assertFails(getDoc(doc(aliceDb, "users/alice/devices/device-1")));
   await assertFails(
+    setDoc(doc(aliceDb, "contentReports/client-write"), {
+      reporterUid: "alice",
+      targetType: "PROVIDER",
+      targetId: "provider-visible",
+      reason: "İstemci doğrudan rapor yazmamalı",
+      status: "OPEN",
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    })
+  );
+
+  await assertFails(
     setDoc(doc(aliceDb, "quotes/client-created-quote"), {
       providerId: "provider-1",
       providerOwnerId: "alice",
