@@ -34,8 +34,21 @@ service cloud.firestore {
       allow create: if verifiedContact() && ownsUser(uid) && request.resource.data.uid == uid
         && (!('role' in request.resource.data) || request.resource.data.role == 'user')
         && (!('phoneNumber' in request.resource.data)
-          || request.resource.data.phoneNumber == request.auth.token.phone_number) && request.resource.data.keys().hasOnly(['uid','displayName','photoUrl','phoneNumber','role','createdAt','updatedAt','district','city','language','notificationPreferences']);
-      allow update: if isAdmin() || (accountActive() && ownsUser(uid) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['displayName','photoUrl','district','city','language','notificationPreferences','updatedAt']));
+          || request.resource.data.phoneNumber == request.auth.token.phone_number)
+        && request.resource.data.keys().hasOnly(['uid','displayName','photoUrl','phoneNumber','role','createdAt','updatedAt','district','city','language','notificationPreferences'])
+        && boundedString(request.resource.data, 'displayName', 120)
+        && boundedString(request.resource.data, 'photoUrl', 500)
+        && boundedString(request.resource.data, 'phoneNumber', 32)
+        && boundedString(request.resource.data, 'district', 80)
+        && boundedString(request.resource.data, 'city', 80)
+        && boundedString(request.resource.data, 'language', 16);
+      allow update: if isAdmin() || (accountActive() && ownsUser(uid)
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['displayName','photoUrl','district','city','language','notificationPreferences','updatedAt'])
+        && boundedString(request.resource.data, 'displayName', 120)
+        && boundedString(request.resource.data, 'photoUrl', 500)
+        && boundedString(request.resource.data, 'district', 80)
+        && boundedString(request.resource.data, 'city', 80)
+        && boundedString(request.resource.data, 'language', 16));
       allow delete: if isAdmin();
       match /devices/{tokenId} {
         allow read, write: if false;
@@ -109,7 +122,15 @@ service cloud.firestore {
           'renovationNotes','eventType','durationHours','targetAgeGroup',
           'selectedCostumeOrCharacter','extraServicesRequested','latitude',
           'longitude','updatedAt'
-        ]);
+        ])
+        && boundedString(request.resource.data, 'address', 500)
+        && boundedString(request.resource.data, 'customerName', 120)
+        && boundedString(request.resource.data, 'customerPhone', 32)
+        && boundedString(request.resource.data, 'renovationNotes', 2000)
+        && boundedString(request.resource.data, 'eventType', 80)
+        && boundedString(request.resource.data, 'targetAgeGroup', 80)
+        && boundedString(request.resource.data, 'selectedCostumeOrCharacter', 120)
+        && boundedString(request.resource.data, 'extraServicesRequested', 1000);
       allow update: if isAdmin()
         || (accountActive()
           && resource.data.ownerId == request.auth.uid
@@ -124,7 +145,15 @@ service cloud.firestore {
             'renovationNotes','eventType','durationHours','targetAgeGroup',
             'selectedCostumeOrCharacter','extraServicesRequested','latitude',
             'longitude','updatedAt'
-          ]));
+          ])
+          && boundedString(request.resource.data, 'address', 500)
+          && boundedString(request.resource.data, 'customerName', 120)
+          && boundedString(request.resource.data, 'customerPhone', 32)
+          && boundedString(request.resource.data, 'renovationNotes', 2000)
+          && boundedString(request.resource.data, 'eventType', 80)
+          && boundedString(request.resource.data, 'targetAgeGroup', 80)
+          && boundedString(request.resource.data, 'selectedCostumeOrCharacter', 120)
+          && boundedString(request.resource.data, 'extraServicesRequested', 1000));
       allow delete: if isAdmin() || (signedIn() && resource.data.ownerId == request.auth.uid);
     }
 
