@@ -1499,6 +1499,15 @@ async function anonymizeAccount(uid: string): Promise<void> {
 
     await writer.close();
 
+    await processQueryInPages(
+      db.collection("deviceTokenOwners").where("uid", "==", uid),
+      async (owners) => {
+        const batch = db.batch();
+        for (const owner of owners) batch.delete(owner.ref);
+        await batch.commit();
+      }
+    );
+
   const devicesSnapshot = await db.collection("users").doc(uid).collection("devices").get();
   const cleanupBatch = db.batch();
   for (const device of devicesSnapshot.docs) {
@@ -1517,6 +1526,8 @@ async function anonymizeAccount(uid: string): Promise<void> {
     "conversation:" + uid,
     "conversation-hour:" + uid,
     "quote:" + uid,
+    "quote-hour:" + uid,
+    "report-day:" + uid,
   ];
   for (const rateLimitId of rateLimitIds) {
     cleanupBatch.delete(db.collection("rateLimits").doc(rateLimitId));
