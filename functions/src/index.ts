@@ -523,6 +523,15 @@ export const updateProviderAvailability = onCall(
         updatedAt: FieldValue.serverTimestamp(),
       }, { merge: true });
 
+      const rate = rateSnap.exists ? rateSnap.data()! : {};
+      const windowStart = Number(rate.windowStartMs ?? 0);
+      const count = Number(rate.count ?? 0);
+      const now = Date.now();
+      const activeWindow = Number.isSafeInteger(windowStart) && now - windowStart < 86_400_000;
+      if (activeWindow && count >= 50) {
+        throw new HttpsError("resource-exhausted", "Günlük müsaitlik değişikliği kotanıza ulaştınız.");
+      }
+
       const update: Record<string, unknown> = {
         updatedAt: FieldValue.serverTimestamp(),
       };
@@ -545,6 +554,11 @@ export const updateProviderAvailability = onCall(
         update.bookedDates = [...next].sort();
       }
 
+      tx.set(rateRef, {
+        windowStartMs: activeWindow ? windowStart : now,
+        count: activeWindow ? count + 1 : 1,
+        updatedAt: FieldValue.serverTimestamp(),
+      }, { merge: true });
       tx.update(ref, update);
     });
 
