@@ -6,6 +6,12 @@ import kotlinx.coroutines.tasks.await
 class FunctionsRepository(
     private val functions: FirebaseFunctions = FirebaseFunctions.getInstance("europe-west1")
 ) {
+    suspend fun saveProviderListing(data: Map<String, Any?>): Map<*, *> =
+        call("saveProviderListing", data)
+
+    suspend fun saveJobRequest(data: Map<String, Any?>): Map<*, *> =
+        call("saveJobRequest", data)
+
     suspend fun createPaymentIntent(
         requestId: Long,
         quoteId: Long,
