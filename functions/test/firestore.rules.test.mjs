@@ -19,7 +19,6 @@ const env = await initializeTestEnvironment({
 async function run() {
   const alice = env.authenticatedContext("alice");
   const bob = env.authenticatedContext("bob");
-  const admin = env.authenticatedContext("admin", { admin: true });
 
   const aliceDb = alice.firestore();
   const bobDb = bob.firestore();
@@ -39,6 +38,17 @@ async function run() {
       uid: "alice",
       displayName: "Alice",
       role: "admin",
+      updatedAt: new Date(),
+    })
+  );
+
+  await assertFails(
+    setDoc(doc(aliceDb, "users/alice-extra"), {
+      uid: "alice",
+      displayName: "Alice",
+      role: "user",
+      isSuperuser: true,
+      createdAt: new Date(),
       updatedAt: new Date(),
     })
   );
@@ -118,7 +128,7 @@ async function run() {
   );
 
   await assertFails(
-    setDoc(doc(aliceDb, "conversations/conversation-1"), {
+    setDoc(doc(aliceDb, "conversations/conversation-client-write"), {
       participantIds: ["alice", "bob"],
       relatedItemId: "request-1",
       relatedItemTitle: "Temizlik",
@@ -127,15 +137,15 @@ async function run() {
     })
   );
 
-  await assertSucceeds(
-    setDoc(doc(admin.firestore(), "conversations/conversation-1"), {
+  await env.withSecurityRulesDisabled(async (ctx) => {
+    await setDoc(doc(ctx.firestore(), "conversations/conversation-1"), {
       participantIds: ["alice", "bob"],
       relatedItemId: "request-1",
       relatedItemTitle: "Temizlik",
       createdAt: new Date(),
       updatedAt: new Date(),
-    })
-  );
+    });
+  });
 
   await assertSucceeds(
     setDoc(doc(bobDb, "messages/message-1"), {
@@ -165,6 +175,16 @@ async function run() {
       messageType: "TEXT",
       createdAt: new Date(),
       participantIds: ["alice", "bob"],
+    })
+  );
+
+  await assertFails(
+    setDoc(doc(aliceDb, "jobRequestPrivate/private-1"), {
+      ownerId: "alice",
+      address: "İzinsiz alan",
+      secretRole: "admin",
+      createdAt: new Date(),
+      updatedAt: new Date(),
     })
   );
 
