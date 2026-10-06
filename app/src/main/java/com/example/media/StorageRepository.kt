@@ -132,12 +132,14 @@ class StorageRepository(
             val bitmap = BitmapFactory.decodeFile(source.absolutePath, options)
                 ?: error("Görsel çözülemedi.")
 
-            bitmap.use {
+            try {
                 FileOutputStream(normalized).use { output ->
-                    require(it.compress(Bitmap.CompressFormat.JPEG, 85, output)) {
+                    require(bitmap.compress(Bitmap.CompressFormat.JPEG, 85, output)) {
                         "Görsel dönüştürülemedi."
                     }
                 }
+            } finally {
+                bitmap.recycle()
             }
 
             require(normalized.length() <= MAX_OUTPUT_BYTES) {
