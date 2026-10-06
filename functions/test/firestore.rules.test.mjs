@@ -302,6 +302,13 @@ async function run() {
   );
 
   await assertFails(
+    updateDoc(doc(deletingDb, "users/alice-deleting"), {
+      displayName: "Silinme sürecinde değişiklik",
+      updatedAt: new Date(),
+    })
+  );
+
+  await assertFails(
     setDoc(doc(deletingDb, "users/alice-deleting/devices/device-1"), {
       platform: "android",
       updatedAt: new Date(),
