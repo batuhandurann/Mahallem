@@ -727,6 +727,19 @@ export const issueImageUploadGrant = onCall(
         }
       }
 
+      if (kind === "JOB_REQUEST") {
+        const requestSnap = await tx.get(db.collection("jobRequests").doc(requestId));
+        const requestData = requestSnap.exists ? requestSnap.data() : null;
+        const requestStatus = String(requestData?.status ?? "");
+        if (
+          !requestSnap.exists
+          || requestData?.ownerId !== uid
+          || !["PENDING", "QUOTED", "ACCEPTED"].includes(requestStatus)
+        ) {
+          throw new HttpsError("permission-denied", "Bu talep için görsel yükleyemezsiniz.");
+        }
+      }
+
       tx.set(rateRef, {
         windowStartMs: activeWindow ? windowStart : now,
         count: activeWindow ? count + 1 : 1,
@@ -2215,6 +2228,13 @@ export const notifyNewMessage = onDocumentCreated(
           db.collection("users").doc(uid).collection("devices").get(),
           db.collection("users").doc(uid).collection("conversationState").doc(conversationId).get(),
         ]);
+
+        if (
+          !profileSnap.exists
+          || ["REQUESTED", "PURGING"].includes(String(profileSnap.data()?.deletionStatus ?? ""))
+        ) {
+          return [];
+        }
 
         const preferences = profileSnap.data()?.notificationPreferences;
         const messagesEnabled = preferences == null || preferences.messages !== false;
