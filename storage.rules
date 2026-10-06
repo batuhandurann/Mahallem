@@ -4,17 +4,31 @@ service firebase.storage {
   match /b/{bucket}/o {
     function signedIn() { return request.auth != null; }
     function isAdmin() { return signedIn() && request.auth.token.admin == true; }
-    match /users/{uid}/{allPaths=**} {
-      allow read, write: if signedIn() && request.auth.uid == uid;
+    function safeImage() {
+      return request.resource.size < 10 * 1024 * 1024
+        && request.resource.contentType.matches('image/.*');
     }
+
+    match /users/{uid}/{allPaths=**} {
+      allow read: if signedIn() && request.auth.uid == uid;
+      allow write: if signedIn() && request.auth.uid == uid && safeImage();
+      allow delete: if signedIn() && request.auth.uid == uid;
+    }
+
     match /jobRequests/{requestId}/{allPaths=**} {
-      allow read, write: if signedIn();
+      allow read: if signedIn();
+      allow write: if signedIn() && safeImage();
       allow delete: if isAdmin();
     }
+
     match /providers/{providerId}/{allPaths=**} {
       allow read: if signedIn();
-      allow write, delete: if isAdmin();
+      allow write: if isAdmin() && safeImage();
+      allow delete: if isAdmin();
     }
-    match /admin/{allPaths=**} { allow read, write: if isAdmin(); }
+
+    match /admin/{allPaths=**} {
+      allow read, write: if isAdmin();
+    }
   }
 }
