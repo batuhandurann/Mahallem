@@ -1,6 +1,6 @@
-import android.net.Uri
-
 package com.example.integration
+
+import android.net.Uri
 
 data class PaymentIntent(
     val id: String,
@@ -12,7 +12,8 @@ interface PaymentGateway {
         requestId: Long,
         quoteId: Long,
         amountMinor: Long,
-        currency: String
+        currency: String,
+        customerEmail: String? = null
     ): PaymentIntent
 
     suspend fun refund(paymentId: String, amountMinor: Long? = null)
@@ -27,7 +28,8 @@ class TestPaymentGateway : PaymentGateway {
         requestId: Long,
         quoteId: Long,
         amountMinor: Long,
-        currency: String
+        currency: String,
+        customerEmail: String?
     ): PaymentIntent = PaymentIntent(
         id = "TEST-PAY-$requestId-$quoteId",
         checkoutUrl = "https://example.invalid/test-payment"
@@ -54,7 +56,8 @@ class ProductionPaymentGateway(
         requestId: Long,
         quoteId: Long,
         amountMinor: Long,
-        currency: String
+        currency: String,
+        customerEmail: String?
     ): PaymentIntent {
         require(amountMinor > 0) { "Ödeme tutarı geçersiz." }
         val idempotencyKey = java.util.UUID.randomUUID().toString()
@@ -63,7 +66,8 @@ class ProductionPaymentGateway(
             quoteId = quoteId,
             amountMinor = amountMinor,
             currency = currency,
-            idempotencyKey = idempotencyKey
+            idempotencyKey = idempotencyKey,
+            customerEmail = customerEmail
         )
         val id = result["id"]?.toString() ?: error("Ödeme kimliği alınamadı.")
         val checkoutUrl = result["checkoutUrl"]?.toString()
