@@ -17,8 +17,8 @@ const env = await initializeTestEnvironment({
 });
 
 async function run() {
-  const alice = env.authenticatedContext("alice");
-  const bob = env.authenticatedContext("bob");
+  const alice = env.authenticatedContext("alice", { email_verified: true });
+  const bob = env.authenticatedContext("bob", { email_verified: true });
 
   const aliceDb = alice.firestore();
   const bobDb = bob.firestore();
