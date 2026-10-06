@@ -358,8 +358,7 @@ export const notifyNewMessage = onDocumentCreated(
 
     if (tokens.length === 0) return;
 
-    await getMessaging().sendEachForMulticast({
-      tokens,
+    const payload = {
       notification: {
         title: "Mahallem'den yeni mesaj",
         body: String(message.text ?? "Yeni bir mesajınız var."),
@@ -367,6 +366,32 @@ export const notifyNewMessage = onDocumentCreated(
       data: {
         conversationId: String(message.conversationId ?? ""),
       },
-    });
+    };
+
+    for (let i = 0; i < tokens.length; i += 500) {
+      const batchTokens = tokens.slice(i, i + 500);
+      const response = await getMessaging().sendEachForMulticast({
+        tokens: batchTokens,
+        ...payload,
+      });
+
+      const invalidTokenDocs = response.responses
+        .map((result, index) => ({
+          result,
+          token: batchTokens[index],
+        }))
+        .filter(({ result }) =>
+          result.error?.code === "messaging/registration-token-not-registered"
+          || result.error?.code === "messaging/invalid-registration-token"
+        )
+        .map(({ token }) =>
+          tokenDocs
+            .flatMap((snap) => snap.docs)
+            .find((doc) => doc.id === token)
+        )
+        .filter(Boolean);
+
+      await Promise.all(invalidTokenDocs.map((doc) => doc!.ref.delete()));
+    }
   }
 );
