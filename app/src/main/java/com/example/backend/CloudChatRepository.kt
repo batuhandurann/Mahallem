@@ -4,7 +4,6 @@ import com.example.data.local.ChatMessageEntity
 import com.example.data.local.ConversationEntity
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
-import com.google.firebase.firestore.Query
 import com.google.firebase.firestore.SetOptions
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
@@ -29,17 +28,11 @@ class CloudChatRepository(
         val participant = if (ownerDoc.exists()) providerOrUserId else
             firestore.collection("providers").document(providerOrUserId).get().await().getString("ownerId")
         val participantUid = participant ?: error("Sohbet katılımcısı bulunamadı.")
-        val ref = firestore.collection("conversations").document()
-        ref.set(
-            mapOf(
-                "participantIds" to listOf(me, participantUid),
-                "relatedItemId" to providerOrUserId,
-                "relatedItemTitle" to relatedItemTitle,
-                "createdAt" to com.google.firebase.Timestamp.now(),
-                "updatedAt" to com.google.firebase.Timestamp.now()
-            )
-        ).await()
-        return ref.id
+        return FunctionsRepository().startConversation(
+            targetId = providerOrUserId,
+            relatedItemId = providerOrUserId,
+            relatedItemTitle = relatedItemTitle
+        )
     }
 
     fun observeConversations(): Flow<List<ConversationEntity>> = callbackFlow {
@@ -92,15 +85,11 @@ class CloudChatRepository(
             ownerId in ids && doc.getString("relatedItemId") == requestId.toString()
         }
         if (existing != null) return existing.id
-        val ref = firestore.collection("conversations").document()
-        ref.set(mapOf(
-            "participantIds" to listOf(me, ownerId),
-            "relatedItemId" to requestId.toString(),
-            "relatedItemTitle" to relatedItemTitle,
-            "createdAt" to com.google.firebase.Timestamp.now(),
-            "updatedAt" to com.google.firebase.Timestamp.now()
-        )).await()
-        return ref.id
+        return FunctionsRepository().startConversation(
+            targetId = ownerId,
+            relatedItemId = requestId.toString(),
+            relatedItemTitle = relatedItemTitle
+        )
     }
     suspend fun sendMessage(
         conversationId: String, text: String, messageType: String = "TEXT", attachmentUrl: String? = null
