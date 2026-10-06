@@ -168,6 +168,10 @@ class MarketplaceRepository(private val dao: AppDao) {
         dao.updateRequestStatus(requestId, "ACCEPTED")
     }
 
+    suspend fun deleteQuote(quoteId: Long) {
+        dao.deleteQuote(quoteId)
+    }
+
     suspend fun rejectQuote(quoteId: Long) {
         dao.updateQuoteStatus(quoteId, "REJECTED")
     }
