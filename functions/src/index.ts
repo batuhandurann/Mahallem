@@ -190,6 +190,10 @@ export const saveProviderListing = onCall(
     const categoryId = requireString(data, "categoryId", 80, 1);
     const district = requireString(data, "district", 80, 1);
     const city = requireString(data, "city", 80, 1);
+    const hourlyOrBasePrice = typeof data.hourlyOrBasePrice === "string"
+      ? data.hourlyOrBasePrice.slice(0, 80)
+      : "Anlaşmaya Bağlı";
+    const isEmergencyAvailable = data.isEmergencyAvailable === true;
     const experienceYears = Number(data.experienceYears);
     const latitude = Number(data.latitude);
     const longitude = Number(data.longitude);
@@ -235,6 +239,8 @@ export const saveProviderListing = onCall(
         categoryId,
         district,
         city,
+        hourlyOrBasePrice,
+        isEmergencyAvailable,
         experienceYears,
         serviceArea: { latitude, longitude },
         isOpenForOffers,
@@ -1484,6 +1490,8 @@ export const syncPublicProvider = onDocumentWritten(
       categoryId: provider.categoryId ?? "",
       district: provider.district ?? "",
       city: provider.city ?? "",
+      hourlyOrBasePrice: provider.hourlyOrBasePrice ?? "Anlaşmaya Bağlı",
+      isEmergencyAvailable: provider.isEmergencyAvailable === true,
       experienceYears: provider.experienceYears ?? 0,
       serviceArea: (() => {
         const area = provider.serviceArea;
