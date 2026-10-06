@@ -144,6 +144,7 @@ async function run() {
       ownerUid: "alice",
       kind: "CHAT",
       conversationId: "chat-1",
+      participantIds: ["alice", "bob"],
       expiresAt: new Date(Date.now() + 10 * 60 * 1000),
     });
   });
@@ -160,6 +161,7 @@ async function run() {
       ownerUid: "alice",
       kind: "CHAT",
       conversationId: "chat-1",
+      participantIds: ["alice", "bob"],
       expiresAt: new Date(Date.now() - 60_000),
       validated: true,
     });
