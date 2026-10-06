@@ -18,6 +18,7 @@ import androidx.compose.ui.Modifier
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.core.AppEnvironment
+import com.example.privacy.ConsentRepository
 import com.example.data.local.DigitalReceiptEntity
 import com.example.data.local.JobRequestEntity
 import com.example.data.local.QuoteEntity
@@ -77,7 +78,14 @@ fun MarketplaceApp() {
     if (currentUser == null) {
         PhoneAuthScreen(onAuthenticated = {})
     } else {
-        MarketplaceContent()
+        val consent = remember { ConsentRepository(this@MainActivity) }
+        if (!consent.privacyNoticeAcknowledged) {
+            PrivacyConsentScreen(
+                onCompleted = { currentUser = auth.currentUser }
+            )
+        } else {
+            MarketplaceContent()
+        }
     }
 }
 
