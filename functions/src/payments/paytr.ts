@@ -1,17 +1,19 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 
 export function createPaytrCallbackHash(
+  merchantKey: string,
   merchantOid: string,
   merchantSalt: string,
   status: string,
   totalAmountMinor: string
 ): string {
-  return createHmac("sha256", merchantSalt)
+  return createHmac("sha256", merchantKey)
     .update(merchantOid + merchantSalt + status + totalAmountMinor)
     .digest("base64");
 }
 
 export function verifyPaytrCallback(
+  merchantKey: string,
   merchantOid: string,
   merchantSalt: string,
   status: string,
@@ -19,6 +21,7 @@ export function verifyPaytrCallback(
   receivedHash: string
 ): boolean {
   const expected = createPaytrCallbackHash(
+    merchantKey,
     merchantOid,
     merchantSalt,
     status,
