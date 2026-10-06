@@ -750,25 +750,25 @@ export const sendMessage = onCall(
         lastMessagePreview: messageType === "IMAGE" ? "📷 Fotoğraf" : text.slice(0, 200),
         updatedAt: FieldValue.serverTimestamp(),
       });
+
+      const recipientIds = participants.filter((id: unknown) =>
+        typeof id === "string" && id !== request.auth!.uid
+      ) as string[];
+      for (const recipientId of recipientIds) {
+        tx.set(
+          db.collection("users").doc(recipientId).collection("conversationState").doc(conversationId),
+          {
+            conversationId,
+            unreadCount: FieldValue.increment(1),
+            lastMessageAt: FieldValue.serverTimestamp(),
+            updatedAt: FieldValue.serverTimestamp(),
+          },
+          { merge: true }
+        );
+      }
     });
 
-
- 
-    const recipientIds = participants.filter((id: unknown) =>
-      typeof id === "string" && id !== request.auth!.uid
-    ) as string[];
-    for (const recipientId of recipientIds) {
-      tx.set(
-        db.collection("users").doc(recipientId).collection("conversationState").doc(conversationId),
-        {
-          conversationId,
-          unreadCount: FieldValue.increment(1),
-          lastMessageAt: FieldValue.serverTimestamp(),
-          updatedAt: FieldValue.serverTimestamp(),
-        },
-        { merge: true }
-      );
-    }    return { messageId: messageRef.id };
+    return { messageId: messageRef.id };
   }
 );
 
