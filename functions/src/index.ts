@@ -986,6 +986,80 @@ export const acceptQuote = onCall({ region: "europe-west1", enforceAppCheck: tru
   return { accepted: true, quoteId };
 });
 
+export const reportContent = onCall(
+  { region: "europe-west1", enforceAppCheck: true },
+  async (request) => {
+    if (!request.auth) throw new HttpsError("unauthenticated", "Kimlik doğrulaması gerekli.");
+    await assertAccountActive(request.auth.uid);
+
+    const data = callableData(request.data);
+    const targetType = requireString(data, "targetType", 20, 1);
+    const targetId = requireString(data, "targetId", 120, 1);
+    const reason = requireString(data, "reason", 500, 1).trim();
+
+    if (!["PROVIDER", "JOB_REQUEST"].includes(targetType) || !ID_PATTERN.test(targetId) || !reason) {
+      throw new HttpsError("invalid-argument", "Geçersiz şikayet bilgisi.");
+    }
+
+    const targetRef = targetType === "PROVIDER"
+      ? db.collection("providers").doc(targetId)
+      : db.collection("jobRequests").doc(targetId);
+    const reportRef = db.collection("contentReports").doc(
+      createHash("sha256")
+        .update(request.auth.uid + ":" + targetType + ":" + targetId)
+        .digest("hex")
+    );
+    const rateRef = db.collection("rateLimits").doc("report-day:" + request.auth.uid);
+
+    await db.runTransaction(async (tx) => {
+      const [targetSnap, existingReport, rateSnap] = await Promise.all([
+        tx.get(targetRef),
+        tx.get(reportRef),
+        tx.get(rateRef),
+      ]);
+
+      if (!targetSnap.exists) {
+        throw new HttpsError("not-found", "Şikayet edilecek içerik bulunamadı.");
+      }
+
+      const ownerId = String(targetSnap.data()?.ownerId ?? "");
+      if (!ownerId || ownerId === request.auth!.uid) {
+        throw new HttpsError("permission-denied", "Bu içeriği şikayet edemezsiniz.");
+      }
+
+      const rate = rateSnap.exists ? rateSnap.data()! : {};
+      const windowStart = Number(rate.windowStartMs ?? 0);
+      const count = Number(rate.count ?? 0);
+      const now = Date.now();
+      const activeWindow = Number.isSafeInteger(windowStart) && now - windowStart < 86_400_000;
+
+      if (activeWindow && count >= 20) {
+        throw new HttpsError("resource-exhausted", "Günlük şikayet kotanıza ulaştınız.");
+      }
+
+      tx.set(rateRef, {
+        windowStartMs: activeWindow ? windowStart : now,
+        count: activeWindow ? count + 1 : 1,
+        updatedAt: FieldValue.serverTimestamp(),
+      }, { merge: true });
+
+      tx.set(reportRef, {
+        reporterUid: request.auth!.uid,
+        targetType,
+        targetId,
+        reason,
+        status: existingReport.exists ? String(existingReport.data()?.status ?? "OPEN") : "OPEN",
+        createdAt: existingReport.exists
+          ? (existingReport.data()?.createdAt ?? FieldValue.serverTimestamp())
+          : FieldValue.serverTimestamp(),
+        updatedAt: FieldValue.serverTimestamp(),
+      }, { merge: true });
+    });
+
+    return { reported: true };
+  }
+);
+
 export const rejectQuote = onCall({ region: "europe-west1", enforceAppCheck: true }, async (request) => {
   if (!request.auth) throw new HttpsError("unauthenticated", "Kimlik doğrulaması gerekli.");
     await assertAccountActive(request.auth.uid);
