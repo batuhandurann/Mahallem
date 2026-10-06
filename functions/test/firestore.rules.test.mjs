@@ -246,6 +246,47 @@ async function run() {
   const deletingUser = env.authenticatedContext("alice-deleting", { email_verified: true });
   const deletingDb = deletingUser.firestore();
 
+  await env.withSecurityRulesDisabled(async (ctx) => {
+    const db = ctx.firestore();
+    await setDoc(doc(db, "providers/provider-visible"), {
+      ownerId: "bob",
+      displayName: "Bob Provider",
+    });
+    await setDoc(doc(db, "jobRequests/request-visible"), {
+      ownerId: "bob",
+      status: "PENDING",
+      title: "Visible request",
+    });
+    await setDoc(doc(db, "conversations/conversation-visible"), {
+      participantIds: ["alice-deleting", "bob"],
+    });
+    await setDoc(doc(db, "messages/message-visible"), {
+      conversationId: "conversation-visible",
+      senderId: "bob",
+      text: "hello",
+    });
+    await setDoc(doc(db, "quotes/quote-visible"), {
+      customerId: "alice-deleting",
+      providerOwnerId: "bob",
+      requestId: "request-visible",
+      status: "PENDING",
+      amountMinor: 10000,
+    });
+    await setDoc(doc(db, "payments/payment-visible"), {
+      customerId: "alice-deleting",
+      providerId: "bob",
+      status: "PAID",
+      amountMinor: 10000,
+    });
+  });
+
+  await assertFails(getDoc(doc(deletingDb, "providers/provider-visible")));
+  await assertFails(getDoc(doc(deletingDb, "jobRequests/request-visible")));
+  await assertFails(getDoc(doc(deletingDb, "conversations/conversation-visible")));
+  await assertFails(getDoc(doc(deletingDb, "messages/message-visible")));
+  await assertFails(getDoc(doc(deletingDb, "quotes/quote-visible")));
+  await assertFails(getDoc(doc(deletingDb, "payments/payment-visible")));
+
   await assertFails(
     setDoc(doc(deletingDb, "jobRequests/deleting-request"), {
       ownerId: "alice-deleting",
