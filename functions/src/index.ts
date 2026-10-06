@@ -8,6 +8,7 @@ import { onCall, onRequest, HttpsError } from "firebase-functions/v2/https";
 import { defineSecret } from "firebase-functions/params";
 import { logger } from "firebase-functions";
 import { onSchedule } from "firebase-functions/v2/scheduler";
+import { setGlobalOptions } from "firebase-functions/options";
 import { setGlobalOptions } from "firebase-functions/v2";
 import {
   verifyPaytrCallback,
@@ -20,6 +21,27 @@ const db = getFirestore();
 const adminAuth = getAuth();
 const paytrKey = defineSecret("PAYTR_MERCHANT_KEY");
 const paytrSalt = defineSecret("PAYTR_MERCHANT_SALT");
+const MAX_QUOTE_AMOUNT_MINOR = 100_000_000;
+const ID_PATTERN = /^[A-Za-z0-9_-]{1,80}$/;
+
+function callableData(value: unknown): Record<string, unknown> {
+  if (value == null || typeof value !== "object" || Array.isArray(value)) {
+    throw new HttpsError("invalid-argument", "İstek gövdesi geçersiz.");
+  }
+  return value as Record<string, unknown>;
+}
+
+function requireString(data: Record<string, unknown>, key: string, maxLength: number, minLength = 1): string {
+  const value = data[key];
+  if (typeof value !== "string" || value.length < minLength || value.length > maxLength) {
+    throw new HttpsError("invalid-argument", `Geçersiz ${key}.`);
+  }
+  return value;
+}
+
+function hashDeviceToken(token: string): string {
+  return createHash("sha256").update(token).digest("hex");
+}
 
 async function assertAccountActive(uid: string) {
   const userSnap = await db.collection("users").doc(uid).get();
@@ -135,29 +157,53 @@ export const createPaymentIntent = onCall(
 );
 
 export const registerDeviceToken = onCall(
-  { region: "europe-west1", enforceAppCheck: true },
+  { enforceAppCheck: true },
   async (request) => {
     if (!request.auth) throw new HttpsError("unauthenticated", "Kimlik doğrulaması gerekli.");
     await assertAccountActive(request.auth.uid);
 
-    const data = request.data as Record<string, unknown>;
-    const token = String(data.token ?? "");
-    const platform = String(data.platform ?? "android");
+    const data = callableData(request.data);
+    const token = requireString(data, "token", 4096, 20);
+    const platform = typeof data.platform === "string" ? data.platform : "android";
 
     if (platform !== "android" || !/^[A-Za-z0-9:_-]{20,4096}$/.test(token)) {
       throw new HttpsError("invalid-argument", "Geçersiz cihaz belirteci.");
     }
 
     const uid = request.auth.uid;
-    const deviceRef = db.collection("users").doc(uid).collection("devices").doc(token);
+    const tokenId = hashDeviceToken(token);
+    const deviceRef = db.collection("users").doc(uid).collection("devices").doc(tokenId);
     const devicesQuery = db.collection("users").doc(uid).collection("devices").limit(11);
+    const rateLimitRef = db.collection("rateLimits").doc("device-register:" + uid);
+    const now = Date.now();
 
     await db.runTransaction(async (tx) => {
-      const [existing, devices] = await Promise.all([tx.get(deviceRef), tx.get(devicesQuery)]);
+      const [existing, devices, rateSnap] = await Promise.all([
+        tx.get(deviceRef),
+        tx.get(devicesQuery),
+        tx.get(rateLimitRef),
+      ]);
+
+      const rate = rateSnap.exists ? rateSnap.data()! : {};
+      const windowStart = Number(rate.windowStartMs ?? 0);
+      const count = Number(rate.count ?? 0);
+      const activeWindow = Number.isSafeInteger(windowStart) && now - windowStart < 60 * 60 * 1000;
+      if (activeWindow && count >= 20) {
+        throw new HttpsError("resource-exhausted", "Çok fazla cihaz kaydı denemesi.");
+      }
+
       if (!existing.exists && devices.size >= 10) {
         throw new HttpsError("resource-exhausted", "Bu hesap için en fazla 10 cihaz kaydı tutulabilir.");
       }
+
+      tx.set(rateLimitRef, {
+        windowStartMs: activeWindow ? windowStart : now,
+        count: activeWindow ? count + 1 : 1,
+        updatedAt: FieldValue.serverTimestamp(),
+      }, { merge: true });
+
       tx.set(deviceRef, {
+        token,
         platform,
         updatedAt: FieldValue.serverTimestamp(),
       }, { merge: true });
@@ -168,16 +214,17 @@ export const registerDeviceToken = onCall(
 );
 
 export const unregisterDeviceToken = onCall(
-  { region: "europe-west1", enforceAppCheck: true },
+  { enforceAppCheck: true },
   async (request) => {
     if (!request.auth) throw new HttpsError("unauthenticated", "Kimlik doğrulaması gerekli.");
-    const data = request.data as Record<string, unknown>;
-    const token = String(data.token ?? "");
+    const data = callableData(request.data);
+    const token = requireString(data, "token", 4096, 20);
     if (!/^[A-Za-z0-9:_-]{20,4096}$/.test(token)) {
       throw new HttpsError("invalid-argument", "Geçersiz cihaz belirteci.");
     }
 
-    await db.collection("users").doc(request.auth.uid).collection("devices").doc(token).delete();
+    const tokenId = hashDeviceToken(token);
+    await db.collection("users").doc(request.auth.uid).collection("devices").doc(tokenId).delete();
     return { unregistered: true };
   }
 );
@@ -190,14 +237,15 @@ export const sendMessage = onCall(
     }
     await assertAccountActive(request.auth.uid);
 
-    const data = request.data as Record<string, unknown>;
-    const conversationId = String(data.conversationId ?? "");
-    const text = String(data.text ?? "");
-    const messageType = String(data.messageType ?? "TEXT");
-    const attachmentUrl = data.attachmentUrl == null ? null : String(data.attachmentUrl);
+    const data = callableData(request.data);
+    const conversationId = requireString(data, "conversationId", 100, 1);
+    const rawText = data.text;
+    const text = rawText == null ? "" : requireString(data, "text", 2000, 0);
+    const messageType = data.messageType == null ? "TEXT" : requireString(data, "messageType", 10, 1);
+    const attachmentUrl = data.attachmentUrl == null ? null : requireString(data, "attachmentUrl", 512, 1);
 
-    if (!conversationId) {
-      throw new HttpsError("invalid-argument", "conversationId gerekli.");
+    if (!/^[a-f0-9]{64}$/.test(conversationId)) {
+      throw new HttpsError("invalid-argument", "Geçersiz conversationId.");
     }
     if (!["TEXT", "OFFER", "VOICE", "IMAGE"].includes(messageType)) {
       throw new HttpsError("invalid-argument", "Geçersiz mesaj tipi.");
@@ -293,12 +341,18 @@ export const startConversation = onCall(
     }
     await assertAccountActive(request.auth.uid);
 
-    const data = request.data as Record<string, unknown>;
-    const targetId = String(data.targetId ?? "");
-    const relatedItemId = String(data.relatedItemId ?? "");
-    const relatedItemTitle = String(data.relatedItemTitle ?? "");
+    const data = callableData(request.data);
+    const targetId = typeof data.targetId === "string" ? data.targetId : "";
+    const relatedItemId = typeof data.relatedItemId === "string" ? data.relatedItemId : "";
+    const relatedItemTitle = data.relatedItemTitle == null ? "" : requireString(data, "relatedItemTitle", 200, 0);
     const isRequestConversation = targetId === "request-owner";
 
+    if (relatedItemId.length > 80 || (relatedItemId && !ID_PATTERN.test(relatedItemId))) {
+      throw new HttpsError("invalid-argument", "Geçersiz relatedItemId.");
+    }
+    if (!isRequestConversation && targetId.length > 80) {
+      throw new HttpsError("invalid-argument", "Geçersiz targetId.");
+    }
     if (isRequestConversation && !relatedItemId) {
       throw new HttpsError("invalid-argument", "Talep sohbeti için requestId gerekli.");
     }
@@ -403,20 +457,20 @@ export const createQuote = onCall(
     if (!request.auth) throw new HttpsError("unauthenticated", "Kimlik doğrulaması gerekli.");
     await assertAccountActive(request.auth.uid);
 
-    const data = request.data as Record<string, unknown>;
-    const quoteId = String(data.quoteId ?? "");
-    const requestId = String(data.requestId ?? "");
-    const providerId = String(data.providerId ?? "");
-    const price = String(data.price ?? "");
-    const durationOrArrival = String(data.durationOrArrival ?? "");
-    const notes = String(data.notes ?? "");
-    const amountMinor = Number(data.amountMinor ?? 0);
+    const data = callableData(request.data);
+    const quoteId = requireString(data, "quoteId", 80, 1);
+    const requestId = requireString(data, "requestId", 80, 1);
+    const providerId = requireString(data, "providerId", 120, 1);
+    const price = requireString(data, "price", 200, 1);
+    const durationOrArrival = requireString(data, "durationOrArrival", 200, 0);
+    const notes = requireString(data, "notes", 1000, 0);
+    const amountMinor = typeof data.amountMinor === "number" ? data.amountMinor : Number.NaN;
 
     if (!/^[A-Za-z0-9_-]{1,80}$/.test(quoteId) ||
         !/^[A-Za-z0-9_-]{1,80}$/.test(requestId) ||
         !providerId ||
-        !Number.isSafeInteger(amountMinor) || amountMinor <= 0 ||
-        price.length > 200 || durationOrArrival.length > 200 || notes.length > 1000) {
+        !Number.isSafeInteger(amountMinor) || amountMinor <= 0 || amountMinor > MAX_QUOTE_AMOUNT_MINOR ||
+        !ID_PATTERN.test(quoteId) || !ID_PATTERN.test(requestId)) {
       throw new HttpsError("invalid-argument", "Geçersiz teklif verisi.");
     }
 
@@ -663,118 +717,111 @@ async function processQueryInPages(
 
 async function anonymizeAccount(uid: string): Promise<void> {
   const anonymizedId = deletedAccountId(uid);
+  const writer = db.bulkWriter();
+  writer.onWriteError((error) => error.failedAttempts < 5);
 
-  await processQueryInPages(
-    db.collection("providers").where("ownerId", "==", uid),
-    async (docs) => {
-      const batch = db.batch();
-      for (const doc of docs) batch.delete(doc.ref);
-      await batch.commit();
-    }
-  );
+  try {
+    await processQueryInPages(
+      db.collection("providers").where("ownerId", "==", uid),
+      async (docs) => { for (const doc of docs) writer.delete(doc.ref); }
+    );
 
-  await processQueryInPages(
-    db.collection("jobRequests").where("ownerId", "==", uid),
-    async (docs) => {
-      const batch = db.batch();
-      for (const doc of docs) {
-        batch.set(doc.ref, {
-          ownerId: anonymizedId,
-          status: "CLOSED",
-          accountDeletedAt: FieldValue.serverTimestamp(),
-        }, { merge: true });
-        batch.delete(db.collection("jobRequestPrivate").doc(doc.id));
+    await processQueryInPages(
+      db.collection("jobRequests").where("ownerId", "==", uid),
+      async (docs) => {
+        for (const doc of docs) {
+          writer.set(doc.ref, {
+            ownerId: anonymizedId,
+            status: "CLOSED",
+            accountDeletedAt: FieldValue.serverTimestamp(),
+          }, { merge: true });
+          writer.delete(db.collection("jobRequestPrivate").doc(doc.id));
+        }
       }
-      await batch.commit();
-    }
-  );
+    );
 
-  await processQueryInPages(
-    db.collection("quotes").where("customerId", "==", uid),
-    async (docs) => {
-      const batch = db.batch();
-      for (const doc of docs) {
-        batch.set(doc.ref, {
-          customerId: anonymizedId,
-          accountDeletedAt: FieldValue.serverTimestamp(),
-        }, { merge: true });
+    await processQueryInPages(
+      db.collection("quotes").where("customerId", "==", uid),
+      async (docs) => {
+        for (const doc of docs) {
+          writer.set(doc.ref, {
+            customerId: anonymizedId,
+            accountDeletedAt: FieldValue.serverTimestamp(),
+          }, { merge: true });
+        }
       }
-      await batch.commit();
-    }
-  );
+    );
 
-  await processQueryInPages(
-    db.collection("quotes").where("providerOwnerId", "==", uid),
-    async (docs) => {
-      const batch = db.batch();
-      for (const doc of docs) {
-        batch.set(doc.ref, {
-          providerOwnerId: anonymizedId,
-          accountDeletedAt: FieldValue.serverTimestamp(),
-        }, { merge: true });
+    await processQueryInPages(
+      db.collection("quotes").where("providerOwnerId", "==", uid),
+      async (docs) => {
+        for (const doc of docs) {
+          writer.set(doc.ref, {
+            providerOwnerId: anonymizedId,
+            accountDeletedAt: FieldValue.serverTimestamp(),
+          }, { merge: true });
+        }
       }
-      await batch.commit();
-    }
-  );
+    );
 
-  await processQueryInPages(
-    db.collection("payments").where("customerId", "==", uid),
-    async (docs) => {
-      const batch = db.batch();
-      for (const doc of docs) {
-        batch.set(doc.ref, {
-          customerId: anonymizedId,
-          accountDeletedAt: FieldValue.serverTimestamp(),
-        }, { merge: true });
+    await processQueryInPages(
+      db.collection("payments").where("customerId", "==", uid),
+      async (docs) => {
+        for (const doc of docs) {
+          writer.set(doc.ref, {
+            customerId: anonymizedId,
+            accountDeletedAt: FieldValue.serverTimestamp(),
+          }, { merge: true });
+        }
       }
-      await batch.commit();
-    }
-  );
+    );
 
-  await processQueryInPages(
-    db.collection("payments").where("providerId", "==", uid),
-    async (docs) => {
-      const batch = db.batch();
-      for (const doc of docs) {
-        batch.set(doc.ref, {
-          providerId: anonymizedId,
-          accountDeletedAt: FieldValue.serverTimestamp(),
-        }, { merge: true });
+    await processQueryInPages(
+      db.collection("payments").where("providerId", "==", uid),
+      async (docs) => {
+        for (const doc of docs) {
+          writer.set(doc.ref, {
+            providerId: anonymizedId,
+            accountDeletedAt: FieldValue.serverTimestamp(),
+          }, { merge: true });
+        }
       }
-      await batch.commit();
-    }
-  );
-  await processQueryInPages(
-    db.collection("conversations").where("participantIds", "array-contains", uid),
-    async (conversations) => {
-      for (const conversation of conversations) {
-        const participantIds = (conversation.data().participantIds as unknown[])
-          .map((id) => id === uid ? anonymizedId : id);
+    );
 
-        await conversation.ref.set({
-          participantIds,
-          accountDeletedAt: FieldValue.serverTimestamp(),
-        }, { merge: true });
+    await processQueryInPages(
+      db.collection("conversations").where("participantIds", "array-contains", uid),
+      async (conversations) => {
+        for (const conversation of conversations) {
+          const participantIds = (conversation.data().participantIds as unknown[])
+            .map((id) => id === uid ? anonymizedId : id);
 
-        await processQueryInPages(
-          db.collection("messages").where("conversationId", "==", conversation.id),
-          async (messages) => {
-            const owned = messages.filter((message) => message.data().senderId === uid);
-            for (let i = 0; i < owned.length; i += 450) {
-              const batch = db.batch();
-              for (const message of owned.slice(i, i + 450)) {
-                batch.set(message.ref, {
-                  senderId: anonymizedId,
-                  accountDeletedAt: FieldValue.serverTimestamp(),
-                }, { merge: true });
+          writer.set(conversation.ref, {
+            participantIds,
+            accountDeletedAt: FieldValue.serverTimestamp(),
+          }, { merge: true });
+
+          await processQueryInPages(
+            db.collection("messages").where("conversationId", "==", conversation.id),
+            async (messages) => {
+              for (const message of messages) {
+                if (message.data().senderId === uid) {
+                  writer.set(message.ref, {
+                    senderId: anonymizedId,
+                    accountDeletedAt: FieldValue.serverTimestamp(),
+                  }, { merge: true });
+                }
               }
-              await batch.commit();
             }
-          }
-        );
+          );
+        }
       }
-    }
-  );
+    );
+
+    await writer.close();
+  } catch (error) {
+    await writer.close().catch(() => undefined);
+    throw error;
+  }
 
   await db.recursiveDelete(db.collection("users").doc(uid));
   await adminAuth.deleteUser(uid).catch((error: { code?: string }) => {
@@ -1037,46 +1084,39 @@ export const notifyNewMessage = onDocumentCreated(
       recipientIds.map((uid) => db.collection("users").doc(uid).collection("devices").get())
     );
 
-    const tokens = tokenDocs.flatMap((snap) =>
-      snap.docs.map((doc) => doc.id)
+    const registrations = tokenDocs.flatMap((snap) =>
+      snap.docs.map((doc) => ({ ref: doc.ref, token: String(doc.data()?.token ?? "") }))
+        .filter((entry) => entry.token.length > 0)
     );
 
-    if (tokens.length === 0) return;
+    if (registrations.length === 0) return;
 
     const payload = {
       notification: {
         title: "Mahallem'den yeni mesaj",
-        body: String(message.text ?? "Yeni bir mesajınız var."),
+        body: String(message.text ?? "Yeni bir mesajınız var.").slice(0, 200),
       },
       data: {
         conversationId: String(message.conversationId ?? ""),
       },
     };
 
-    for (let i = 0; i < tokens.length; i += 500) {
-      const batchTokens = tokens.slice(i, i + 500);
+    for (let i = 0; i < registrations.length; i += 500) {
+      const batch = registrations.slice(i, i + 500);
       const response = await getMessaging().sendEachForMulticast({
-        tokens: batchTokens,
+        tokens: batch.map((entry) => entry.token),
         ...payload,
       });
 
-      const invalidTokenDocs = response.responses
-        .map((result, index) => ({
-          result,
-          token: batchTokens[index],
-        }))
+      const invalidRefs = response.responses
+        .map((result, index) => ({ result, ref: batch[index].ref }))
         .filter(({ result }) =>
           result.error?.code === "messaging/registration-token-not-registered"
           || result.error?.code === "messaging/invalid-registration-token"
         )
-        .map(({ token }) =>
-          tokenDocs
-            .flatMap((snap) => snap.docs)
-            .find((doc) => doc.id === token)
-        )
-        .filter(Boolean);
+        .map(({ ref }) => ref);
 
-      await Promise.all(invalidTokenDocs.map((doc) => doc!.ref.delete()));
+      await Promise.all(invalidRefs.map((ref) => ref.delete()));
     }
   }
 );
