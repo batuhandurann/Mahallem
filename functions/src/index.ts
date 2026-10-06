@@ -98,10 +98,7 @@ export const createPaymentIntent = onCall(
 
     await assertAccountActive(request.auth.uid);
 
-    const authTime = Number(request.auth.token.auth_time ?? 0);
-    if (!Number.isFinite(authTime) || Date.now() - authTime * 1000 > 15 * 60 * 1000) {
-      throw new HttpsError("failed-precondition", "Ödeme işlemi için yakın zamanda yeniden doğrulama gerekli.");
-    }
+    requireRecentAuthentication(request.auth.token.auth_time);
 
     const data = request.data as Record<string, unknown>;
     const requestId = String(data.requestId ?? "");
@@ -315,11 +312,46 @@ export const updateProviderAvailability = onCall(
     }
 
     const ref = db.collection("providers").doc(providerId);
+    const minuteRateRef = db.collection("rateLimits").doc("availability:" + request.auth.uid);
+    const hourRateRef = db.collection("rateLimits").doc("availability-hour:" + request.auth.uid);
+    const now = Date.now();
+
     await db.runTransaction(async (tx) => {
-      const snap = await tx.get(ref);
+      const [snap, minuteRateSnap, hourRateSnap] = await Promise.all([
+        tx.get(ref),
+        tx.get(minuteRateRef),
+        tx.get(hourRateRef),
+      ]);
       if (!snap.exists || snap.data()?.ownerId !== request.auth!.uid) {
         throw new HttpsError("permission-denied", "Bu hizmet sağlayıcıyı güncelleyemezsiniz.");
       }
+
+      const minuteRate = minuteRateSnap.exists ? minuteRateSnap.data()! : {};
+      const hourRate = hourRateSnap.exists ? hourRateSnap.data()! : {};
+      const minuteWindowStart = Number(minuteRate.windowStartMs ?? 0);
+      const minuteCount = Number(minuteRate.count ?? 0);
+      const hourWindowStart = Number(hourRate.windowStartMs ?? 0);
+      const hourCount = Number(hourRate.count ?? 0);
+      const activeMinute = Number.isSafeInteger(minuteWindowStart) && now - minuteWindowStart < 60_000;
+      const activeHour = Number.isSafeInteger(hourWindowStart) && now - hourWindowStart < 3_600_000;
+
+      if (activeMinute && minuteCount >= 60) {
+        throw new HttpsError("resource-exhausted", "Çok fazla takvim güncellemesi. Lütfen biraz sonra tekrar deneyin.");
+      }
+      if (activeHour && hourCount >= 600) {
+        throw new HttpsError("resource-exhausted", "Saatlik takvim güncelleme kotanıza ulaştınız.");
+      }
+
+      tx.set(minuteRateRef, {
+        windowStartMs: activeMinute ? minuteWindowStart : now,
+        count: activeMinute ? minuteCount + 1 : 1,
+        updatedAt: FieldValue.serverTimestamp(),
+      }, { merge: true });
+      tx.set(hourRateRef, {
+        windowStartMs: activeHour ? hourWindowStart : now,
+        count: activeHour ? hourCount + 1 : 1,
+        updatedAt: FieldValue.serverTimestamp(),
+      }, { merge: true });
 
       const update: Record<string, unknown> = {
         updatedAt: FieldValue.serverTimestamp(),
@@ -795,9 +827,16 @@ export const markConversationRead = onCall(
     const conversationRef = db.collection("conversations").doc(conversationId);
     const stateRef = db.collection("users").doc(request.auth.uid)
       .collection("conversationState").doc(conversationId);
+    const minuteRateRef = db.collection("rateLimits").doc("conversation-read:" + request.auth.uid);
+    const hourRateRef = db.collection("rateLimits").doc("conversation-read-hour:" + request.auth.uid);
+    const now = Date.now();
 
     await db.runTransaction(async (tx) => {
-      const conversationSnap = await tx.get(conversationRef);
+      const [conversationSnap, minuteRateSnap, hourRateSnap] = await Promise.all([
+        tx.get(conversationRef),
+        tx.get(minuteRateRef),
+        tx.get(hourRateRef),
+      ]);
       if (!conversationSnap.exists) {
         throw new HttpsError("not-found", "Sohbet bulunamadı.");
       }
@@ -806,6 +845,33 @@ export const markConversationRead = onCall(
       if (!Array.isArray(participants) || !participants.includes(request.auth!.uid)) {
         throw new HttpsError("permission-denied", "Bu sohbeti okundu işaretleyemezsiniz.");
       }
+
+      const minuteRate = minuteRateSnap.exists ? minuteRateSnap.data()! : {};
+      const hourRate = hourRateSnap.exists ? hourRateSnap.data()! : {};
+      const minuteWindowStart = Number(minuteRate.windowStartMs ?? 0);
+      const minuteCount = Number(minuteRate.count ?? 0);
+      const hourWindowStart = Number(hourRate.windowStartMs ?? 0);
+      const hourCount = Number(hourRate.count ?? 0);
+      const activeMinute = Number.isSafeInteger(minuteWindowStart) && now - minuteWindowStart < 60_000;
+      const activeHour = Number.isSafeInteger(hourWindowStart) && now - hourWindowStart < 3_600_000;
+
+      if (activeMinute && minuteCount >= 120) {
+        throw new HttpsError("resource-exhausted", "Çok fazla okundu işareti gönderildi. Lütfen biraz sonra tekrar deneyin.");
+      }
+      if (activeHour && hourCount >= 1000) {
+        throw new HttpsError("resource-exhausted", "Saatlik okundu işareti kotanıza ulaştınız.");
+      }
+
+      tx.set(minuteRateRef, {
+        windowStartMs: activeMinute ? minuteWindowStart : now,
+        count: activeMinute ? minuteCount + 1 : 1,
+        updatedAt: FieldValue.serverTimestamp(),
+      }, { merge: true });
+      tx.set(hourRateRef, {
+        windowStartMs: activeHour ? hourWindowStart : now,
+        count: activeHour ? hourCount + 1 : 1,
+        updatedAt: FieldValue.serverTimestamp(),
+      }, { merge: true });
 
       tx.set(stateRef, {
         conversationId,
