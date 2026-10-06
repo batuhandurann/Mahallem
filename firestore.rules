@@ -14,7 +14,7 @@ service cloud.firestore {
     function accountActive() {
       return signedIn()
         && (!exists(/databases/$(database)/documents/users/$(request.auth.uid))
-          || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.deletionStatus != 'REQUESTED');
+          || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.deletionStatus != 'REQUESTED' && .data.deletionStatus != 'PURGING');
     }
 
     match /users/{uid} {
