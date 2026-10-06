@@ -7,7 +7,10 @@ import android.os.Build
 import com.example.core.AppEnvironment
 import com.example.privacy.ConsentRepository
 import com.google.firebase.FirebaseApp
-import com.google.firebase.FirebaseException
+import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.functions.FirebaseFunctions
+import com.google.firebase.storage.FirebaseStorage
 import com.google.firebase.appcheck.FirebaseAppCheck
 import com.google.firebase.appcheck.debug.DebugAppCheckProviderFactory
 import com.google.firebase.appcheck.playintegrity.PlayIntegrityAppCheckProviderFactory
@@ -24,6 +27,15 @@ class MahallemApplication : Application() {
             getSystemService(NotificationManager::class.java).createNotificationChannel(channel)
         }
         if (FirebaseApp.getApps(this).isEmpty()) return
+
+        if (AppEnvironment.isLocal) {
+            runCatching {
+                FirebaseAuth.getInstance().useEmulator("10.0.2.2", 9099)
+                FirebaseFirestore.getInstance().useEmulator("10.0.2.2", 8080)
+                FirebaseFunctions.getInstance("europe-west1").useEmulator("10.0.2.2", 5001)
+                FirebaseStorage.getInstance().useEmulator("10.0.2.2", 9199)
+            }
+        }
 
         runCatching {
             val appCheck = FirebaseAppCheck.getInstance()
