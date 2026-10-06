@@ -47,7 +47,20 @@ function hashDeviceToken(token: string): string {
 
 
 async function assertAccountActive(uid: string) {
-  const userSnap = await db.collection("users").doc(uid).get();
+  const [authUser, userSnap] = await Promise.all([
+    adminAuth.getUser(uid).catch((error: { code?: string }) => {
+      if (error.code === "auth/user-not-found") {
+        throw new HttpsError("failed-precondition", "Kullanıcı hesabı artık etkin değil.");
+      }
+      throw error;
+    }),
+    db.collection("users").doc(uid).get(),
+  ]);
+
+  if (authUser.disabled) {
+    throw new HttpsError("failed-precondition", "Kullanıcı hesabı devre dışı.");
+  }
+
   if (userSnap.exists && ["REQUESTED", "PURGING"].includes(String(userSnap.data()?.deletionStatus ?? ""))) {
     throw new HttpsError("failed-precondition", "Hesap silme sürecinde olduğu için bu işlem kullanılamaz.");
   }
@@ -1194,6 +1207,66 @@ async function anonymizeAccount(uid: string): Promise<void> {
     );
 
     await writer.close();
+
+  const devicesSnapshot = await db.collection("users").doc(uid).collection("devices").get();
+  const cleanupBatch = db.batch();
+  for (const device of devicesSnapshot.docs) {
+    cleanupBatch.delete(db.collection("deviceTokenOwners").doc(device.id));
+  }
+
+  const rateLimitIds = [
+    "payment-intent:" + uid,
+    "payment-intent-hour:" + uid,
+    "provider-write-day:" + uid,
+    "request-write-day:" + uid,
+    "storage-grant-hour:" + uid,
+    "device-register:" + uid,
+    "message:" + uid,
+    "message-hour:" + uid,
+    "conversation:" + uid,
+    "conversation-hour:" + uid,
+    "quote:" + uid,
+  ];
+  for (const rateLimitId of rateLimitIds) {
+    cleanupBatch.delete(db.collection("rateLimits").doc(rateLimitId));
+  }
+  await cleanupBatch.commit();
+
+  const bucket = getStorage().bucket();
+  const grantsRef = db.collection("users").doc(uid).collection("uploadGrants");
+  await processQueryInPages(grantsRef, async (grants) => {
+    await Promise.all(grants.map(async (grant) => {
+      const data = grant.data();
+      const grantId = grant.id;
+      const kind = String(data.kind ?? "");
+      let objectPath = "";
+
+      if (kind === "USER") {
+        objectPath = "users/" + uid + "/images/" + grantId + ".jpg";
+      } else if (
+        kind === "JOB_REQUEST"
+        && typeof data.requestId === "string"
+        && ID_PATTERN.test(data.requestId)
+      ) {
+        objectPath = "jobRequests/" + uid + "/" + data.requestId + "/images/" + grantId + ".jpg";
+      } else if (
+        kind === "CHAT"
+        && typeof data.conversationId === "string"
+        && /^[a-f0-9]{64}$/.test(data.conversationId)
+      ) {
+        objectPath = "chatAttachments/" + data.conversationId + "/" + uid + "/" + grantId + ".jpg";
+      }
+
+      if (!objectPath) return;
+      await bucket.file(objectPath).delete().catch((error: { code?: number }) => {
+        if (error.code !== 404) throw error;
+      });
+    }));
+  });
+
+  // Defensive catch-all for any legacy user-scoped media not represented by a grant.
+  await bucket.deleteFiles({ prefix: "users/" + uid + "/" });
+
   } catch (error) {
     await writer.close().catch(() => undefined);
     throw error;
@@ -1518,7 +1591,12 @@ export const syncPublicJobRequest = onDocumentWritten(
   async (event) => {
     const requestRef = db.collection("publicJobRequests").doc(event.params.requestId);
     const jobRequest = event.data?.after.data();
-    if (!event.data?.after.exists || !jobRequest) {
+    if (
+      !event.data?.after.exists
+      || !jobRequest
+      || String(jobRequest.status ?? "") === "CLOSED"
+      || String(jobRequest.ownerId ?? "").startsWith("deleted:")
+    ) {
       await requestRef.delete().catch(() => undefined);
       return;
     }
