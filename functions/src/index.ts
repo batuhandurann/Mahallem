@@ -284,6 +284,11 @@ export const paytrWebhook = onRequest(
     const totalAmount = String(req.body?.total_amount ?? "");
     const receivedHash = String(req.body?.hash ?? "");
 
+    if (!merchantOid || !["success", "failed"].includes(status) || !/^\d+$/.test(totalAmount)) {
+      res.status(400).send("");
+      return;
+    }
+
     const valid = verifyPaytrCallback(
       paytrKey.value(),
       merchantOid,
@@ -299,6 +304,12 @@ export const paytrWebhook = onRequest(
       return;
     }
 
+    const receivedTotalMinor = Number(totalAmount);
+    if (!Number.isSafeInteger(receivedTotalMinor) || receivedTotalMinor <= 0) {
+      res.status(400).send("");
+      return;
+    }
+
     const paymentQuery = await db
       .collection("payments")
       .where("providerOrderId", "==", merchantOid)
@@ -306,22 +317,48 @@ export const paytrWebhook = onRequest(
       .get();
 
     if (!paymentQuery.empty) {
-      const payment = paymentQuery.docs[0];
-      if (payment.data().webhookProcessedAt) {
-        res.status(200).send("OK");
-        return;
-      }
+      const paymentRef = paymentQuery.docs[0].ref;
 
-      await payment.ref.set(
-        {
-          status: status === "success" ? "PAID" : "FAILED",
-          providerStatus: status,
-          providerTotalMinor: totalAmount,
-          webhookProcessedAt: FieldValue.serverTimestamp(),
-          updatedAt: FieldValue.serverTimestamp(),
-        },
-        { merge: true }
-      );
+      await db.runTransaction(async (tx) => {
+        const paymentSnap = await tx.get(paymentRef);
+        if (!paymentSnap.exists) return;
+
+        const payment = paymentSnap.data()!;
+        if (payment.webhookProcessedAt) return;
+
+        const expectedMinor = Number(payment.amountMinor ?? 0);
+        if (!Number.isSafeInteger(expectedMinor) || expectedMinor <= 0) {
+          logger.error("PayTR webhook ignored: invalid stored payment amount", { merchantOid });
+          return;
+        }
+
+        if (receivedTotalMinor < expectedMinor) {
+          logger.error("PayTR webhook ignored: callback amount below order amount", {
+            merchantOid,
+            expectedMinor,
+            receivedTotalMinor,
+          });
+          return;
+        }
+
+        const currentStatus = String(payment.status ?? "");
+        const terminalNonSuccess = ["PAID", "HELD", "RELEASE_REQUESTED", "REFUND_REQUESTED"];
+        if (status !== "success" && terminalNonSuccess.includes(currentStatus)) {
+          return;
+        }
+
+        tx.set(
+          paymentRef,
+          {
+            status: status === "success" ? "PAID" : "FAILED",
+            providerStatus: status,
+            providerTotalMinor: receivedTotalMinor,
+            webhookProcessedAt: FieldValue.serverTimestamp(),
+            updatedAt: FieldValue.serverTimestamp(),
+          },
+          { merge: true }
+        );
+      });
     }
 
     res.status(200).send("OK");
