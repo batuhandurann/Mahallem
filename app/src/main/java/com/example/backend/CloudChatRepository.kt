@@ -94,21 +94,11 @@ class CloudChatRepository(
     suspend fun sendMessage(
         conversationId: String, text: String, messageType: String = "TEXT", attachmentUrl: String? = null
     ) {
-        val me = uid()
-        val ref = firestore.collection("messages").document()
-        ref.set(
-            mapOf(
-                "conversationId" to conversationId, "senderId" to me, "text" to text,
-                "attachmentUrl" to attachmentUrl, "messageType" to messageType,
-                "createdAt" to com.google.firebase.Timestamp.now()
-            )
-        ).await()
-        firestore.collection("conversations").document(conversationId).set(
-            mapOf(
-                "lastMessageAt" to com.google.firebase.Timestamp.now(),
-                "lastMessagePreview" to if (messageType == "IMAGE") "📷 Fotoğraf" else text,
-                "updatedAt" to com.google.firebase.Timestamp.now()
-            ), SetOptions.merge()
-        ).await()
+        FunctionsRepository().sendMessage(
+            conversationId = conversationId,
+            text = text,
+            messageType = messageType,
+            attachmentUrl = attachmentUrl
+        )
     }
 }
