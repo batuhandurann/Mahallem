@@ -38,7 +38,7 @@ class UserProfileRepository(
             mapOf(
                 "notificationPreferences" to mapOf(
                     "messages" to messagesEnabled,
-                    "marketing" to marketingEnabled
+                    "offers" to marketingEnabled
                 ),
                 "updatedAt" to Timestamp.now()
             ),
