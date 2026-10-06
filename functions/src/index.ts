@@ -90,6 +90,62 @@ export const createPaymentIntent = onCall(
   }
 );
 
+export const acceptQuote = onCall({ region: "europe-west1", enforceAppCheck: true }, async (request) => {
+  if (!request.auth) throw new HttpsError("unauthenticated", "Kimlik doğrulaması gerekli.");
+  const quoteId = String((request.data as Record<string, unknown>).quoteId ?? "");
+  if (!quoteId) throw new HttpsError("invalid-argument", "quoteId gerekli.");
+  const quoteRef = db.collection("quotes").doc(quoteId);
+  const quoteSnap = await quoteRef.get();
+  if (!quoteSnap.exists) throw new HttpsError("not-found", "Teklif bulunamadı.");
+  const quote = quoteSnap.data()!;
+  if (quote.customerId !== request.auth.uid) throw new HttpsError("permission-denied", "Bu teklifi yalnızca talep sahibi kabul edebilir.");
+  if (quote.status !== "PENDING") throw new HttpsError("failed-precondition", "Teklif artık beklemede değil.");
+  const requestRef = db.collection("jobRequests").doc(String(quote.requestId));
+  const requestSnap = await requestRef.get();
+  if (!requestSnap.exists || requestSnap.data()?.ownerId !== request.auth.uid) throw new HttpsError("permission-denied", "Talep doğrulanamadı.");
+
+  const batch = db.batch();
+  batch.update(quoteRef, { status: "ACCEPTED", updatedAt: FieldValue.serverTimestamp() });
+  batch.update(requestRef, { status: "ACCEPTED", updatedAt: FieldValue.serverTimestamp() });
+  const alternatives = await db.collection("quotes").where("requestId", "==", String(quote.requestId)).get();
+  for (const doc of alternatives.docs) {
+    if (doc.id !== quoteId && doc.data().status === "PENDING") {
+      batch.update(doc.ref, { status: "REJECTED", updatedAt: FieldValue.serverTimestamp() });
+    }
+  }
+  await batch.commit();
+  return { accepted: true, quoteId };
+});
+
+export const rejectQuote = onCall({ region: "europe-west1", enforceAppCheck: true }, async (request) => {
+  if (!request.auth) throw new HttpsError("unauthenticated", "Kimlik doğrulaması gerekli.");
+  const quoteId = String((request.data as Record<string, unknown>).quoteId ?? "");
+  const quoteRef = db.collection("quotes").doc(quoteId);
+  const quoteSnap = await quoteRef.get();
+  if (!quoteSnap.exists) throw new HttpsError("not-found", "Teklif bulunamadı.");
+  const quote = quoteSnap.data()!;
+  if (quote.customerId !== request.auth.uid) throw new HttpsError("permission-denied", "Bu işlemi yalnızca talep sahibi yapabilir.");
+  if (quote.status !== "PENDING") throw new HttpsError("failed-precondition", "Teklif artık beklemede değil.");
+  await quoteRef.update({ status: "REJECTED", updatedAt: FieldValue.serverTimestamp() });
+  return { rejected: true, quoteId };
+});
+
+export const releaseEscrowPayment = onCall({ region: "europe-west1", enforceAppCheck: true }, async (request) => {
+  if (!request.auth) throw new HttpsError("unauthenticated", "Kimlik doğrulaması gerekli.");
+  const paymentId = String((request.data as Record<string, unknown>).paymentId ?? "");
+  if (!paymentId) throw new HttpsError("invalid-argument", "paymentId gerekli.");
+  const paymentRef = db.collection("payments").doc(paymentId);
+  const snap = await paymentRef.get();
+  if (!snap.exists) throw new HttpsError("not-found", "Ödeme bulunamadı.");
+  const payment = snap.data()!;
+  if (payment.customerId !== request.auth.uid) throw new HttpsError("permission-denied", "Bu ödemeyi yalnızca müşteri serbest bırakabilir.");
+  if (!["PAID", "HELD"].includes(String(payment.status ?? ""))) throw new HttpsError("failed-precondition", "Ödeme serbest bırakılabilir durumda değil.");
+
+  // The final provider payout call is intentionally fail-closed until the approved
+  // marketplace merchant integration is configured. Firestore never pretends payout happened.
+  await paymentRef.update({ status: "RELEASE_REQUESTED", updatedAt: FieldValue.serverTimestamp() });
+  return { accepted: true, paymentId, status: "RELEASE_REQUESTED" };
+});
 export const requestRefund = onCall(
   { region: "europe-west1", enforceAppCheck: true },
   async (request) => {
