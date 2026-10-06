@@ -90,6 +90,65 @@ export const createPaymentIntent = onCall(
   }
 );
 
+export const startConversation = onCall(
+  { region: "europe-west1", enforceAppCheck: true },
+  async (request) => {
+    if (!request.auth) {
+      throw new HttpsError("unauthenticated", "Kimlik doğrulaması gerekli.");
+    }
+
+    const data = request.data as Record<string, unknown>;
+    const targetId = String(data.targetId ?? "");
+    const relatedItemId = String(data.relatedItemId ?? "");
+    const relatedItemTitle = String(data.relatedItemTitle ?? "");
+
+    if (!targetId || targetId === request.auth.uid) {
+      throw new HttpsError("invalid-argument", "Geçerli bir sohbet hedefi gerekli.");
+    }
+
+    let participantUid = targetId;
+    const userSnap = await db.collection("users").doc(targetId).get();
+    if (!userSnap.exists) {
+      const providerSnap = await db.collection("providers").doc(targetId).get();
+      if (!providerSnap.exists) {
+        throw new HttpsError("not-found", "Sohbet hedefi bulunamadı.");
+      }
+      participantUid = String(providerSnap.data()?.ownerId ?? "");
+    }
+
+    if (!participantUid || participantUid === request.auth.uid) {
+      throw new HttpsError("failed-precondition", "Geçerli bir sohbet katılımcısı bulunamadı.");
+    }
+
+    const existing = await db.collection("conversations")
+      .where("participantIds", "array-contains", request.auth.uid)
+      .get();
+
+    const match = existing.docs.find((doc) => {
+      const ids = doc.data().participantIds;
+      return Array.isArray(ids)
+        && ids.length === 2
+        && ids.includes(participantUid)
+        && (!relatedItemId || String(doc.data().relatedItemId ?? "") === relatedItemId);
+    });
+
+    if (match) {
+      return { conversationId: match.id };
+    }
+
+    const ref = db.collection("conversations").doc();
+    await ref.create({
+      participantIds: [request.auth.uid, participantUid],
+      relatedItemId,
+      relatedItemTitle,
+      createdAt: FieldValue.serverTimestamp(),
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+
+    return { conversationId: ref.id };
+  }
+);
+
 export const acceptQuote = onCall({ region: "europe-west1", enforceAppCheck: true }, async (request) => {
   if (!request.auth) throw new HttpsError("unauthenticated", "Kimlik doğrulaması gerekli.");
   const quoteId = String((request.data as Record<string, unknown>).quoteId ?? "");
