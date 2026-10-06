@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { initializeApp } from "firebase-admin/app";
 import { getAuth } from "firebase-admin/auth";
-import { getFirestore, FieldValue } from "firebase-admin/firestore";
+import { getFirestore, FieldValue, Timestamp as FirestoreTimestamp } from "firebase-admin/firestore";
 import { getMessaging } from "firebase-admin/messaging";
 import { onDocumentCreated } from "firebase-functions/v2/firestore";
 import { onCall, onRequest, HttpsError } from "firebase-functions/v2/https";
@@ -743,6 +743,174 @@ export const requestRefund = onCall(
     });
 
     return { accepted: true, paymentId, status: "REFUND_REQUESTED" };
+  }
+);
+
+
+const ACCOUNT_DELETION_DELAY_MS = 30 * 24 * 60 * 60 * 1000;
+
+function requireRecentAuthentication(authTimeSeconds: unknown) {
+  const authTime = Number(authTimeSeconds ?? 0);
+  if (!Number.isFinite(authTime) || Date.now() - authTime * 1000 > 15 * 60 * 1000) {
+    throw new HttpsError("failed-precondition", "Bu güvenlik işlemi için yakın zamanda yeniden doğrulama gerekli.");
+  }
+}
+
+function deletedAccountId(uid: string): string {
+  return "deleted:" + createHash("sha256").update(uid).digest("hex").slice(0, 24);
+}
+
+async function anonymizeAccount(uid: string): Promise<void> {
+  const anonymizedId = deletedAccountId(uid);
+
+  const providerQuery = await db.collection("providers")
+    .where("ownerId", "==", uid)
+    .get();
+  const providerBatch = db.batch();
+  providerQuery.docs.forEach((doc) => providerBatch.delete(doc.ref));
+  if (!providerQuery.empty) await providerBatch.commit();
+
+  const requestQuery = await db.collection("jobRequests")
+    .where("ownerId", "==", uid)
+    .get();
+  for (const requestDoc of requestQuery.docs) {
+    const requestId = requestDoc.id;
+    await db.collection("jobRequests").doc(requestId).set({
+      ownerId: anonymizedId,
+      status: "CLOSED",
+      accountDeletedAt: FieldValue.serverTimestamp(),
+    }, { merge: true });
+
+    await db.collection("jobRequestPrivate").doc(requestId).delete().catch(() => undefined);
+  }
+
+  const customerQuotes = await db.collection("quotes")
+    .where("customerId", "==", uid)
+    .get();
+  const providerQuotes = await db.collection("quotes")
+    .where("providerOwnerId", "==", uid)
+    .get();
+  const quoteBatch = db.batch();
+  [...customerQuotes.docs, ...providerQuotes.docs].forEach((doc) => {
+    const data = doc.data();
+    quoteBatch.set(doc.ref, {
+      ...(data.customerId === uid ? { customerId: anonymizedId } : {}),
+      ...(data.providerOwnerId === uid ? { providerOwnerId: anonymizedId } : {}),
+      accountDeletedAt: FieldValue.serverTimestamp(),
+    }, { merge: true });
+  });
+  if (customerQuotes.size + providerQuotes.size > 0) await quoteBatch.commit();
+
+  const customerPayments = await db.collection("payments")
+    .where("customerId", "==", uid)
+    .get();
+  const providerPayments = await db.collection("payments")
+    .where("providerId", "==", uid)
+    .get();
+  const paymentBatch = db.batch();
+  [...customerPayments.docs, ...providerPayments.docs].forEach((doc) => {
+    const data = doc.data();
+    paymentBatch.set(doc.ref, {
+      ...(data.customerId === uid ? { customerId: anonymizedId } : {}),
+      ...(data.providerId === uid ? { providerId: anonymizedId } : {}),
+      accountDeletedAt: FieldValue.serverTimestamp(),
+    }, { merge: true });
+  });
+  if (customerPayments.size + providerPayments.size > 0) await paymentBatch.commit();
+
+  const conversations = await db.collection("conversations")
+    .where("participantIds", "array-contains", uid)
+    .get();
+  for (const conversation of conversations.docs) {
+    const participantIds = (conversation.data().participantIds as unknown[])
+      .map((id) => id === uid ? anonymizedId : id);
+
+    await conversation.ref.set({
+      participantIds,
+      accountDeletedAt: FieldValue.serverTimestamp(),
+    }, { merge: true });
+
+    const messages = await db.collection("messages")
+      .where("conversationId", "==", conversation.id)
+      .get();
+    const messageBatch = db.batch();
+    messages.docs.forEach((message) => {
+      if (message.data().senderId === uid) {
+        messageBatch.set(message.ref, {
+          senderId: anonymizedId,
+          accountDeletedAt: FieldValue.serverTimestamp(),
+        }, { merge: true });
+      }
+    });
+    if (!messages.empty) await messageBatch.commit();
+  }
+
+  await db.recursiveDelete(db.collection("users").doc(uid));
+  await adminAuth.deleteUser(uid).catch((error: { code?: string }) => {
+    if (error.code !== "auth/user-not-found") throw error;
+  });
+}
+
+export const requestAccountDeletion = onCall(
+  { region: "europe-west1", enforceAppCheck: true },
+  async (request) => {
+    if (!request.auth) throw new HttpsError("unauthenticated", "Kimlik doğrulaması gerekli.");
+    requireRecentAuthentication(request.auth.token.auth_time);
+
+    const ref = db.collection("users").doc(request.auth.uid);
+    const snap = await ref.get();
+    if (snap.exists && snap.data()?.deletionStatus === "REQUESTED") {
+      return { requested: true, alreadyRequested: true };
+    }
+
+    await ref.set({
+      deletionStatus: "REQUESTED",
+      deletionRequestedAt: FieldValue.serverTimestamp(),
+      deletionDueAt: new Date(Date.now() + ACCOUNT_DELETION_DELAY_MS),
+      updatedAt: FieldValue.serverTimestamp(),
+    }, { merge: true });
+
+    return { requested: true, dueInDays: 30 };
+  }
+);
+
+export const cancelAccountDeletion = onCall(
+  { region: "europe-west1", enforceAppCheck: true },
+  async (request) => {
+    if (!request.auth) throw new HttpsError("unauthenticated", "Kimlik doğrulaması gerekli.");
+    requireRecentAuthentication(request.auth.token.auth_time);
+
+    await db.collection("users").doc(request.auth.uid).set({
+      deletionStatus: "ACTIVE",
+      deletionCanceledAt: FieldValue.serverTimestamp(),
+      updatedAt: FieldValue.serverTimestamp(),
+    }, { merge: true });
+
+    return { canceled: true };
+  }
+);
+
+export const purgeDeletedAccounts = onSchedule(
+  { schedule: "every day 03:15", region: "europe-west1", timeZone: "Europe/Istanbul" },
+  async () => {
+    const now = Date.now();
+    const snapshot = await db.collection("users")
+      .where("deletionStatus", "==", "REQUESTED")
+      .limit(20)
+      .get();
+
+    for (const doc of snapshot.docs) {
+      const dueAt = doc.get("deletionDueAt") as FirestoreTimestamp | Date | undefined;
+      const dueMillis = dueAt instanceof Date
+        ? dueAt.getTime()
+        : dueAt && "toMillis" in dueAt
+          ? dueAt.toMillis()
+          : Number.POSITIVE_INFINITY;
+
+      if (dueMillis <= now) {
+        await anonymizeAccount(doc.id);
+      }
+    }
   }
 );
 
