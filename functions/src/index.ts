@@ -207,6 +207,21 @@ export const createPaymentIntent = onCall(
     if (!merchantId || !merchantKey || !merchantSalt || !okUrl || !failUrl || !/^[01]$/.test(testMode)) {
       throw new HttpsError("failed-precondition", "PayTR ödeme yapılandırması eksik.");
     }
+
+    try {
+      const okUrlParsed = new URL(okUrl);
+      const failUrlParsed = new URL(failUrl);
+      if (
+        testMode === "0"
+        && (okUrlParsed.protocol !== "https:" || failUrlParsed.protocol !== "https:")
+      ) {
+        throw new HttpsError("failed-precondition", "Canlı PayTR dönüş adresleri HTTPS olmalı.");
+      }
+    } catch (error) {
+      if (error instanceof HttpsError) throw error;
+      throw new HttpsError("failed-precondition", "PayTR dönüş adresleri geçersiz.");
+    }
+
     if (!userIp || userIp.length > 39) {
       throw new HttpsError("failed-precondition", "Ödeme sağlayıcısı için müşteri IP bilgisi alınamadı.");
     }
