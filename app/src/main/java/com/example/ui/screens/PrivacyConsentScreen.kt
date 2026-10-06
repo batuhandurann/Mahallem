@@ -14,6 +14,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.example.privacy.ConsentRepository
+import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.launch
 
 @Composable
 fun PrivacyConsentScreen(onCompleted: () -> Unit) {
@@ -22,6 +24,7 @@ fun PrivacyConsentScreen(onCompleted: () -> Unit) {
     var analytics by remember { mutableStateOf(false) }
     var marketing by remember { mutableStateOf(false) }
     var viewedNotice by remember { mutableStateOf(false) }
+    val coroutineScope = rememberCoroutineScope()
 
     Column(
         modifier = Modifier.fillMaxSize().padding(24.dp),
@@ -43,7 +46,18 @@ fun PrivacyConsentScreen(onCompleted: () -> Unit) {
 
         Button(
             enabled = viewedNotice,
-            onClick = { repository.save(analytics, marketing); onCompleted() },
+            onClick = {
+                repository.save(analytics, marketing)
+                coroutineScope.launch {
+                    runCatching {
+                        com.example.auth.UserProfileRepository().saveNotificationPreferences(
+                            messagesEnabled = true,
+                            marketingEnabled = marketing
+                        )
+                    }
+                    onCompleted()
+                }
+            },
             modifier = Modifier.fillMaxWidth().padding(top = 16.dp)
         ) { Text("Devam Et") }
     }
