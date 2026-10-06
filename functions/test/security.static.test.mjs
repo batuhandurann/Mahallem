@@ -20,6 +20,8 @@ assert.match(source, /users.*devices/);
 assert.match(source, /String\(jobRequest\.status \?\? ""\) === "CLOSED"/);
 assert.match(source, /requireRecentAuthentication\(request.auth.token.auth_time\)/);
 assert.match(source, /validateUploadedImage/);
+assert.match(source, /grant\.expiresAt/);
+assert.match(source, /expiresMillis > Date\.now\(\)/);
 assert.match(source, /validated: true/);
 assert.match(source, /issueImageUploadGrant/);
 assert.match(source, /saveProviderListing/);
