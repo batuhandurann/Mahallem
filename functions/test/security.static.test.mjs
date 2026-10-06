@@ -12,7 +12,7 @@ assert.match(
 
 const onCallCount = (source.match(/export const [A-Za-z0-9_]+ = onCall\(/g) || []).length;
 const appCheckCount = (source.match(/enforceAppCheck:\s*true/g) || []).length;
-assert.equal(onCallCount, 16, "Unexpected callable-function count; review App Check coverage.");
+assert.equal(onCallCount, 18, "Unexpected callable-function count; review App Check coverage.");
 assert.equal(appCheckCount, onCallCount, "Every callable function must enforce App Check.");
 
 assert.match(source, /hashDeviceToken/);
