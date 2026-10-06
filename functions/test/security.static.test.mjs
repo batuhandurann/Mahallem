@@ -10,6 +10,10 @@ assert.equal((source.match(/export const [A-Za-z0-9_]+ = onCall\(/g) || []).leng
 assert.equal((source.match(/enforceAppCheck:\s*true/g) || []).length, 15);
 
 assert.match(source, /hashDeviceToken/);
+assert.match(source, /deviceTokenOwners/);
+assert.match(source, /requireRecentAuthentication\(request.auth.token.auth_time\)/);
+assert.match(source, /validateUploadedImage/);
+assert.match(source, /validated: true/);
 assert.match(source, /issueImageUploadGrant/);
 assert.match(source, /saveProviderListing/);
 assert.match(source, /saveJobRequest/);
@@ -24,6 +28,7 @@ assert.match(rules, /match \/publicJobRequests\/\{requestId\}/);
 assert.match(rules, /allow list: if false;/);
 
 assert.match(storage, /validGrant/);
+assert.match(storage, /data.validated == true/);
 assert.match(storage, /\\\\.jpg/);
 
 console.log("Security static regression tests passed.");
