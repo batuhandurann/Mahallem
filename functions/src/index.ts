@@ -586,7 +586,27 @@ export const cancelAccountDeletion = onCall(
     if (!request.auth) throw new HttpsError("unauthenticated", "Kimlik doğrulaması gerekli.");
     requireRecentAuthentication(request.auth.token.auth_time);
 
-    await db.collection("users").doc(request.auth.uid).set({
+    const ref = db.collection("users").doc(request.auth.uid);
+    const snap = await ref.get();
+    if (!snap.exists || snap.data()?.deletionStatus !== "REQUESTED") {
+      return { canceled: true, alreadyActive: true };
+    }
+
+    const dueAt = snap.data()?.deletionDueAt as FirestoreTimestamp | Date | undefined;
+    const dueMillis = dueAt instanceof Date
+      ? dueAt.getTime()
+      : dueAt && "toMillis" in dueAt
+        ? dueAt.toMillis()
+        : Number.POSITIVE_INFINITY;
+
+    if (dueMillis <= Date.now()) {
+      throw new HttpsError(
+        "failed-precondition",
+        "Hesap silme süresi dolduğu için silme işlemi artık iptal edilemez."
+      );
+    }
+
+    await ref.set({
       deletionStatus: "ACTIVE",
       deletionCanceledAt: FieldValue.serverTimestamp(),
       updatedAt: FieldValue.serverTimestamp(),
