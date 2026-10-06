@@ -67,7 +67,7 @@ jobs:
       - name: Check backend types and tests
         run: npm test
 
-  firestore-rules:
+  firebase-rules:
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -79,11 +79,9 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: "22"
-          cache: "npm"
-          cache-dependency-path: functions/package.json
       - name: Install backend dependencies
         run: npm install
       - name: Install Firebase CLI
         run: npm install --global firebase-tools
-      - name: Test Firestore security rules in emulator
+      - name: Test Firebase security rules in emulator
         run: npm run rules:test
