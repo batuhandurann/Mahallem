@@ -7,7 +7,8 @@
   "scripts": {
     "build": "tsc",
     "check": "tsc --noEmit",
-    "test": "npm run build && node --test test/paytr.test.mjs"
+    "test": "npm run build && node --test test/paytr.test.mjs",
+    "rules:test": "firebase emulators:exec --only firestore --project mahallem-rules-test \"node test/firestore.rules.test.mjs\""
   },
   "dependencies": {
     "firebase-admin": "14.5.0",
