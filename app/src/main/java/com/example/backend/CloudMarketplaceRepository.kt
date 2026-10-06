@@ -20,7 +20,7 @@ class CloudMarketplaceRepository(
     private fun requireUid(): String = auth.currentUser?.uid ?: error("Giriş gerekli.")
 
     fun observeProviders(): Flow<List<ServiceProviderEntity>> = callbackFlow {
-        val listener = firestore.collection("providers")
+        val listener = firestore.collection("publicProviders")
             .limit(50)
             .addSnapshotListener { snapshot, error ->
             if (error != null) { close(error); return@addSnapshotListener }
@@ -33,7 +33,7 @@ class CloudMarketplaceRepository(
     }
 
     fun observeRequests(): Flow<List<JobRequestEntity>> = callbackFlow {
-        val listener = firestore.collection("jobRequests")
+        val listener = firestore.collection("publicJobRequests")
             .limit(50)
             .addSnapshotListener { snapshot, error ->
             if (error != null) { close(error); return@addSnapshotListener }
