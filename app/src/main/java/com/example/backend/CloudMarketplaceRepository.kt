@@ -184,7 +184,9 @@ class CloudMarketplaceRepository(
         city=d["city"]?.toString().orEmpty(), hourlyOrBasePrice=d["hourlyOrBasePrice"]?.toString().orEmpty(),
         isEmergencyAvailable=d["isEmergencyAvailable"] as? Boolean ?: false, verifiedSafeBadge=false, mykCertified=false,
         childSafeCertified=false, phoneVerified=true, daysRemaining=30, isReported=false,
-        paintBrandsJson="", charactersOfferedJson="", includedEquipmentsJson="",
+        paintBrandsJson=d["paintBrandsJson"]?.toString().orEmpty(),
+        charactersOfferedJson=d["charactersOfferedJson"]?.toString().orEmpty(),
+        includedEquipmentsJson=d["includedEquipmentsJson"]?.toString().orEmpty(),
         bookedDatesJson=((d["bookedDates"] as? List<*>)?.filterIsInstance<String>() ?: emptyList()).let { dates ->
             "[" + dates.joinToString(",") { "\"$it\"" } + "]"
         },
