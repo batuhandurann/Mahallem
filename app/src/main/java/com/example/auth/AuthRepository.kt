@@ -1,5 +1,6 @@
 package com.example.auth
 
+import com.example.notification.PushTokenRepository
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.FirebaseUser
 import kotlinx.coroutines.tasks.await
@@ -26,6 +27,11 @@ class AuthRepository(
 
     suspend fun sendPasswordReset(email: String) {
         auth.sendPasswordResetEmail(email.trim()).await()
+    }
+
+    suspend fun signOutAndRemoveDevice() {
+        runCatching { PushTokenRepository(auth = auth).unregisterCurrentDevice() }
+        auth.signOut()
     }
 
     fun signOut() {
