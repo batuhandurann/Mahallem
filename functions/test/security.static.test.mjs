@@ -7,10 +7,12 @@ const storage = readFileSync(new URL("../../storage.rules", import.meta.url), "u
 
 assert.match(source, /setGlobalOptions\(\{[^}]*maxInstances:\s*20[^}]*concurrency:\s*40/s);
 assert.equal((source.match(/export const [A-Za-z0-9_]+ = onCall\(/g) || []).length, 15);
-assert.equal((source.match(/enforceAppCheck:\s*true/g) || []).length, 12);
+assert.equal((source.match(/enforceAppCheck:\s*true/g) || []).length, 15);
 
 assert.match(source, /hashDeviceToken/);
-assert.match(source, /issueImageUploadGrant/);\nassert.match(source, /saveProviderListing/);\nassert.match(source, /saveJobRequest/);
+assert.match(source, /issueImageUploadGrant/);
+assert.match(source, /saveProviderListing/);
+assert.match(source, /saveJobRequest/);
 assert.match(source, /hourlyRateLimitRef/);
 assert.match(source, /parseTryAmountMinor\(price\) !== amountMinor/);
 assert.match(source, /status === "PURGING"/);
