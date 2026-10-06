@@ -1,5 +1,37 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 
+export function createPaytrIframeToken(
+  merchantId: string,
+  userIp: string,
+  merchantOid: string,
+  email: string,
+  paymentAmountMinor: string,
+  userBasketBase64: string,
+  noInstallment: string,
+  maxInstallment: string,
+  currency: string,
+  testMode: string,
+  merchantSalt: string,
+  merchantKey: string
+): string {
+  const hashString =
+    merchantId
+    + userIp
+    + merchantOid
+    + email
+    + paymentAmountMinor
+    + userBasketBase64
+    + noInstallment
+    + maxInstallment
+    + currency
+    + testMode
+    + merchantSalt;
+
+  return createHmac("sha256", merchantKey)
+    .update(hashString)
+    .digest("base64");
+}
+
 export function createPaytrCallbackHash(
   merchantKey: string,
   merchantOid: string,
