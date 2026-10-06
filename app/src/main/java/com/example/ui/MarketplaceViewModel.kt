@@ -174,6 +174,14 @@ class MarketplaceViewModel(application: Application) : AndroidViewModel(applicat
         }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
+    val myJobRequests: StateFlow<List<JobRequestEntity>> = if (AppEnvironment.mode == AppEnvironment.Mode.LOCAL) {
+        repository.getAllRequests()
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+    } else {
+        cloudRepository.observeMyRequests()
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+    }
+
     // --- Quotes Flow ---
     val allQuotes: StateFlow<List<QuoteEntity>> = if (AppEnvironment.mode == AppEnvironment.Mode.LOCAL) {
         repository.getAllQuotes()
@@ -544,7 +552,9 @@ class MarketplaceViewModel(application: Application) : AndroidViewModel(applicat
                 }
             }
 
-            repository.publishProviderListing(entity)
+            if (AppEnvironment.mode == AppEnvironment.Mode.LOCAL) {
+                repository.publishProviderListing(entity)
+            }
             _toastMessage.value = if (AppEnvironment.mode == AppEnvironment.Mode.LOCAL) {
                 "Demo hizmet ilanı hazır."
             } else {
@@ -606,18 +616,20 @@ class MarketplaceViewModel(application: Application) : AndroidViewModel(applicat
                 extraServicesRequested = extraServices,
                 budgetEstimate = budget
             )
-            val newId = repository.createJobRequest(entity)
-            val storedEntity = entity.copy(id = newId)
+            val storedEntity = if (AppEnvironment.mode == AppEnvironment.Mode.LOCAL) {
+                entity.copy(id = repository.createJobRequest(entity))
+            } else {
+                entity.copy(id = System.currentTimeMillis().coerceAtLeast(1L))
+            }
 
             if (AppEnvironment.mode != AppEnvironment.Mode.LOCAL) {
                 val result = runCatching { cloudRepository.saveJobRequest(storedEntity) }
                 result.exceptionOrNull()?.let {
-                    repository.deleteJobRequest(newId)
                     _toastMessage.value = "Talep yayınlanamadı: ${it.message ?: "Bilinmeyen hata"}"
                     return@launch
                 }
             } else {
-                simulateProviderResponse(newId, category, urgency)
+                simulateProviderResponse(storedEntity.id, category, urgency)
             }
 
             _toastMessage.value = if (AppEnvironment.mode == AppEnvironment.Mode.LOCAL) {
@@ -712,14 +724,15 @@ class MarketplaceViewModel(application: Application) : AndroidViewModel(applicat
                 notes = notes,
                 status = "PENDING"
             )
-            val quoteId = repository.sendQuote(quote)
             if (AppEnvironment.mode != AppEnvironment.Mode.LOCAL) {
-                val result = runCatching { cloudRepository.saveQuote(quote.copy(id = quoteId)) }
+                val cloudQuote = quote.copy(id = System.currentTimeMillis().coerceAtLeast(1L))
+                val result = runCatching { cloudRepository.saveQuote(cloudQuote) }
                 result.exceptionOrNull()?.let {
-                    repository.deleteQuote(quoteId)
                     _toastMessage.value = "Teklif gönderilemedi: ${it.message ?: "Bilinmeyen hata"}"
                     return@launch
                 }
+            } else {
+                repository.sendQuote(quote)
             }
             _toastMessage.value = if (AppEnvironment.mode == AppEnvironment.Mode.LOCAL) {
                 "Demo teklifi hazır."
@@ -732,6 +745,10 @@ class MarketplaceViewModel(application: Application) : AndroidViewModel(applicat
     // --- Provider Calendar & Availability Management ---
     fun toggleProviderOpenForOffers(providerId: String, currentStatus: Boolean) {
         viewModelScope.launch {
+            if (AppEnvironment.mode != AppEnvironment.Mode.LOCAL) {
+                _toastMessage.value = "Bu ayar sunucu tarafında yönetilecek; mevcut cloud sürümünde değişiklik uygulanmadı."
+                return@launch
+            }
             repository.toggleOpenForOffers(providerId, !currentStatus)
             _toastMessage.value = if (!currentStatus)
                 "Teklif alımı ve takvim rezervasyonlara açıldı ✅"
