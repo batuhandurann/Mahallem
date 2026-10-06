@@ -118,6 +118,11 @@ export const sendMessage = onCall(
     if (attachmentUrl && attachmentUrl.length > 2048) {
       throw new HttpsError("invalid-argument", "Ek bağlantısı çok uzun.");
     }
+    if (attachmentUrl
+      && !attachmentUrl.startsWith("gs://")
+      && !attachmentUrl.startsWith("https://firebasestorage.googleapis.com/")) {
+      throw new HttpsError("invalid-argument", "Geçersiz medya bağlantısı.");
+    }
 
     const conversationRef = db.collection("conversations").doc(conversationId);
     const rateLimitRef = db.collection("rateLimits").doc(
@@ -246,9 +251,28 @@ export const startConversation = onCall(
       .digest("hex");
 
     const ref = db.collection("conversations").doc(conversationId);
+    const rateLimitRef = db.collection("rateLimits").doc("conversation:" + request.auth.uid);
+    const now = Date.now();
+
     await db.runTransaction(async (tx) => {
       const existing = await tx.get(ref);
       if (existing.exists) return;
+
+      const rateLimitSnap = await tx.get(rateLimitRef);
+      const rate = rateLimitSnap.exists ? rateLimitSnap.data()! : {};
+      const windowStart = Number(rate.windowStartMs ?? 0);
+      const count = Number(rate.count ?? 0);
+      const activeWindow = Number.isSafeInteger(windowStart) && now - windowStart < 60_000;
+
+      if (activeWindow && count >= 10) {
+        throw new HttpsError("resource-exhausted", "Çok fazla yeni sohbet başlatıldı. Lütfen biraz sonra tekrar deneyin.");
+      }
+
+      tx.set(rateLimitRef, {
+        windowStartMs: activeWindow ? windowStart : now,
+        count: activeWindow ? count + 1 : 1,
+        updatedAt: FieldValue.serverTimestamp(),
+      }, { merge: true });
 
       tx.create(ref, {
         participantIds,
