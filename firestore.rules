@@ -14,7 +14,9 @@ service cloud.firestore {
       allow update: if isAdmin() || (ownsUser(uid) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['displayName','photoUrl','district','city','language','notificationPreferences','updatedAt']));
       allow delete: if ownsUser(uid) || isAdmin();
       match /devices/{tokenId} {
-        allow read, write, delete: if ownsUser(uid) && (request.resource == null || request.resource.data.keys().hasOnly(['platform','updatedAt']));
+        allow read: if ownsUser(uid);
+      allow create, update: if ownsUser(uid) && request.resource.data.keys().hasOnly(['platform','updatedAt']);
+      allow delete: if ownsUser(uid);
       }
     }
 
@@ -34,15 +36,43 @@ service cloud.firestore {
 
     match /jobRequestPrivate/{requestId} {
       allow read: if isAdmin() || (signedIn() && resource.data.ownerId == request.auth.uid);
-      allow create: if signedIn() && request.resource.data.ownerId == request.auth.uid && request.resource.data.keys().hasOnly(['ownerId','phoneNumber','address','notes','createdAt','updatedAt']);
-      allow update, delete: if isAdmin() || (signedIn() && resource.data.ownerId == request.auth.uid);
+      allow create: if signedIn()
+        && request.resource.data.ownerId == request.auth.uid
+        && request.resource.data.keys().hasOnly([
+          'ownerId','address','customerName','customerPhone','phoneVerified',
+          'areaSquareMeters','roomCount','isFurnished','materialsIncluded',
+          'renovationNotes','eventType','durationHours','targetAgeGroup',
+          'selectedCostumeOrCharacter','extraServicesRequested','latitude',
+          'longitude','updatedAt'
+        ]);
+      allow update: if isAdmin()
+        || (signedIn()
+          && resource.data.ownerId == request.auth.uid
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            'address','customerName','customerPhone','phoneVerified',
+            'areaSquareMeters','roomCount','isFurnished','materialsIncluded',
+            'renovationNotes','eventType','durationHours','targetAgeGroup',
+            'selectedCostumeOrCharacter','extraServicesRequested','latitude',
+            'longitude','updatedAt'
+          ]));
+      allow delete: if isAdmin() || (signedIn() && resource.data.ownerId == request.auth.uid);
     }
 
     match /quotes/{quoteId} {
       allow read: if isAdmin() || (signedIn() && (resource.data.customerId == request.auth.uid || resource.data.providerOwnerId == request.auth.uid));
       allow create: if signedIn()
         && request.resource.data.providerOwnerId == request.auth.uid
+        && request.resource.data.status == 'PENDING'
+        && request.resource.data.amountMinor is int
+        && request.resource.data.amountMinor > 0
         && request.resource.data.requestId is string
+        && request.resource.data.providerId is string
+        && request.resource.data.customerId is string
+        && request.resource.data.keys().hasOnly([
+          'providerId','providerOwnerId','customerId','requestId',
+          'price','amountMinor','durationOrArrival','notes','status',
+          'createdAt','updatedAt'
+        ])
         && exists(/databases/$(database)/documents/jobRequests/$(request.resource.data.requestId))
         && get(/databases/$(database)/documents/jobRequests/$(request.resource.data.requestId)).data.ownerId == request.resource.data.customerId
         && request.resource.data.customerId != request.auth.uid
