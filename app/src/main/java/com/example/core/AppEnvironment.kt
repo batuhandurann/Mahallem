@@ -1,5 +1,7 @@
 package com.example.core
 
+import com.example.BuildConfig
+
 object AppEnvironment {
     enum class Mode { LOCAL, STAGING, PRODUCTION }
 
