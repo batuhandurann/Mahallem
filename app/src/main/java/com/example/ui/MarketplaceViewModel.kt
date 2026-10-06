@@ -180,6 +180,8 @@ class MarketplaceViewModel(application: Application) : AndroidViewModel(applicat
                     || p.name.contains(full.query, true)
                     || p.title.contains(full.query, true)
                     || p.bio.contains(full.query, true)
+                    || p.paintBrandsJson.contains(full.query, true)
+                    || p.charactersOfferedJson.contains(full.query, true)
                 sectorMatch && urgencyMatch && categoryMatch && districtMatch && queryMatch
             }
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
