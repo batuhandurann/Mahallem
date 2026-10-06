@@ -41,7 +41,7 @@ service cloud.firestore {
     match /quotes/{quoteId} {
       allow read: if isAdmin() || (signedIn() && (resource.data.customerId == request.auth.uid || resource.data.providerOwnerId == request.auth.uid));
       allow create: if signedIn() && request.resource.data.providerOwnerId == request.auth.uid;
-      allow update: if isAdmin() || (signedIn() && (resource.data.customerId == request.auth.uid || resource.data.providerOwnerId == request.auth.uid) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['price','durationOrArrival','notes','status','updatedAt']));
+      allow update: if isAdmin() || (signedIn() && (resource.data.customerId == request.auth.uid || resource.data.providerOwnerId == request.auth.uid) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['price','durationOrArrival','notes','updatedAt']));
       allow delete: if isAdmin();
     }
 
