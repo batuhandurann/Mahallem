@@ -147,8 +147,8 @@ async function run() {
     });
   });
 
-  await assertSucceeds(
-    setDoc(doc(bobDb, "messages/message-1"), {
+  await assertFails(
+    setDoc(doc(bobDb, "messages/message-client-write"), {
       conversationId: "conversation-1",
       senderId: "bob",
       text: "Merhaba",
@@ -157,15 +157,17 @@ async function run() {
     })
   );
 
-  await assertFails(
-    setDoc(doc(bobDb, "messages/message-2"), {
-      conversationId: "conversation-unknown",
+  await env.withSecurityRulesDisabled(async (ctx) => {
+    await setDoc(doc(ctx.firestore(), "messages/message-1"), {
+      conversationId: "conversation-1",
       senderId: "bob",
-      text: "Yetkisiz",
+      text: "Merhaba",
       messageType: "TEXT",
       createdAt: new Date(),
-    })
-  );
+    });
+  });
+
+  assert.equal((await getDoc(doc(bobDb, "messages/message-1"))).exists(), true);
 
   await assertFails(
     setDoc(doc(bobDb, "messages/message-3"), {
