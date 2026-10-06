@@ -1,3 +1,5 @@
+import android.net.Uri
+
 package com.example.integration
 
 data class PaymentIntent(
@@ -38,6 +40,13 @@ class TestPaymentGateway : PaymentGateway {
  * Production payments must be initiated and verified by the backend.
  * Do not put merchant secrets in the Android app.
  */
+internal fun isAllowedPaytrCheckoutUrl(value: String): Boolean {
+    val uri = runCatching { Uri.parse(value) }.getOrNull() ?: return false
+    return uri.scheme.equals("https", ignoreCase = true)
+        && uri.host.equals("www.paytr.com", ignoreCase = true)
+        && uri.encodedPath.startsWith("/odeme/")
+}
+
 class ProductionPaymentGateway(
     private val functions: com.example.backend.FunctionsRepository = com.example.backend.FunctionsRepository()
 ) : PaymentGateway {
