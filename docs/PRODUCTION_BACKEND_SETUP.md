@@ -6,11 +6,13 @@ Create a Firebase project for Mahallem and register the Android application with
 
 - Package: `com.aistudio.mahallemde.kxqrvz`
 
-Download the project's `google-services.json` and place it at:
+Download separate Firebase configuration files for each environment. The Google Services Gradle plugin supports build-type-specific configuration files.
 
-`app/google-services.json`
+- Staging: `app/src/staging/google-services.json`
+- Production: `app/src/release/google-services.json`
+- Local/debug: no Firebase network should be required; the debug build routes Firebase SDKs to the local emulators when a Firebase config is present.
 
-Do not commit production credentials or service-account JSON files.
+Do not commit service-account JSON files or server secrets. `google-services.json` contains project identifiers rather than server secrets, but this repository intentionally ignores these files so environment configuration cannot be mixed accidentally.
 
 ## 2. Authentication
 
