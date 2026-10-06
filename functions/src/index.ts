@@ -752,7 +752,62 @@ export const sendMessage = onCall(
       });
     });
 
-    return { messageId: messageRef.id };
+
+ 
+    const recipientIds = participants.filter((id: unknown) =>
+      typeof id === "string" && id !== request.auth!.uid
+    ) as string[];
+    for (const recipientId of recipientIds) {
+      tx.set(
+        db.collection("users").doc(recipientId).collection("conversationState").doc(conversationId),
+        {
+          conversationId,
+          unreadCount: FieldValue.increment(1),
+          lastMessageAt: FieldValue.serverTimestamp(),
+          updatedAt: FieldValue.serverTimestamp(),
+        },
+        { merge: true }
+      );
+    }    return { messageId: messageRef.id };
+  }
+);
+
+export const markConversationRead = onCall(
+  { region: "europe-west1", enforceAppCheck: true },
+  async (request) => {
+    if (!request.auth) throw new HttpsError("unauthenticated", "Kimlik doğrulaması gerekli.");
+    await assertAccountActive(request.auth.uid);
+
+    const data = callableData(request.data);
+    const conversationId = requireString(data, "conversationId", 64, 1);
+    if (!/^[a-f0-9]{64}$/.test(conversationId)) {
+      throw new HttpsError("invalid-argument", "Geçersiz conversationId.");
+    }
+
+    const conversationRef = db.collection("conversations").doc(conversationId);
+    const stateRef = db.collection("users").doc(request.auth.uid)
+      .collection("conversationState").doc(conversationId);
+
+    await db.runTransaction(async (tx) => {
+      const conversationSnap = await tx.get(conversationRef);
+      if (!conversationSnap.exists) {
+        throw new HttpsError("not-found", "Sohbet bulunamadı.");
+      }
+
+      const participants = conversationSnap.data()?.participantIds;
+      if (!Array.isArray(participants) || !participants.includes(request.auth!.uid)) {
+        throw new HttpsError("permission-denied", "Bu sohbeti okundu işaretleyemezsiniz.");
+      }
+
+      tx.set(stateRef, {
+        conversationId,
+        unreadCount: 0,
+        lastReadAt: FieldValue.serverTimestamp(),
+        updatedAt: FieldValue.serverTimestamp(),
+      }, { merge: true });
+    });
+
+    return { markedRead: true, conversationId };
   }
 );
 
