@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { initializeApp } from "firebase-admin/app";
 import { getFirestore, FieldValue } from "firebase-admin/firestore";
 import { getMessaging } from "firebase-admin/messaging";
@@ -25,28 +26,54 @@ export const createPaymentIntent = onCall(
     const data = request.data as Record<string, unknown>;
     const requestId = String(data.requestId ?? "");
     const quoteId = String(data.quoteId ?? "");
-    const amountMinor = Number(data.amountMinor ?? 0);
+    const idempotencyKey = String(data.idempotencyKey ?? "");
 
-    if (!requestId || !quoteId || !Number.isInteger(amountMinor) || amountMinor <= 0) {
+    if (!requestId || !quoteId || !/^[A-Za-z0-9._:-]{16,128}$/.test(idempotencyKey)) {
       throw new HttpsError("invalid-argument", "Geçersiz ödeme parametreleri.");
     }
 
-    const paymentRef = db.collection("payments").doc();
-    await paymentRef.set({
-      id: paymentRef.id,
-      requestId,
-      quoteId,
+    const quoteSnap = await db.collection("quotes").doc(quoteId).get();
+    if (!quoteSnap.exists) {
+      throw new HttpsError("not-found", "Teklif bulunamadı.");
+    }
+    const quote = quoteSnap.data()!;
+    if (String(quote.requestId ?? "") !== requestId) {
+      throw new HttpsError("failed-precondition", "Teklif ve talep eşleşmiyor.");
+    }
+    if (String(quote.customerId ?? "") !== request.auth.uid) {
+      throw new HttpsError("permission-denied", "Bu ödeme yalnızca talep sahibine aittir.");
+    }
+    if (String(quote.status ?? "") !== "ACCEPTED") {
+      throw new HttpsError("failed-precondition", "Ödeme için teklif kabul edilmiş olmalı.");
+    }
+
+    const amountMinor = Number(quote.amountMinor ?? 0);
+    if (!Number.isSafeInteger(amountMinor) || amountMinor <= 0) {
+      throw new HttpsError("failed-precondition", "Teklifin güvenilir ödeme tutarı bulunmuyor.");
+    }
+
+    const idemHash = createHash("sha256")
+      .update(request.auth.uid + ":" + idempotencyKey)
+      .digest("hex");
+    const paymentRef = db.collection("payments").doc(idemHash);
+    const existing = await paymentRef.get();
+    if (existing.exists) {
+      return existing.data();
+    }
+
+    const payment = {
+      id: paymentRef.id, requestId, quoteId,
       customerId: request.auth.uid,
-      amountMinor,
-      currency: "TRY",
+      providerId: String(quote.providerOwnerId ?? ""),
+      amountMinor, currency: "TRY",
       provider: "paytr-marketplace",
-      status: "PENDING_PROVIDER",
+      status: "CREATED",
+      idempotencyKeyHash: idemHash,
       createdAt: FieldValue.serverTimestamp(),
       updatedAt: FieldValue.serverTimestamp(),
-    });
+    };
+    await paymentRef.create(payment);
 
-    // PayTR Marketplace credentials/application must be approved and configured
-    // before a live checkout token can be created. We deliberately fail closed.
     if (!paytrKey.value() || !paytrSalt.value()) {
       throw new HttpsError(
         "failed-precondition",
@@ -54,9 +81,11 @@ export const createPaymentIntent = onCall(
       );
     }
 
+    // PayTR Marketplace checkout generation requires the merchant-approved
+    // marketplace account configuration. Fail closed until it is configured.
     throw new HttpsError(
       "unimplemented",
-      "PayTR Marketplace checkout token generation is pending merchant integration."
+      "PayTR Marketplace checkout token generation is pending merchant configuration."
     );
   }
 );
