@@ -2,12 +2,15 @@ rules_version = '2';
 
 service firebase.storage {
   match /b/{bucket}/o {
-    function signedIn() { return request.auth != null; }
+    function signedIn() {
+      return request.auth != null;
+    }
 
     function isAdmin() {
       return signedIn() && request.auth.token.admin == true;
     }
 
+    // One Firestore document: the caller's account profile.
     function accountActive(uid) {
       return signedIn()
         && firestore.exists(/databases/(default)/documents/users/$(uid))
@@ -21,6 +24,8 @@ service firebase.storage {
         && request.resource.contentType.matches('image/(jpeg|png|webp)');
     }
 
+    // The grant is the sole resource-authorization document for Storage.
+    // Repeated reads of the same grant document are cacheable within the rules evaluation.
     function validGrant(uid, grantId, kind) {
       return firestore.exists(
           /databases/(default)/documents/users/$(uid)/uploadGrants/$(grantId)
@@ -51,10 +56,10 @@ service firebase.storage {
     }
 
     function validActiveChatGrant(uid, conversationId, grantId) {
-      return validActiveGrant(uid, grantId, 'CHAT')
+      return validChatGrant(uid, conversationId, grantId)
         && firestore.get(
           /databases/(default)/documents/users/$(uid)/uploadGrants/$(grantId)
-        ).data.conversationId == conversationId;
+        ).data.expiresAt > request.time;
     }
 
     function validJobGrant(uid, requestId, grantId) {
@@ -65,20 +70,24 @@ service firebase.storage {
     }
 
     function validActiveJobGrant(uid, requestId, grantId) {
-      return validActiveGrant(uid, grantId, 'JOB_REQUEST')
+      return validJobGrant(uid, requestId, grantId)
         && firestore.get(
           /databases/(default)/documents/users/$(uid)/uploadGrants/$(grantId)
-        ).data.requestId == requestId;
+        ).data.expiresAt > request.time;
     }
 
     function filenameGrantId(fileName) {
-      return fileName.split('\\.jpg$')[0];
+      return fileName.replace('\\\\.jpg$', '');
+    }
+
+    function validImageFileName(fileName) {
+      return fileName.matches('^[A-Za-z0-9_-]{1,80}\\\\.jpg$');
     }
 
     match /users/{uid}/images/{fileName} {
       allow read: if accountActive(uid)
         && request.auth.uid == uid
-        && fileName.matches('^[A-Za-z0-9_-]{1,80}\\.jpg$')
+        && validImageFileName(fileName)
         && validGrant(uid, filenameGrantId(fileName), 'USER')
         && firestore.get(
           /databases/(default)/documents/users/$(uid)/uploadGrants/$(filenameGrantId(fileName))
@@ -87,19 +96,19 @@ service firebase.storage {
       allow write: if accountActive(uid)
         && request.auth.uid == uid
         && resource == null
-        && fileName.matches('^[A-Za-z0-9_-]{1,80}\\.jpg$')
+        && validImageFileName(fileName)
         && validActiveGrant(uid, filenameGrantId(fileName), 'USER')
         && safeImage();
 
       allow delete: if accountActive(uid)
         && request.auth.uid == uid
-        && fileName.matches('^[A-Za-z0-9_-]{1,80}\\.jpg$');
+        && validImageFileName(fileName);
     }
 
     match /jobRequests/{ownerUid}/{requestId}/images/{fileName} {
       allow read: if accountActive(ownerUid)
         && request.auth.uid == ownerUid
-        && fileName.matches('^[A-Za-z0-9_-]{1,80}\\.jpg$')
+        && validImageFileName(fileName)
         && validJobGrant(ownerUid, requestId, filenameGrantId(fileName))
         && firestore.get(
           /databases/(default)/documents/users/$(ownerUid)/uploadGrants/$(filenameGrantId(fileName))
@@ -108,51 +117,19 @@ service firebase.storage {
       allow write: if accountActive(ownerUid)
         && request.auth.uid == ownerUid
         && resource == null
-        && fileName.matches('^[A-Za-z0-9_-]{1,80}\\.jpg$')
+        && validImageFileName(fileName)
         && validActiveJobGrant(ownerUid, requestId, filenameGrantId(fileName))
         && safeImage();
 
       allow delete: if isAdmin()
         || (accountActive(ownerUid)
           && request.auth.uid == ownerUid
-          && fileName.matches('^[A-Za-z0-9_-]{1,80}\\.jpg
+          && validImageFileName(fileName));
     }
 
     match /chatAttachments/{conversationId}/{senderUid}/{fileName} {
       allow read: if accountActive(request.auth.uid)
-        && fileName.matches('^[A-Za-z0-9_-]{1,80}\\.jpg
-
-      allow write: if accountActive(senderUid)
-        && request.auth.uid == senderUid
-        && resource == null
-        && fileName.matches('^[A-Za-z0-9_-]{1,80}\\.jpg
-
-      allow delete: if isAdmin()
-        || (accountActive(senderUid)
-          && request.auth.uid == senderUid
-          && fileName.matches('^[A-Za-z0-9_-]{1,80}\\.jpg$'));
-    }
-
-    match /providers/{providerId}/{allPaths=**} {
-      // Legacy provider-media namespace: current app media uses grant-scoped paths above.
-      allow read, write, delete: if isAdmin();
-    }
-
-    match /admin/{allPaths=**} {
-      allow read, write: if isAdmin();
-    }
-  }
-}
-));
-    }
-
-    match /chatAttachments/{conversationId}/{senderUid}/{fileName} {
-      allow read: if accountActive(senderUid)
-        && fileName.matches('^[A-Za-z0-9_-]{1,80}\\.jpg$')
-        && firestore.exists(/databases/(default)/documents/conversations/$(conversationId))
-        && request.auth.uid in firestore.get(
-          /databases/(default)/documents/conversations/$(conversationId)
-        ).data.participantIds
+        && validImageFileName(fileName)
         && validChatGrant(senderUid, conversationId, filenameGrantId(fileName))
         && firestore.get(
           /databases/(default)/documents/users/$(senderUid)/uploadGrants/$(filenameGrantId(fileName))
@@ -161,234 +138,19 @@ service firebase.storage {
       allow write: if accountActive(senderUid)
         && request.auth.uid == senderUid
         && resource == null
-        && fileName.matches('^[A-Za-z0-9_-]{1,80}\\.jpg$')
-        && validActiveChatGrant(senderUid, conversationId, filenameGrantId(fileName))
-        && firestore.exists(/databases/(default)/documents/conversations/$(conversationId))
-        && request.auth.uid in firestore.get(
-          /databases/(default)/documents/conversations/$(conversationId)
-        ).data.participantIds
-        && safeImage();
-
-      allow delete: if isAdmin()
-        || (accountActive(senderUid)
-          && request.auth.uid == senderUid
-          && fileName.matches('^[A-Za-z0-9_-]{1,80}\\.jpg$'));
-    }
-
-    match /providers/{providerId}/{allPaths=**} {
-      // Legacy provider-media namespace: current app media uses grant-scoped paths above.
-      allow read, write, delete: if isAdmin();
-    }
-
-    match /admin/{allPaths=**} {
-      allow read, write: if isAdmin();
-    }
-  }
-}
-)
-        && validChatGrant(senderUid, conversationId, filenameGrantId(fileName))
-        && firestore.get(
-          /databases/(default)/documents/users/$(senderUid)/uploadGrants/$(filenameGrantId(fileName))
-        ).data.validated == true;
-
-      allow write: if accountActive(senderUid)
-        && request.auth.uid == senderUid
-        && resource == null
-        && fileName.matches('^[A-Za-z0-9_-]{1,80}\\.jpg$')
-        && validActiveChatGrant(senderUid, conversationId, filenameGrantId(fileName))
-        && firestore.exists(/databases/(default)/documents/conversations/$(conversationId))
-        && request.auth.uid in firestore.get(
-          /databases/(default)/documents/conversations/$(conversationId)
-        ).data.participantIds
-        && safeImage();
-
-      allow delete: if isAdmin()
-        || (accountActive(senderUid)
-          && request.auth.uid == senderUid
-          && fileName.matches('^[A-Za-z0-9_-]{1,80}\\.jpg$'));
-    }
-
-    match /providers/{providerId}/{allPaths=**} {
-      // Legacy provider-media namespace: current app media uses grant-scoped paths above.
-      allow read, write, delete: if isAdmin();
-    }
-
-    match /admin/{allPaths=**} {
-      allow read, write: if isAdmin();
-    }
-  }
-}
-));
-    }
-
-    match /chatAttachments/{conversationId}/{senderUid}/{fileName} {
-      allow read: if accountActive(senderUid)
-        && fileName.matches('^[A-Za-z0-9_-]{1,80}\\.jpg$')
-        && firestore.exists(/databases/(default)/documents/conversations/$(conversationId))
-        && request.auth.uid in firestore.get(
-          /databases/(default)/documents/conversations/$(conversationId)
-        ).data.participantIds
-        && validChatGrant(senderUid, conversationId, filenameGrantId(fileName))
-        && firestore.get(
-          /databases/(default)/documents/users/$(senderUid)/uploadGrants/$(filenameGrantId(fileName))
-        ).data.validated == true;
-
-      allow write: if accountActive(senderUid)
-        && request.auth.uid == senderUid
-        && resource == null
-        && fileName.matches('^[A-Za-z0-9_-]{1,80}\\.jpg$')
-        && validActiveChatGrant(senderUid, conversationId, filenameGrantId(fileName))
-        && firestore.exists(/databases/(default)/documents/conversations/$(conversationId))
-        && request.auth.uid in firestore.get(
-          /databases/(default)/documents/conversations/$(conversationId)
-        ).data.participantIds
-        && safeImage();
-
-      allow delete: if isAdmin()
-        || (accountActive(senderUid)
-          && request.auth.uid == senderUid
-          && fileName.matches('^[A-Za-z0-9_-]{1,80}\\.jpg$'));
-    }
-
-    match /providers/{providerId}/{allPaths=**} {
-      // Legacy provider-media namespace: current app media uses grant-scoped paths above.
-      allow read, write, delete: if isAdmin();
-    }
-
-    match /admin/{allPaths=**} {
-      allow read, write: if isAdmin();
-    }
-  }
-}
-)
+        && validImageFileName(fileName)
         && validActiveChatGrant(senderUid, conversationId, filenameGrantId(fileName))
         && safeImage();
 
       allow delete: if isAdmin()
         || (accountActive(senderUid)
           && request.auth.uid == senderUid
-          && fileName.matches('^[A-Za-z0-9_-]{1,80}\\.jpg$'));
+          && validImageFileName(fileName));
     }
 
+    // Legacy namespace: current app media uses grant-scoped paths above.
+    // Client access is intentionally closed to prevent wildcard data exposure.
     match /providers/{providerId}/{allPaths=**} {
-      // Legacy provider-media namespace: current app media uses grant-scoped paths above.
-      allow read, write, delete: if isAdmin();
-    }
-
-    match /admin/{allPaths=**} {
-      allow read, write: if isAdmin();
-    }
-  }
-}
-));
-    }
-
-    match /chatAttachments/{conversationId}/{senderUid}/{fileName} {
-      allow read: if accountActive(senderUid)
-        && fileName.matches('^[A-Za-z0-9_-]{1,80}\\.jpg$')
-        && firestore.exists(/databases/(default)/documents/conversations/$(conversationId))
-        && request.auth.uid in firestore.get(
-          /databases/(default)/documents/conversations/$(conversationId)
-        ).data.participantIds
-        && validChatGrant(senderUid, conversationId, filenameGrantId(fileName))
-        && firestore.get(
-          /databases/(default)/documents/users/$(senderUid)/uploadGrants/$(filenameGrantId(fileName))
-        ).data.validated == true;
-
-      allow write: if accountActive(senderUid)
-        && request.auth.uid == senderUid
-        && resource == null
-        && fileName.matches('^[A-Za-z0-9_-]{1,80}\\.jpg$')
-        && validActiveChatGrant(senderUid, conversationId, filenameGrantId(fileName))
-        && firestore.exists(/databases/(default)/documents/conversations/$(conversationId))
-        && request.auth.uid in firestore.get(
-          /databases/(default)/documents/conversations/$(conversationId)
-        ).data.participantIds
-        && safeImage();
-
-      allow delete: if isAdmin()
-        || (accountActive(senderUid)
-          && request.auth.uid == senderUid
-          && fileName.matches('^[A-Za-z0-9_-]{1,80}\\.jpg$'));
-    }
-
-    match /providers/{providerId}/{allPaths=**} {
-      // Legacy provider-media namespace: current app media uses grant-scoped paths above.
-      allow read, write, delete: if isAdmin();
-    }
-
-    match /admin/{allPaths=**} {
-      allow read, write: if isAdmin();
-    }
-  }
-}
-)
-        && validChatGrant(senderUid, conversationId, filenameGrantId(fileName))
-        && firestore.get(
-          /databases/(default)/documents/users/$(senderUid)/uploadGrants/$(filenameGrantId(fileName))
-        ).data.validated == true;
-
-      allow write: if accountActive(senderUid)
-        && request.auth.uid == senderUid
-        && resource == null
-        && fileName.matches('^[A-Za-z0-9_-]{1,80}\\.jpg$')
-        && validActiveChatGrant(senderUid, conversationId, filenameGrantId(fileName))
-        && firestore.exists(/databases/(default)/documents/conversations/$(conversationId))
-        && request.auth.uid in firestore.get(
-          /databases/(default)/documents/conversations/$(conversationId)
-        ).data.participantIds
-        && safeImage();
-
-      allow delete: if isAdmin()
-        || (accountActive(senderUid)
-          && request.auth.uid == senderUid
-          && fileName.matches('^[A-Za-z0-9_-]{1,80}\\.jpg$'));
-    }
-
-    match /providers/{providerId}/{allPaths=**} {
-      // Legacy provider-media namespace: current app media uses grant-scoped paths above.
-      allow read, write, delete: if isAdmin();
-    }
-
-    match /admin/{allPaths=**} {
-      allow read, write: if isAdmin();
-    }
-  }
-}
-));
-    }
-
-    match /chatAttachments/{conversationId}/{senderUid}/{fileName} {
-      allow read: if accountActive(senderUid)
-        && fileName.matches('^[A-Za-z0-9_-]{1,80}\\.jpg$')
-        && firestore.exists(/databases/(default)/documents/conversations/$(conversationId))
-        && request.auth.uid in firestore.get(
-          /databases/(default)/documents/conversations/$(conversationId)
-        ).data.participantIds
-        && validChatGrant(senderUid, conversationId, filenameGrantId(fileName))
-        && firestore.get(
-          /databases/(default)/documents/users/$(senderUid)/uploadGrants/$(filenameGrantId(fileName))
-        ).data.validated == true;
-
-      allow write: if accountActive(senderUid)
-        && request.auth.uid == senderUid
-        && resource == null
-        && fileName.matches('^[A-Za-z0-9_-]{1,80}\\.jpg$')
-        && validActiveChatGrant(senderUid, conversationId, filenameGrantId(fileName))
-        && firestore.exists(/databases/(default)/documents/conversations/$(conversationId))
-        && request.auth.uid in firestore.get(
-          /databases/(default)/documents/conversations/$(conversationId)
-        ).data.participantIds
-        && safeImage();
-
-      allow delete: if isAdmin()
-        || (accountActive(senderUid)
-          && request.auth.uid == senderUid
-          && fileName.matches('^[A-Za-z0-9_-]{1,80}\\.jpg$'));
-    }
-
-    match /providers/{providerId}/{allPaths=**} {
-      // Legacy provider-media namespace: current app media uses grant-scoped paths above.
       allow read, write, delete: if isAdmin();
     }
 
