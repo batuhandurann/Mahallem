@@ -54,7 +54,7 @@ service cloud.firestore {
         && (!('categoryId' in request.resource.data) || (request.resource.data.categoryId is string && request.resource.data.categoryId.size() <= 80))
         && (!('district' in request.resource.data) || (request.resource.data.district is string && request.resource.data.district.size() <= 80))
         && (!('city' in request.resource.data) || (request.resource.data.city is string && request.resource.data.city.size() <= 80))
-        && (!('serviceArea' in request.resource.data) || (request.resource.data.serviceArea is map && request.resource.data.serviceArea.keys().hasOnly(['latitude','longitude']))
+        && validServiceArea(request.resource.data)
         && (!('isOpenForOffers' in request.resource.data) || request.resource.data.isOpenForOffers is bool);
       allow update: if isAdmin() || (accountActive() && ownsProvider()
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['displayName','title','bio','sector','categoryId','district','city','experienceYears','serviceArea','isOpenForOffers','updatedAt'])
@@ -65,7 +65,7 @@ service cloud.firestore {
         && (!('categoryId' in request.resource.data) || (request.resource.data.categoryId is string && request.resource.data.categoryId.size() <= 80))
         && (!('district' in request.resource.data) || (request.resource.data.district is string && request.resource.data.district.size() <= 80))
         && (!('city' in request.resource.data) || (request.resource.data.city is string && request.resource.data.city.size() <= 80))
-        && (!('serviceArea' in request.resource.data) || (request.resource.data.serviceArea is map && request.resource.data.serviceArea.keys().hasOnly(['latitude','longitude']))
+        && validServiceArea(request.resource.data)
         && (!('isOpenForOffers' in request.resource.data) || request.resource.data.isOpenForOffers is bool));
       allow delete: if isAdmin();
     }
