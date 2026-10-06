@@ -824,35 +824,45 @@ export const cancelAccountDeletion = onCall(
     requireRecentAuthentication(request.auth.token.auth_time);
 
     const ref = db.collection("users").doc(request.auth.uid);
-    const snap = await ref.get();
-    if (!snap.exists || snap.data()?.deletionStatus !== "REQUESTED") {
-      return { canceled: true, alreadyActive: true };
-    }
+    let canceled = false;
 
-    const dueAt = snap.data()?.deletionDueAt as FirestoreTimestamp | Date | undefined;
-    const dueMillis = dueAt instanceof Date
-      ? dueAt.getTime()
-      : dueAt && "toMillis" in dueAt
-        ? dueAt.toMillis()
-        : Number.POSITIVE_INFINITY;
+    await db.runTransaction(async (tx) => {
+      const snap = await tx.get(ref);
+      if (!snap.exists) return;
 
-    if (dueMillis <= Date.now()) {
-      throw new HttpsError(
-        "failed-precondition",
-        "Hesap silme süresi dolduğu için silme işlemi artık iptal edilemez."
-      );
-    }
+      const status = String(snap.data()?.deletionStatus ?? "ACTIVE");
+      if (status !== "REQUESTED") {
+        if (status === "PURGING") {
+          throw new HttpsError("failed-precondition", "Hesap silme işlemi başladı ve artık iptal edilemez.");
+        }
+        return;
+      }
 
-    await ref.set({
-      deletionStatus: "ACTIVE",
-      deletionCanceledAt: FieldValue.serverTimestamp(),
-      updatedAt: FieldValue.serverTimestamp(),
-    }, { merge: true });
+      const dueAt = snap.data()?.deletionDueAt as FirestoreTimestamp | Date | undefined;
+      const dueMillis = dueAt instanceof Date
+        ? dueAt.getTime()
+        : dueAt && "toMillis" in dueAt
+          ? dueAt.toMillis()
+          : Number.POSITIVE_INFINITY;
 
-    return { canceled: true };
+      if (dueMillis <= Date.now()) {
+        throw new HttpsError(
+          "failed-precondition",
+          "Hesap silme süresi dolduğu için silme işlemi artık iptal edilemez."
+        );
+      }
+
+      tx.set(ref, {
+        deletionStatus: "ACTIVE",
+        deletionCanceledAt: FieldValue.serverTimestamp(),
+        updatedAt: FieldValue.serverTimestamp(),
+      }, { merge: true });
+      canceled = true;
+    });
+
+    return { canceled, alreadyActive: !canceled };
   }
 );
-
 export const purgeDeletedAccounts = onSchedule(
   { schedule: "every day 03:15", region: "europe-west1", timeZone: "Europe/Istanbul" },
   async () => {
