@@ -119,6 +119,22 @@ async function run() {
     })
   );
 
+  await assertFails(
+    getBytes(ref(bob.storage("gs://" + bucket), "jobRequests/alice/request-1/images/grant-job.jpg"), 64)
+  );
+
+  await assertFails(
+    uploadBytes(ref(bob.storage("gs://" + bucket), "jobRequests/alice/request-1/images/grant-job.jpg"), validImage, {
+      contentType: "image/png",
+    })
+  );
+
+  await assertFails(
+    uploadBytes(ref(alice.storage("gs://" + bucket), "jobRequests/alice/request-1/images/grant-job.jpg"), validImage, {
+      contentType: "image/png",
+    })
+  );
+
   await env.withSecurityRulesDisabled(async (ctx) => {
     await setDoc(doc(ctx.firestore(), "users/alice/uploadGrants/expired-user"), {
       ownerUid: "alice",
@@ -171,9 +187,21 @@ async function run() {
     getBytes(ref(bob.storage("gs://" + bucket), chatPath), 64)
   );
 
+  await assertFails(
+    uploadBytes(ref(alice.storage("gs://" + bucket), "chatAttachments/chat-1/alice/grant-chat.jpg"), validImage, {
+      contentType: "image/png",
+    })
+  );
+
   const charlie = env.authenticatedContext("charlie");
   await assertFails(
     getBytes(ref(charlie.storage("gs://" + bucket), chatPath), 64)
+  );
+
+  await assertFails(
+    uploadBytes(ref(bob.storage("gs://" + bucket), "chatAttachments/chat-1/alice/grant-chat.jpg"), validImage, {
+      contentType: "image/png",
+    })
   );
 
   console.log("Storage rules tests passed.");
