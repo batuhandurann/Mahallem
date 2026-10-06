@@ -29,7 +29,7 @@ object RequestFormValidator {
             if (input.time.isBlank()) add("Saat girilmelidir.")
             if (input.address.trim().length < 8) add("Geçerli bir adres veya mahalle girilmelidir.")
             if (input.customerName.trim().length < 2) add("Ad soyad girilmelidir.")
-            val normalizedPhone = input.customerPhone.replace(Regex("[\s()-]"), "")
+            val normalizedPhone = input.customerPhone.replace(Regex("""[\s()-]"""), "")
             if (!trPhoneRegex.matches(normalizedPhone)) {
                 add("Geçerli bir Türkiye cep telefonu girilmelidir.")
             }
