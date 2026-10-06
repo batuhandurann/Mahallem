@@ -97,6 +97,20 @@ async function run() {
   );
 
   await env.withSecurityRulesDisabled(async (ctx) => {
+    await setDoc(doc(ctx.firestore(), "users/alice/uploadGrants/expired-user"), {
+      ownerUid: "alice",
+      kind: "USER",
+      expiresAt: new Date(Date.now() - 60_000),
+      validated: true,
+    });
+  });
+  await assertFails(
+    uploadBytes(ref(alice.storage("gs://" + bucket), "users/alice/images/expired-user.jpg"), validImage, {
+      contentType: "image/png",
+    })
+  );
+
+  await env.withSecurityRulesDisabled(async (ctx) => {
     await setDoc(doc(ctx.firestore(), "conversations/chat-1"), {
       participantIds: ["alice", "bob"],
     });
@@ -117,6 +131,16 @@ async function run() {
       contentType: "image/png",
     })
   );
+
+  await env.withSecurityRulesDisabled(async (ctx) => {
+    await setDoc(doc(ctx.firestore(), "users/alice/uploadGrants/grant-chat"), {
+      ownerUid: "alice",
+      kind: "CHAT",
+      conversationId: "chat-1",
+      expiresAt: new Date(Date.now() - 60_000),
+      validated: true,
+    });
+  });
 
   await assertSucceeds(
     getBytes(ref(bob.storage("gs://" + bucket), chatPath), 64)
