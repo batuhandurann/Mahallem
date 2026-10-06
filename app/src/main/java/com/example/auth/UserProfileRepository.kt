@@ -13,18 +13,16 @@ class UserProfileRepository(
         val ref = firestore.collection("users").document(user.uid)
         val snapshot = ref.get().await()
         if (!snapshot.exists()) {
-            ref.set(
-                mapOf(
-                    "uid" to user.uid,
-                    "displayName" to (user.displayName ?: ""),
-                    "photoUrl" to user.photoUrl?.toString(),
-                    "phoneNumber" to user.phoneNumber,
-                    "role" to "user",
-                    "createdAt" to Timestamp.now(),
-                    "updatedAt" to Timestamp.now()
-                ),
-                SetOptions.merge()
-            ).await()
+            val profile = mutableMapOf<String, Any>(
+                "uid" to user.uid,
+                "displayName" to (user.displayName ?: ""),
+                "role" to "user",
+                "createdAt" to Timestamp.now(),
+                "updatedAt" to Timestamp.now()
+            )
+            user.photoUrl?.toString()?.takeIf { it.isNotBlank() }?.let { profile["photoUrl"] = it }
+            user.phoneNumber?.takeIf { it.isNotBlank() }?.let { profile["phoneNumber"] = it }
+            ref.set(profile, SetOptions.merge()).await()
         } else {
             ref.set(mapOf("updatedAt" to Timestamp.now()), SetOptions.merge()).await()
         }
