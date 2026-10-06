@@ -1,5 +1,6 @@
 package com.example.notification
 
+import com.google.firebase.Timestamp
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.messaging.FirebaseMessaging
@@ -14,6 +15,13 @@ class PushTokenRepository(
         val uid = auth.currentUser?.uid ?: return
         val token = messaging.token.await()
         firestore.collection("users").document(uid).collection("devices").document(token)
-            .set(mapOf("platform" to "android", "updatedAt" to com.google.firebase.Timestamp.now())).await()
+            .set(mapOf("platform" to "android", "updatedAt" to Timestamp.now())).await()
+    }
+
+    suspend fun unregisterCurrentDevice() {
+        val uid = auth.currentUser?.uid ?: return
+        val token = messaging.token.await()
+        firestore.collection("users").document(uid).collection("devices").document(token)
+            .delete().await()
     }
 }
