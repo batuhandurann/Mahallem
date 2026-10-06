@@ -15,16 +15,15 @@ service firebase.storage {
       allow delete: if signedIn() && request.auth.uid == uid;
     }
 
-    match /jobRequests/{requestId}/{allPaths=**} {
-      allow read: if signedIn();
-      allow write: if signedIn() && safeImage();
-      allow delete: if isAdmin();
+    match /jobRequests/{ownerUid}/{requestId}/{allPaths=**} {
+      allow read: if signedIn() && request.auth.uid == ownerUid;
+      allow write: if signedIn() && request.auth.uid == ownerUid && safeImage();
+      allow delete: if isAdmin() || (signedIn() && request.auth.uid == ownerUid);
     }
 
     match /providers/{providerId}/{allPaths=**} {
       allow read: if signedIn();
-      allow write: if isAdmin() && safeImage();
-      allow delete: if isAdmin();
+      allow write, delete: if isAdmin();
     }
 
     match /admin/{allPaths=**} {
