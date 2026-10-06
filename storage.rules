@@ -30,7 +30,11 @@ service firebase.storage {
         ).data.ownerUid == uid
         && firestore.get(
           /databases/(default)/documents/users/$(uid)/uploadGrants/$(grantId)
-        ).data.kind == kind
+        ).data.kind == kind;
+    }
+
+    function validActiveGrant(uid, grantId, kind) {
+      return validGrant(uid, grantId, kind)
         && firestore.get(
           /databases/(default)/documents/users/$(uid)/uploadGrants/$(grantId)
         ).data.expiresAt > request.time;
@@ -43,8 +47,22 @@ service firebase.storage {
         ).data.conversationId == conversationId;
     }
 
+    function validActiveChatGrant(uid, conversationId, grantId) {
+      return validActiveGrant(uid, grantId, 'CHAT')
+        && firestore.get(
+          /databases/(default)/documents/users/$(uid)/uploadGrants/$(grantId)
+        ).data.conversationId == conversationId;
+    }
+
     function validJobGrant(uid, requestId, grantId) {
       return validGrant(uid, grantId, 'JOB_REQUEST')
+        && firestore.get(
+          /databases/(default)/documents/users/$(uid)/uploadGrants/$(grantId)
+        ).data.requestId == requestId;
+    }
+
+    function validActiveJobGrant(uid, requestId, grantId) {
+      return validActiveGrant(uid, grantId, 'JOB_REQUEST')
         && firestore.get(
           /databases/(default)/documents/users/$(uid)/uploadGrants/$(grantId)
         ).data.requestId == requestId;
@@ -55,7 +73,7 @@ service firebase.storage {
       allow write: if accountActive(uid)
         && request.auth.uid == uid
         && resource == null
-        && validGrant(uid, grantId, 'USER')
+        && validActiveGrant(uid, grantId, 'USER')
         && safeImage();
       allow delete: if accountActive(uid) && request.auth.uid == uid;
     }
@@ -65,7 +83,7 @@ service firebase.storage {
       allow write: if accountActive(ownerUid)
         && request.auth.uid == ownerUid
         && resource == null
-        && validJobGrant(ownerUid, requestId, grantId)
+        && validActiveJobGrant(ownerUid, requestId, grantId)
         && firestore.exists(/databases/(default)/documents/jobRequests/$(requestId))
         && firestore.get(/databases/(default)/documents/jobRequests/$(requestId)).data.ownerId == ownerUid
         && safeImage();
@@ -89,7 +107,7 @@ service firebase.storage {
       allow write: if accountActive(senderUid)
         && request.auth.uid == senderUid
         && resource == null
-        && validChatGrant(senderUid, conversationId, grantId)
+        && validActiveChatGrant(senderUid, conversationId, grantId)
         && firestore.exists(/databases/(default)/documents/conversations/$(conversationId))
         && request.auth.uid in firestore.get(
           /databases/(default)/documents/conversations/$(conversationId)
