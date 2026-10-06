@@ -80,6 +80,8 @@ class CloudMarketplaceRepository(
                 "categoryId" to provider.categoryId,
                 "district" to provider.district,
                 "city" to provider.city,
+                "hourlyOrBasePrice" to provider.hourlyOrBasePrice,
+                "isEmergencyAvailable" to provider.isEmergencyAvailable,
                 "experienceYears" to provider.experienceYears,
                 "latitude" to provider.latitude,
                 "longitude" to provider.longitude,
