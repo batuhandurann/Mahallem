@@ -1628,8 +1628,11 @@ export const requestRefund = onCall(
     if (request.auth.token.admin !== true) {
       requireRecentAuthentication(request.auth.token.auth_time);
     }
-    const paymentId = String((request.data as Record<string, unknown>).paymentId ?? "");
-    if (!paymentId) throw new HttpsError("invalid-argument", "paymentId gerekli.");
+    const data = callableData(request.data);
+    const paymentId = requireString(data, "paymentId", 64, 64);
+    if (!/^[a-f0-9]{64}$/.test(paymentId)) {
+      throw new HttpsError("invalid-argument", "Geçersiz ödeme kimliği.");
+    }
     const paymentRef = db.collection("payments").doc(paymentId);
 
     await db.runTransaction(async (tx) => {
