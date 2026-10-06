@@ -1,6 +1,6 @@
 # Mahallem backend functions
 
-Node.js 22 Cloud Functions are used for trusted server-side operations. Firebase currently supports Node.js 20 and 22 for Cloud Functions. citeturn985246search0
+Node.js 22 Cloud Functions are used for trusted server-side operations. Firebase is configured here for Node.js 22.
 
 Functions in this package:
 
