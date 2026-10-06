@@ -44,6 +44,7 @@ class MarketplaceViewModel(application: Application) : AndroidViewModel(applicat
 
     private val repository: MarketplaceRepository
     private val cloudRepository = com.example.backend.CloudMarketplaceRepository()
+    private val cloudChatRepository = com.example.backend.CloudChatRepository()
 
     init {
         val database = AppDatabase.getDatabase(application)
@@ -168,15 +169,19 @@ class MarketplaceViewModel(application: Application) : AndroidViewModel(applicat
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     // --- Conversations List Flow (In-App Messaging) ---
-    val conversations: StateFlow<List<ConversationEntity>> = repository.getAllConversations()
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+    val conversations: StateFlow<List<ConversationEntity>> = if (AppEnvironment.mode == AppEnvironment.Mode.LOCAL) {
+        repository.getAllConversations().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+    } else {
+        cloudChatRepository.observeConversations().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+    }
 
     // --- Active Chat Messages Flow ---
     private val _activeConversationId = MutableStateFlow<String?>(null)
     @OptIn(ExperimentalCoroutinesApi::class)
     val activeChatMessages: StateFlow<List<ChatMessageEntity>> = _activeConversationId.flatMapLatest { convId ->
         if (convId == null) kotlinx.coroutines.flow.flowOf(emptyList())
-        else repository.getMessagesForConversation(convId)
+        else if (AppEnvironment.mode == AppEnvironment.Mode.LOCAL) repository.getMessagesForConversation(convId)
+        else cloudChatRepository.observeMessages(convId)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     // --- Navigation Actions ---
@@ -271,24 +276,32 @@ class MarketplaceViewModel(application: Application) : AndroidViewModel(applicat
     // --- Chat & Messaging Actions ---
     fun openChatWithProvider(provider: ServiceProviderEntity) {
         viewModelScope.launch {
-            val convId = repository.startOrGetConversation(
-                participantId = provider.id,
-                participantName = provider.name,
-                participantTitle = provider.title,
-                relatedItemTitle = provider.title
-            )
+            val convId = if (AppEnvironment.mode == AppEnvironment.Mode.LOCAL) {
+                repository.startOrGetConversation(
+                    participantId = provider.id,
+                    participantName = provider.name,
+                    participantTitle = provider.title,
+                    relatedItemTitle = provider.title
+                )
+            } else {
+                cloudChatRepository.startOrGetConversation(provider.id, provider.title)
+            }
             navigateTo(ScreenDestination.Chat(convId))
         }
     }
 
     fun openChatForJobRequest(request: JobRequestEntity) {
         viewModelScope.launch {
-            val convId = repository.startOrGetConversation(
-                participantId = "req-user-${request.id}",
-                participantName = request.customerName,
-                participantTitle = "İlan Sahibi",
-                relatedItemTitle = request.title
-            )
+            val convId = if (AppEnvironment.mode == AppEnvironment.Mode.LOCAL) {
+                repository.startOrGetConversation(
+                    participantId = "req-user-" + request.id,
+                    participantName = request.customerName,
+                    participantTitle = "İlan Sahibi",
+                    relatedItemTitle = request.title
+                )
+            } else {
+                cloudChatRepository.startOrGetConversationForRequest(request.id, request.title)
+            }
             navigateTo(ScreenDestination.Chat(convId))
         }
     }
