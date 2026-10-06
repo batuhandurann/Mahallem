@@ -41,6 +41,29 @@ class CloudMarketplaceRepository(
         awaitClose { listener.remove() }
     }
 
+    fun observeQuotes(): kotlinx.coroutines.flow.Flow<List<QuoteEntity>> = kotlinx.coroutines.flow.callbackFlow {
+        val me = requireUid()
+        val listener = firestore.collection("quotes")
+            .whereEqualTo("customerId", me)
+            .addSnapshotListener { snap, error ->
+                if (error != null) { close(error); return@addSnapshotListener }
+                val list = snap?.documents.orEmpty().map { d ->
+                    QuoteEntity(
+                        id = d.id.toLongOrNull() ?: d.id.hashCode().toLong().and(0x7fffffffL),
+                        requestId = d.getString("requestId")?.toLongOrNull() ?: 0L,
+                        providerId = d.getString("providerId").orEmpty(),
+                        providerName = "Hizmet Sağlayıcı", providerTitle = "Hizmet",
+                        providerRating = 0.0, price = d.getString("price").orEmpty(),
+                        amountMinor = (d.get("amountMinor") as? Number)?.toLong() ?: 0L,
+                        durationOrArrival = d.getString("durationOrArrival").orEmpty(),
+                        notes = d.getString("notes").orEmpty(),
+                        status = d.getString("status") ?: "PENDING"
+                    )
+                }
+                trySend(list)
+            }
+        awaitClose { listener.remove() }
+    }
     suspend fun saveProvider(provider: ServiceProviderEntity) {
         val uid = requireUid()
         firestore.collection("providers").document(provider.id).set(
