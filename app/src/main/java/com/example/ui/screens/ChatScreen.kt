@@ -1,5 +1,8 @@
 package com.example.ui.screens
 
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
@@ -46,7 +49,7 @@ fun ChatScreen(
     onBackClick: () -> Unit,
     onSendMessage: (text: String, isOffer: Boolean, offerPrice: String) -> Unit,
     onSendVoiceNote: (duration: Int) -> Unit = {},
-    onSendPhoto: (desc: String) -> Unit = {},
+    onSendPhoto: (uri: Uri) -> Unit = {},
     onCallClick: () -> Unit,
     onReportClick: () -> Unit
 ) {
@@ -55,9 +58,13 @@ fun ChatScreen(
     var messageInput by remember { mutableStateOf("") }
     var showOfferDialog by remember { mutableStateOf(false) }
     var offerPriceInput by remember { mutableStateOf("") }
-    var isRecordingSimulated by remember { mutableStateOf(false) }
 
     val listState = rememberLazyListState()
+    val photoPicker = rememberLauncherForActivityResult(
+        ActivityResultContracts.GetContent()
+    ) { uri ->
+        if (uri != null) onSendPhoto(uri)
+    }
 
     LaunchedEffect(messages.size) {
         if (messages.isNotEmpty()) {
@@ -195,7 +202,7 @@ fun ChatScreen(
                         // Photo Attachment Button
                         IconButton(
                             onClick = {
-                                onSendPhoto("Daire hasar ve keşif fotoğrafı eklendi 📸")
+                                photoPicker.launch("image/*")
                             },
                             modifier = Modifier.size(40.dp).testTag("btn_attach_photo")
                         ) {
