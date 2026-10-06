@@ -1,6 +1,6 @@
 package com.example.payment
 
-enum class PaymentStatus { CREATED, PENDING, PAID, HELD, DISPUTED, RELEASED, REFUND_REQUESTED, REFUNDED, FAILED }
+enum class PaymentStatus { CREATED, PENDING, PAID, HELD, DISPUTED, RELEASE_REQUESTED, RELEASED, REFUND_REQUESTED, REFUNDED, FAILED }
 
 object PaymentStateMachine {
     fun canTransition(from: PaymentStatus, to: PaymentStatus): Boolean = when (from) {
