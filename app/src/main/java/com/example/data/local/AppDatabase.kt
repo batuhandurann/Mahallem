@@ -32,11 +32,15 @@ abstract class AppDatabase : RoomDatabase() {
         @Volatile
         private var INSTANCE: AppDatabase? = null
 
-    fun clearLocalData() {
-        synchronized(this) {
-            INSTANCE?.clearAllTables()
+        fun clearLocalData() {
+            synchronized(this) {
+                INSTANCE?.let {
+                    it.clearAllTables()
+                    it.close()
+                }
+                INSTANCE = null
+            }
         }
-    }
 
         fun getDatabase(context: Context): AppDatabase {
             return INSTANCE ?: synchronized(this) {
