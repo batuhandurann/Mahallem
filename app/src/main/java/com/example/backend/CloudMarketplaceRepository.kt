@@ -52,9 +52,11 @@ class CloudMarketplaceRepository(
         var query: Query = firestore.collection("publicJobRequests")
         if (!categoryId.isNullOrBlank()) query = query.whereEqualTo("categoryId", categoryId)
         if (!sector.isNullOrBlank()) query = query.whereEqualTo("sector", sector)
-        if (urgency == "EMERGENCY") query = query.whereEqualTo("urgencyMode", "EMERGENCY")
+        if (urgency == "EMERGENCY" || urgency == "PLANNED") {
+            query = query.whereEqualTo("urgencyMode", urgency)
+        }
         if (!district.isNullOrBlank()) query = query.whereEqualTo("district", district)
-        if (categoryId.isNullOrBlank() && sector.isNullOrBlank() && urgency != "EMERGENCY" && district.isNullOrBlank()) {
+        if (categoryId.isNullOrBlank() && sector.isNullOrBlank() && urgency.isNullOrBlank() && district.isNullOrBlank()) {
             query = query.orderBy("updatedAt", Query.Direction.DESCENDING)
         }
         val listener = query.limit(50).addSnapshotListener { snapshot, error ->
