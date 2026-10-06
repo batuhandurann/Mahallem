@@ -80,6 +80,8 @@ fun MarketplaceApp() {
 
     var currentUser by remember { mutableStateOf(auth.currentUser) }
     var profileReady by remember(currentUser?.uid) { mutableStateOf(false) }
+    var profileError by remember(currentUser?.uid) { mutableStateOf<String?>(null) }
+    var profileRetryToken by remember(currentUser?.uid) { mutableIntStateOf(0) }
     DisposableEffect(auth) {
         val listener = FirebaseAuth.AuthStateListener { currentUser = it.currentUser }
         auth.addAuthStateListener(listener)
@@ -93,16 +95,22 @@ fun MarketplaceApp() {
     if (currentUser == null) {
         PhoneAuthScreen(onAuthenticated = {})
     } else {
-        LaunchedEffect(currentUser?.uid) {
+        LaunchedEffect(currentUser?.uid, profileRetryToken) {
             profileReady = false
+            profileError = null
             currentUser?.let { user ->
                 runCatching {
                     UserProfileRepository().ensureUserProfile(user)
-                    PushTokenRepository().registerCurrentDevice()
                 }.onSuccess {
                     profileReady = true
+                    runCatching {
+                        PushTokenRepository().registerCurrentDevice()
+                    }.onFailure {
+                        android.util.Log.w("MahallemAuth", "Cihaz bildirimi kaydı başarısız; uygulama erişimi engellenmeyecek.", it)
+                    }
                 }.onFailure {
-                    android.util.Log.w("MahallemAuth", "Kullanıcı profili/cihaz kaydı başarısız", it)
+                    profileError = "Hesabınız hazırlanamadı. İnternet bağlantınızı kontrol edip tekrar deneyin."
+                    android.util.Log.w("MahallemAuth", "Kullanıcı profili hazırlanamadı", it)
                 }
             }
         }
@@ -110,7 +118,26 @@ fun MarketplaceApp() {
         val context = LocalContext.current
         val consent = remember(context) { ConsentRepository(context) }
 
-        if (!profileReady) {
+        if (profileError != null) {
+            Box(
+                modifier = Modifier.fillMaxSize().padding(24.dp),
+                contentAlignment = androidx.compose.ui.Alignment.Center
+            ) {
+                androidx.compose.foundation.layout.Column(
+                    horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally
+                ) {
+                    androidx.compose.material3.Text(
+                        profileError!!,
+                        modifier = Modifier.padding(bottom = 16.dp)
+                    )
+                    androidx.compose.material3.Button(
+                        onClick = { profileRetryToken++ }
+                    ) {
+                        androidx.compose.material3.Text("Tekrar Dene")
+                    }
+                }
+            }
+        } else if (!profileReady) {
             Box(
                 modifier = Modifier.fillMaxSize(),
                 contentAlignment = androidx.compose.ui.Alignment.Center
