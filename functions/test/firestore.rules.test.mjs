@@ -393,12 +393,12 @@ async function run() {
       deletionStatus: "PURGING",
     });
   });
-  const purgingDb = env.authenticatedContext("alice-purging", { email_verified: true }).firestore();
+  const purgingDbAfterReset = env.authenticatedContext("alice-purging", { email_verified: true }).firestore();
   await assertFails(getDoc(doc(purgingDb, "providers/provider-visible")));
-  await assertFails(getDocs(query(collection(purgingDb, "publicProviders"), limit(50))));
-  await assertFails(getDocs(query(collection(purgingDb, "publicJobRequests"), limit(50))));
+  await assertFails(getDocs(query(collection(purgingDbAfterReset, "publicProviders"), limit(50))));
+  await assertFails(getDocs(query(collection(purgingDbAfterReset, "publicJobRequests"), limit(50))));
   await assertFails(
-    setDoc(doc(purgingDb, "jobRequests/purging-request"), {
+    setDoc(doc(purgingDbAfterReset, "jobRequests/purging-request"), {
       ownerId: "alice-purging",
       title: "Bloklanmalı",
       sector: "CLEANING",
