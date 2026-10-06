@@ -53,6 +53,8 @@ assert.match(source, /report-day:/);
 
 assert.match(source, /hourlyRateLimitRef/);
 assert.match(source, /parseTryAmountMinor\(price\) !== amountMinor/);
+assert.match(source, /next\.size > 366/);
+assert.match(source, /Takvimde en fazla 366 gün tutulabilir/);
 assert.match(source, /status === "PURGING"/);
 assert.match(source, /Account purge failed; account remains locked in PURGING for retry/);
 assert.doesNotMatch(source, /Account purge failed; returning account to REQUESTED/);
