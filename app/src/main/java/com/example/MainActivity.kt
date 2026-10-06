@@ -10,10 +10,12 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.runtime.*
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -82,7 +84,8 @@ fun MarketplaceApp() {
         LaunchedEffect(currentUser?.uid) {
             runCatching { PushTokenRepository().registerCurrentDevice() }
         }
-        val consent = remember { ConsentRepository(androidx.compose.ui.platform.LocalContext.current) }
+        val context = LocalContext.current
+        val consent = remember(context) { ConsentRepository(context) }
         if (!consent.privacyNoticeAcknowledged) {
             PrivacyConsentScreen(
                 onCompleted = { currentUser = auth.currentUser }
