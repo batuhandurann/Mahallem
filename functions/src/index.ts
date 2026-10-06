@@ -1528,6 +1528,10 @@ async function anonymizeAccount(uid: string): Promise<void> {
     "quote:" + uid,
     "quote-hour:" + uid,
     "report-day:" + uid,
+    "availability:" + uid,
+    "availability-hour:" + uid,
+    "conversation-read:" + uid,
+    "conversation-read-hour:" + uid,
   ];
   for (const rateLimitId of rateLimitIds) {
     cleanupBatch.delete(db.collection("rateLimits").doc(rateLimitId));
