@@ -27,7 +27,7 @@ service cloud.firestore {
       allow delete: if isAdmin();
       match /devices/{tokenId} {
         allow read: if ownsUser(uid);
-      allow create, update: if ownsUser(uid) && request.resource.data.keys().hasOnly(['platform','updatedAt']);
+      allow create, update: if accountActive() && ownsUser(uid) && request.resource.data.keys().hasOnly(['platform','updatedAt']);
       allow delete: if ownsUser(uid);
       }
     }
