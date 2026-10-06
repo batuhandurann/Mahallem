@@ -722,6 +722,8 @@ class MarketplaceViewModel(application: Application) : AndroidViewModel(applicat
             }
             val resolvedCustomerPhone = customerPhone.ifBlank { authPhone }
             val resolvedPhoneVerified = resolvedCustomerPhone.isNotBlank()
+                && authPhone.isNotBlank()
+                && resolvedCustomerPhone == authPhone
 
             val entity = JobRequestEntity(
                 title = title,
@@ -734,7 +736,7 @@ class MarketplaceViewModel(application: Application) : AndroidViewModel(applicat
                 address = address,
                 status = "PENDING",
                 customerName = customerName.ifBlank { "Mahalle Sakini" },
-                customerPhone = if (resolvedCustomerPhone.isBlank()) "05xx xxx xx xx" else resolvedCustomerPhone,
+                customerPhone = resolvedCustomerPhone,
                 phoneVerified = if (AppEnvironment.mode == AppEnvironment.Mode.LOCAL) true else resolvedPhoneVerified,
                 daysRemaining = 7,
                 isReported = false,
