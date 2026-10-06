@@ -12,6 +12,7 @@ import { onSchedule } from "firebase-functions/v2/scheduler";
 import { setGlobalOptions } from "firebase-functions/options";
 import { onObjectFinalized } from "firebase-functions/storage";
 import {
+  createPaytrIframeToken,
   verifyPaytrCallback,
 } from "./payments/paytr";
 import { parseTryAmountMinor } from "./money";
@@ -21,8 +22,12 @@ setGlobalOptions({ region: "europe-west1", maxInstances: 20, concurrency: 40 });
 
 const db = getFirestore();
 const adminAuth = getAuth();
+const paytrMerchantId = defineSecret("PAYTR_MERCHANT_ID");
 const paytrKey = defineSecret("PAYTR_MERCHANT_KEY");
 const paytrSalt = defineSecret("PAYTR_MERCHANT_SALT");
+const paytrOkUrl = defineSecret("PAYTR_OK_URL");
+const paytrFailUrl = defineSecret("PAYTR_FAIL_URL");
+const paytrTestMode = defineSecret("PAYTR_TEST_MODE");
 const MAX_QUOTE_AMOUNT_MINOR = 100_000_000;
 const ID_PATTERN = /^[A-Za-z0-9_-]{1,80}$/;
 
@@ -99,7 +104,18 @@ async function assertAccountActive(uid: string) {
 }
 
 export const createPaymentIntent = onCall(
-  { region: "europe-west1", enforceAppCheck: true, secrets: [paytrKey, paytrSalt] },
+  {
+    region: "europe-west1",
+    enforceAppCheck: true,
+    secrets: [
+      paytrMerchantId,
+      paytrKey,
+      paytrSalt,
+      paytrOkUrl,
+      paytrFailUrl,
+      paytrTestMode,
+    ],
+  },
   async (request) => {
     if (!request.auth) {
       throw new HttpsError("unauthenticated", "Kimlik doğrulaması gerekli.");
@@ -107,15 +123,23 @@ export const createPaymentIntent = onCall(
 
     await assertAccountActive(request.auth.uid);
 
-    requireRecentAuthentication(request.auth.token.auth_time);
+    const authTime = Number(request.auth.token.auth_time ?? 0);
+    if (!Number.isFinite(authTime) || authTime <= 0 || Date.now() - authTime * 1000 > 15 * 60 * 1000) {
+      throw new HttpsError("failed-precondition", "Ödeme işlemi için yakın zamanda yeniden doğrulama gerekli.");
+    }
 
-    const data = request.data as Record<string, unknown>;
+    const data = callableData(request.data);
     const requestId = String(data.requestId ?? "");
     const quoteId = String(data.quoteId ?? "");
     const idempotencyKey = String(data.idempotencyKey ?? "");
+    const customerEmail = String(data.customerEmail ?? request.auth.token.email ?? "").trim();
     const currency = String(data.currency ?? "TRY").toUpperCase();
 
-    if (!requestId || !quoteId || currency !== "TRY" || !/^[A-Za-z0-9._:-]{16,128}$/.test(idempotencyKey)) {
+    if (!ID_PATTERN.test(requestId)
+      || !ID_PATTERN.test(quoteId)
+      || currency !== "TRY"
+      || !/^[A-Za-z0-9._%+-]{1,100}@[A-Za-z0-9.-]{1,190}\.[A-Za-z]{2,63}$/.test(customerEmail)
+      || !/^[A-Za-z0-9._:-]{16,128}$/.test(idempotencyKey)) {
       throw new HttpsError("invalid-argument", "Geçersiz ödeme parametreleri.");
     }
 
@@ -135,45 +159,99 @@ export const createPaymentIntent = onCall(
     }
 
     const amountMinor = Number(quote.amountMinor ?? 0);
-    if (!Number.isSafeInteger(amountMinor) || amountMinor <= 0) {
+    if (!Number.isSafeInteger(amountMinor) || amountMinor <= 0 || amountMinor > 100_000_000) {
       throw new HttpsError("failed-precondition", "Teklifin güvenilir ödeme tutarı bulunmuyor.");
     }
 
-    const requestDoc = await db.collection("jobRequests").doc(requestId).get();
-    if (!requestDoc.exists || requestDoc.data()?.ownerId !== request.auth.uid || requestDoc.data()?.status !== "ACCEPTED") {
-      throw new HttpsError("failed-precondition", "Talep ödeme için uygun durumda değil.");
-    }
-
+    const requestRef = db.collection("jobRequests").doc(requestId);
+    const privateRequestRef = db.collection("jobRequestPrivate").doc(requestId);
+    const quoteRef = db.collection("quotes").doc(quoteId);
     const idemHash = createHash("sha256")
       .update(request.auth.uid + ":" + idempotencyKey)
       .digest("hex");
+    const paymentRef = db.collection("payments").doc(idemHash);
     const rateLimitRef = db.collection("rateLimits").doc("payment-intent:" + request.auth.uid);
     const hourlyRateLimitRef = db.collection("rateLimits").doc("payment-intent-hour:" + request.auth.uid);
-    const paymentRef = db.collection("payments").doc(idemHash);
 
     const existing = await paymentRef.get();
     if (existing.exists) {
       const existingPayment = existing.data()!;
       if (
-        String(existingPayment.requestId ?? "") !== requestId ||
-        String(existingPayment.quoteId ?? "") !== quoteId ||
-        Number(existingPayment.amountMinor ?? 0) !== amountMinor ||
-        String(existingPayment.customerId ?? "") !== request.auth.uid
+        String(existingPayment.requestId ?? "") !== requestId
+        || String(existingPayment.quoteId ?? "") !== quoteId
+        || Number(existingPayment.amountMinor ?? 0) !== amountMinor
+        || String(existingPayment.customerId ?? "") !== request.auth.uid
       ) {
-        throw new HttpsError(
-          "already-exists",
-          "Idempotency anahtarı farklı bir ödeme işlemi için kullanılmış."
-        );
+        throw new HttpsError("already-exists", "Idempotency anahtarı farklı bir ödeme işlemi için kullanılmış.");
       }
-      return existingPayment;
+      if (typeof existingPayment.checkoutUrl === "string" && existingPayment.checkoutUrl.startsWith("https://www.paytr.com/")) {
+        return existingPayment;
+      }
+      if (String(existingPayment.status ?? "") === "FAILED") {
+        throw new HttpsError("failed-precondition", "Bu ödeme denemesi başarısız oldu. Yeni bir ödeme denemesi başlatın.");
+      }
     }
 
+    const requestDoc = await requestRef.get();
+    if (!requestDoc.exists || requestDoc.data()?.ownerId !== request.auth.uid || requestDoc.data()?.status !== "ACCEPTED") {
+      throw new HttpsError("failed-precondition", "Talep ödeme için uygun durumda değil.");
+    }
+
+    const privateRequestSnap = await privateRequestRef.get();
+    const privateRequest = privateRequestSnap.data() ?? {};
+    const userIp = String(request.rawRequest?.ip ?? "").trim();
+    const merchantId = paytrMerchantId.value().trim();
+    const merchantKey = paytrKey.value();
+    const merchantSalt = paytrSalt.value();
+    const okUrl = paytrOkUrl.value().trim();
+    const failUrl = paytrFailUrl.value().trim();
+    const testMode = paytrTestMode.value().trim();
+
+    if (!merchantId || !merchantKey || !merchantSalt || !okUrl || !failUrl || !/^[01]$/.test(testMode)) {
+      throw new HttpsError("failed-precondition", "PayTR ödeme yapılandırması eksik.");
+    }
+    if (!userIp || userIp.length > 39) {
+      throw new HttpsError("failed-precondition", "Ödeme sağlayıcısı için müşteri IP bilgisi alınamadı.");
+    }
+
+    const merchantOid = "MHL" + idemHash.slice(0, 45);
+    const noInstallment = "0";
+    const maxInstallment = "0";
+    const timeoutLimit = "30";
+    const paymentAmount = String(amountMinor);
+    const userBasketBase64 = Buffer.from(JSON.stringify([
+      [String(requestDoc.data()?.title ?? "Mahallem hizmeti").slice(0, 200), (amountMinor / 100).toFixed(2), 1],
+    ])).toString("base64");
+
+    const paytrToken = createPaytrIframeToken(
+      merchantId,
+      userIp,
+      merchantOid,
+      customerEmail,
+      paymentAmount,
+      userBasketBase64,
+      noInstallment,
+      maxInstallment,
+      "TL",
+      testMode,
+      merchantSalt,
+      merchantKey
+    );
+
     await db.runTransaction(async (tx) => {
-      const [rateLimitSnap, hourlyRateSnap] = await Promise.all([
+      const [rateSnap, hourlyRateSnap, paymentSnap] = await Promise.all([
         tx.get(rateLimitRef),
         tx.get(hourlyRateLimitRef),
+        tx.get(paymentRef),
       ]);
-      const rate = rateLimitSnap.exists ? rateLimitSnap.data()! : {};
+
+      if (paymentSnap.exists) {
+        const payment = paymentSnap.data()!;
+        if (String(payment.status ?? "") === "PENDING" && typeof payment.checkoutUrl === "string") return;
+        throw new HttpsError("already-exists", "Bu ödeme isteği daha önce başlatılmış.");
+      }
+
+      const rate = rateSnap.exists ? rateSnap.data()! : {};
       const hourlyRate = hourlyRateSnap.exists ? hourlyRateSnap.data()! : {};
       const windowStart = Number(rate.windowStartMs ?? 0);
       const count = Number(rate.count ?? 0);
@@ -200,20 +278,102 @@ export const createPaymentIntent = onCall(
         count: activeHourWindow ? hourCount + 1 : 1,
         updatedAt: FieldValue.serverTimestamp(),
       }, { merge: true });
+
+      tx.create(paymentRef, {
+        id: idemHash,
+        requestId,
+        quoteId,
+        customerId: request.auth!.uid,
+        providerId: String(quote.providerOwnerId ?? ""),
+        amountMinor,
+        currency: "TRY",
+        status: "CREATED",
+        providerOrderId: merchantOid,
+        idempotencyKeyHash: idemHash,
+        createdAt: FieldValue.serverTimestamp(),
+        updatedAt: FieldValue.serverTimestamp(),
+      });
     });
-    if (!paytrKey.value() || !paytrSalt.value()) {
-      throw new HttpsError(
-        "failed-precondition",
-        "Ödeme sağlayıcısı staging/production ortamında henüz yapılandırılmadı."
-      );
+
+    let response: Response;
+    try {
+      const body = new URLSearchParams({
+        merchant_id: merchantId,
+        user_ip: userIp,
+        merchant_oid: merchantOid,
+        email: customerEmail,
+        payment_amount: paymentAmount,
+        paytr_token: paytrToken,
+        user_basket: userBasketBase64,
+        debug_on: testMode === "1" ? "1" : "0",
+        no_installment: noInstallment,
+        max_installment: maxInstallment,
+        user_name: String(privateRequest.customerName ?? request.auth.token.name ?? "Mahallem Kullanıcısı").slice(0, 120),
+        user_address: String(privateRequest.address ?? "").slice(0, 500),
+        user_phone: String(privateRequest.customerPhone ?? request.auth.token.phone_number ?? "").slice(0, 32),
+        merchant_ok_url: okUrl,
+        merchant_fail_url: failUrl,
+        timeout_limit: timeoutLimit,
+        currency: "TL",
+        test_mode: testMode,
+        lang: "tr",
+      });
+
+      response = await fetch("https://www.paytr.com/odeme/api/get-token", {
+        method: "POST",
+        headers: { "content-type": "application/x-www-form-urlencoded" },
+        body,
+        signal: AbortSignal.timeout(15_000),
+      });
+    } catch (error) {
+      await paymentRef.set({
+        status: "FAILED",
+        failureReason: "PayTR token endpoint unreachable",
+        updatedAt: FieldValue.serverTimestamp(),
+      }, { merge: true });
+      logger.error("PayTR token request failed", { paymentId: idemHash, error });
+      throw new HttpsError("unavailable", "Ödeme sağlayıcısına bağlanılamadı.");
     }
 
-    // PayTR Marketplace checkout generation requires the merchant-approved
-    // marketplace account configuration. Fail closed until it is configured.
-    throw new HttpsError(
-      "unimplemented",
-      "PayTR Marketplace checkout token generation is pending merchant configuration."
-    );
+    let providerResponse: { status?: string; token?: string; reason?: string };
+    try {
+      providerResponse = await response.json() as { status?: string; token?: string; reason?: string };
+    } catch (error) {
+      await paymentRef.set({
+        status: "FAILED",
+        failureReason: "Invalid PayTR response",
+        updatedAt: FieldValue.serverTimestamp(),
+      }, { merge: true });
+      logger.error("PayTR returned invalid JSON", { paymentId: idemHash, status: response.status, error });
+      throw new HttpsError("unavailable", "Ödeme sağlayıcısından geçersiz yanıt alındı.");
+    }
+
+    if (providerResponse.status !== "success" || !providerResponse.token) {
+      await paymentRef.set({
+        status: "FAILED",
+        failureReason: String(providerResponse.reason ?? "PayTR token oluşturamadı").slice(0, 500),
+        updatedAt: FieldValue.serverTimestamp(),
+      }, { merge: true });
+      throw new HttpsError("failed-precondition", "Ödeme başlatılamadı.");
+    }
+
+    const checkoutUrl = "https://www.paytr.com/odeme/guvenli/" + providerResponse.token;
+    await paymentRef.set({
+      status: "PENDING",
+      checkoutUrl,
+      providerTokenCreatedAt: FieldValue.serverTimestamp(),
+      updatedAt: FieldValue.serverTimestamp(),
+    }, { merge: true });
+
+    return {
+      id: idemHash,
+      checkoutUrl,
+      requestId,
+      quoteId,
+      amountMinor,
+      currency: "TRY",
+      status: "PENDING",
+    };
   }
 );
 
