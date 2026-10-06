@@ -592,94 +592,136 @@ async function commitInChunks<T>(
   }
 }
 
+async function processQueryInPages(
+  query: FirebaseFirestore.Query,
+  processPage: (docs: FirebaseFirestore.QueryDocumentSnapshot[]) => Promise<void>
+): Promise<void> {
+  const pageSize = 450;
+  let cursor: FirebaseFirestore.QueryDocumentSnapshot | undefined;
+
+  while (true) {
+    const page = cursor
+      ? await query.startAfter(cursor).limit(pageSize).get()
+      : await query.limit(pageSize).get();
+
+    if (page.empty) return;
+    await processPage(page.docs);
+    if (page.size < pageSize) return;
+    cursor = page.docs[page.docs.length - 1];
+  }
+}
+
 async function anonymizeAccount(uid: string): Promise<void> {
   const anonymizedId = deletedAccountId(uid);
 
-  const providerQuery = await db.collection("providers")
-    .where("ownerId", "==", uid)
-    .get();
-  await commitInChunks(providerQuery.docs, (batch, doc) => batch.delete(doc.ref));
-
-  const requestQuery = await db.collection("jobRequests")
-    .where("ownerId", "==", uid)
-    .get();
-  for (const requestDoc of requestQuery.docs) {
-    const requestId = requestDoc.id;
-    await db.collection("jobRequests").doc(requestId).set({
-      ownerId: anonymizedId,
-      status: "CLOSED",
-      accountDeletedAt: FieldValue.serverTimestamp(),
-    }, { merge: true });
-
-    await db.collection("jobRequestPrivate").doc(requestId).delete().catch(() => undefined);
-  }
-
-  const customerQuotes = await db.collection("quotes")
-    .where("customerId", "==", uid)
-    .get();
-  const providerQuotes = await db.collection("quotes")
-    .where("providerOwnerId", "==", uid)
-    .get();
-  const quoteDocs = Array.from(
-    new Map([...customerQuotes.docs, ...providerQuotes.docs].map((doc) => [doc.id, doc])).values()
+  await processQueryInPages(
+    db.collection("providers").where("ownerId", "==", uid),
+    async (docs) => {
+      const batch = db.batch();
+      for (const doc of docs) batch.delete(doc.ref);
+      await batch.commit();
+    }
   );
-  await commitInChunks(quoteDocs, (batch, doc) => {
-    const data = doc.data();
-    batch.set(doc.ref, {
-      ...(data.customerId === uid ? { customerId: anonymizedId } : {}),
-      ...(data.providerOwnerId === uid ? { providerOwnerId: anonymizedId } : {}),
-      accountDeletedAt: FieldValue.serverTimestamp(),
-    }, { merge: true });
-  });
 
-  const customerPayments = await db.collection("payments")
-    .where("customerId", "==", uid)
-    .get();
-  const providerPayments = await db.collection("payments")
-    .where("providerId", "==", uid)
-    .get();
-  const paymentDocs = Array.from(
-    new Map([...customerPayments.docs, ...providerPayments.docs].map((doc) => [doc.id, doc])).values()
+  await processQueryInPages(
+    db.collection("jobRequests").where("ownerId", "==", uid),
+    async (docs) => {
+      const batch = db.batch();
+      for (const doc of docs) {
+        batch.set(doc.ref, {
+          ownerId: anonymizedId,
+          status: "CLOSED",
+          accountDeletedAt: FieldValue.serverTimestamp(),
+        }, { merge: true });
+        batch.delete(db.collection("jobRequestPrivate").doc(doc.id));
+      }
+      await batch.commit();
+    }
   );
-  await commitInChunks(paymentDocs, (batch, doc) => {
-    const data = doc.data();
-    batch.set(doc.ref, {
-      ...(data.customerId === uid ? { customerId: anonymizedId } : {}),
-      ...(data.providerId === uid ? { providerId: anonymizedId } : {}),
-      accountDeletedAt: FieldValue.serverTimestamp(),
-    }, { merge: true });
-  });
 
-  const conversations = await db.collection("conversations")
-    .where("participantIds", "array-contains", uid)
-    .get();
-  for (const conversation of conversations.docs) {
-    const participantIds = (conversation.data().participantIds as unknown[])
-      .map((id) => id === uid ? anonymizedId : id);
-
-    await conversation.ref.set({
-      participantIds,
-      accountDeletedAt: FieldValue.serverTimestamp(),
-    }, { merge: true });
-
-    const messages = await db.collection("messages")
-      .where("conversationId", "==", conversation.id)
-      .get();
-    const ownedMessages = messages.docs.filter((message) => message.data().senderId === uid);
-    await commitInChunks(ownedMessages, (batch, message) => {
-      batch.set(message.ref, {
-        senderId: anonymizedId,
+  const quoteDocs = new Map<string, FirebaseFirestore.QueryDocumentSnapshot>();
+  await processQueryInPages(
+    db.collection("quotes").where("customerId", "==", uid),
+    async (docs) => { for (const doc of docs) quoteDocs.set(doc.id, doc); }
+  );
+  await processQueryInPages(
+    db.collection("quotes").where("providerOwnerId", "==", uid),
+    async (docs) => { for (const doc of docs) quoteDocs.set(doc.id, doc); }
+  );
+  const quoteList = Array.from(quoteDocs.values());
+  for (let i = 0; i < quoteList.length; i += 450) {
+    const batch = db.batch();
+    for (const doc of quoteList.slice(i, i + 450)) {
+      const data = doc.data();
+      batch.set(doc.ref, {
+        ...(data.customerId === uid ? { customerId: anonymizedId } : {}),
+        ...(data.providerOwnerId === uid ? { providerOwnerId: anonymizedId } : {}),
         accountDeletedAt: FieldValue.serverTimestamp(),
       }, { merge: true });
-    });
+    }
+    await batch.commit();
   }
+
+  const paymentDocs = new Map<string, FirebaseFirestore.QueryDocumentSnapshot>();
+  await processQueryInPages(
+    db.collection("payments").where("customerId", "==", uid),
+    async (docs) => { for (const doc of docs) paymentDocs.set(doc.id, doc); }
+  );
+  await processQueryInPages(
+    db.collection("payments").where("providerId", "==", uid),
+    async (docs) => { for (const doc of docs) paymentDocs.set(doc.id, doc); }
+  );
+  const paymentList = Array.from(paymentDocs.values());
+  for (let i = 0; i < paymentList.length; i += 450) {
+    const batch = db.batch();
+    for (const doc of paymentList.slice(i, i + 450)) {
+      const data = doc.data();
+      batch.set(doc.ref, {
+        ...(data.customerId === uid ? { customerId: anonymizedId } : {}),
+        ...(data.providerId === uid ? { providerId: anonymizedId } : {}),
+        accountDeletedAt: FieldValue.serverTimestamp(),
+      }, { merge: true });
+    }
+    await batch.commit();
+  }
+
+  await processQueryInPages(
+    db.collection("conversations").where("participantIds", "array-contains", uid),
+    async (conversations) => {
+      for (const conversation of conversations) {
+        const participantIds = (conversation.data().participantIds as unknown[])
+          .map((id) => id === uid ? anonymizedId : id);
+
+        await conversation.ref.set({
+          participantIds,
+          accountDeletedAt: FieldValue.serverTimestamp(),
+        }, { merge: true });
+
+        await processQueryInPages(
+          db.collection("messages").where("conversationId", "==", conversation.id),
+          async (messages) => {
+            const owned = messages.filter((message) => message.data().senderId === uid);
+            for (let i = 0; i < owned.length; i += 450) {
+              const batch = db.batch();
+              for (const message of owned.slice(i, i + 450)) {
+                batch.set(message.ref, {
+                  senderId: anonymizedId,
+                  accountDeletedAt: FieldValue.serverTimestamp(),
+                }, { merge: true });
+              }
+              await batch.commit();
+            }
+          }
+        );
+      }
+    }
+  );
 
   await db.recursiveDelete(db.collection("users").doc(uid));
   await adminAuth.deleteUser(uid).catch((error: { code?: string }) => {
     if (error.code !== "auth/user-not-found") throw error;
   });
 }
-
 export const requestAccountDeletion = onCall(
   { region: "europe-west1", enforceAppCheck: true },
   async (request) => {
