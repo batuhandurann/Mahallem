@@ -482,7 +482,6 @@ export const saveProviderListing = onCall(
       const rate = rateSnap.exists ? rateSnap.data()! : {};
       const windowStart = Number(rate.windowStartMs ?? 0);
       const count = Number(rate.count ?? 0);
-      const now = Date.now();
       const activeWindow = Number.isSafeInteger(windowStart) && now - windowStart < 86_400_000;
       if (activeWindow && count >= 10) {
         throw new HttpsError("resource-exhausted", "Günlük hizmet ilanı değişikliği kotanıza ulaştınız.");
@@ -543,13 +542,15 @@ export const updateProviderAvailability = onCall(
     }
 
     const ref = db.collection("providers").doc(providerId);
-    const minuteRateRef = db.collection("rateLimits").doc("availability:" + request.auth.uid);
+    const rateRef = db.collection("rateLimits").doc("availability:" + request.auth.uid);
+    const minuteRateRef = db.collection("rateLimits").doc("availability-minute:" + request.auth.uid);
     const hourRateRef = db.collection("rateLimits").doc("availability-hour:" + request.auth.uid);
     const now = Date.now();
 
     await db.runTransaction(async (tx) => {
-      const [snap, minuteRateSnap, hourRateSnap] = await Promise.all([
+      const [snap, rateSnap, minuteRateSnap, hourRateSnap] = await Promise.all([
         tx.get(ref),
+        tx.get(rateRef),
         tx.get(minuteRateRef),
         tx.get(hourRateRef),
       ]);
