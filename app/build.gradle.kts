@@ -35,6 +35,7 @@ android {
 
   buildTypes {
     release {
+      buildConfigField("boolean", "USE_FIREBASE_EMULATOR", "false")
       isCrunchPngs = false
       isMinifyEnabled = false
       proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
@@ -42,12 +43,14 @@ android {
     }
     create("staging") {
       initWith(getByName("debug"))
+      buildConfigField("boolean", "USE_FIREBASE_EMULATOR", "false")
       matchingFallbacks += listOf("debug")
       applicationIdSuffix = ".staging"
       versionNameSuffix = "-staging"
       // Staging uses non-production credentials and sandbox integrations.
     }
     debug {
+      buildConfigField("boolean", "USE_FIREBASE_EMULATOR", "true")
       // Use Android's default debug signing configuration so fresh clones and CI
       // do not depend on a repository-local debug.keystore.
     }
