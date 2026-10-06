@@ -6,8 +6,8 @@ const rules = readFileSync(new URL("../../firestore.rules", import.meta.url), "u
 const storage = readFileSync(new URL("../../storage.rules", import.meta.url), "utf8");
 
 assert.match(source, /setGlobalOptions\(\{[^}]*maxInstances:\s*20[^}]*concurrency:\s*40/s);
-assert.equal((source.match(/export const [A-Za-z0-9_]+ = onCall\(/g) || []).length, 15);
-assert.equal((source.match(/enforceAppCheck:\s*true/g) || []).length, 15);
+assert.equal((source.match(/export const [A-Za-z0-9_]+ = onCall\(/g) || []).length, 16);
+assert.equal((source.match(/enforceAppCheck:\s*true/g) || []).length, 16);
 
 assert.match(source, /hashDeviceToken/);
 assert.match(source, /deviceTokenOwners/);
@@ -23,6 +23,9 @@ assert.match(source, /validated: true/);
 assert.match(source, /issueImageUploadGrant/);
 assert.match(source, /saveProviderListing/);
 assert.match(source, /saveJobRequest/);
+assert.match(source, /reportContent/);
+assert.match(source, /contentReports/);
+assert.match(source, /report-day:/);
 assert.match(source, /hourlyRateLimitRef/);
 assert.match(source, /parseTryAmountMinor\(price\) !== amountMinor/);
 assert.match(source, /status === "PURGING"/);
