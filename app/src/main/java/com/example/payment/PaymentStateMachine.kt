@@ -10,6 +10,7 @@ object PaymentStateMachine {
         PaymentStatus.HELD -> to in setOf(PaymentStatus.RELEASED, PaymentStatus.DISPUTED, PaymentStatus.REFUND_REQUESTED)
         PaymentStatus.DISPUTED -> to in setOf(PaymentStatus.RELEASED, PaymentStatus.REFUND_REQUESTED)
         PaymentStatus.REFUND_REQUESTED -> to in setOf(PaymentStatus.REFUNDED, PaymentStatus.PAID)
+        PaymentStatus.RELEASE_REQUESTED -> to in setOf(PaymentStatus.RELEASED, PaymentStatus.REFUND_REQUESTED)
         PaymentStatus.RELEASED, PaymentStatus.REFUNDED, PaymentStatus.FAILED -> false
     }
 }
