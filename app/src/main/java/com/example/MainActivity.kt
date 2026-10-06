@@ -91,7 +91,14 @@ fun MarketplaceApp() {
         PhoneAuthScreen(onAuthenticated = {})
     } else {
         LaunchedEffect(currentUser?.uid) {
-            runCatching { PushTokenRepository().registerCurrentDevice() }
+            currentUser?.let { user ->
+                runCatching {
+                    UserProfileRepository().ensureUserProfile(user)
+                    PushTokenRepository().registerCurrentDevice()
+                }.onFailure {
+                    android.util.Log.w("MahallemAuth", "Kullanıcı profili/cihaz kaydı başarısız", it)
+                }
+            }
         }
         val context = LocalContext.current
         val consent = remember(context) { ConsentRepository(context) }
