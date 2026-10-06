@@ -96,7 +96,7 @@ class CloudMarketplaceRepository(
             mapOf(
                 "providerId" to quote.providerId, "providerOwnerId" to uid,
                 "customerId" to customerId, "requestId" to quote.requestId.toString(),
-                "price" to quote.price, "durationOrArrival" to quote.durationOrArrival,
+                "price" to quote.price, "amountMinor" to quote.amountMinor, "durationOrArrival" to quote.durationOrArrival,
                 "notes" to quote.notes, "status" to quote.status, "createdAt" to quote.createdAt
             ), SetOptions.merge()
         ).await()
