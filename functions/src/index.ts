@@ -128,10 +128,8 @@ export const sendMessage = onCall(
     const now = Date.now();
 
     await db.runTransaction(async (tx) => {
-      const [conversationSnap, rateLimitSnap] = await Promise.all([
-        tx.get(conversationRef),
-        tx.get(rateLimitRef),
-      ]);
+      const conversationSnap = await tx.get(conversationRef);
+      const rateLimitSnap = await tx.get(rateLimitRef);
 
       if (!conversationSnap.exists) {
         throw new HttpsError("not-found", "Sohbet bulunamadı.");
