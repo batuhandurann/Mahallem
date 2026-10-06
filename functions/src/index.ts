@@ -191,6 +191,181 @@ export const startConversation = onCall(
     const targetId = String(data.targetId ?? "");
     const relatedItemId = String(data.relatedItemId ?? "");
     const relatedItemTitle = String(data.relatedItemTitle ?? "");
+    const isRequestConversation = targetId === "request-owner";
+
+    if (isRequestConversation && !relatedItemId) {
+      throw new HttpsError("invalid-argument", "Talep sohbeti için requestId gerekli.");
+    }
+    if (!isRequestConversation && !targetId) {
+      throw new HttpsError("invalid-argument", "Geçerli bir sohbet hedefi gerekli.");
+    }
+
+    let participantUid = "";
+
+    if (isRequestConversation) {
+      const requestSnap = await db.collection("jobRequests").doc(relatedItemId).get();
+      if (!requestSnap.exists) {
+        throw new HttpsError("not-found", "Talep bulunamadı.");
+      }
+
+      participantUid = String(requestSnap.data()?.ownerId ?? "");
+      if (!participantUid || participantUid === request.auth.uid) {
+        throw new HttpsError("permission-denied", "Talep sahibiyle geçerli bir sohbet oluşturulamadı.");
+      }
+
+      const status = String(requestSnap.data()?.status ?? "");
+      if (!["PENDING", "QUOTED", "ACCEPTED"].includes(status)) {
+        throw new HttpsError("failed-precondition", "Bu talep artık sohbet başlatılabilir durumda değil.");
+      }
+
+      const providerQuery = await db.collection("providers")
+        .where("ownerId", "==", request.auth.uid)
+        .limit(1)
+        .get();
+
+      if (providerQuery.empty) {
+        throw new HttpsError("permission-denied", "Bu talep için sohbet başlatma yetkiniz yok.");
+      }
+    } else {
+      const providerSnap = await db.collection("providers").doc(targetId).get();
+      if (!providerSnap.exists) {
+        throw new HttpsError("not-found", "Hizmet sağlayıcı bulunamadı.");
+      }
+
+      participantUid = String(providerSnap.data()?.ownerId ?? "");
+      if (!participantUid || participantUid === request.auth.uid) {
+        throw new HttpsError("failed-precondition", "Geçerli bir hizmet sağlayıcı bulunamadı.");
+      }
+
+      if (relatedItemId !== targetId) {
+        throw new HttpsError("invalid-argument", "Hizmet sağlayıcı sohbet bağlantısı geçersiz.");
+      }
+    }
+
+    const participantIds = [request.auth.uid, participantUid].sort();
+    const conversationId = createHash("sha256")
+      .update(participantIds.join(":") + ":" + relatedItemId)
+      .digest("hex");
+
+    const ref = db.collection("conversations").doc(conversationId);
+    await db.runTransaction(async (tx) => {
+      const existing = await tx.get(ref);
+      if (existing.exists) return;
+
+      tx.create(ref, {
+        participantIds,
+        relatedItemId,
+        relatedItemTitle,
+        createdAt: FieldValue.serverTimestamp(),
+        updatedAt: FieldValue.serverTimestamp(),
+      });
+    });
+
+    return { conversationId };
+  }
+);
+
+export const sendMessage = onCall(
+  { region: "europe-west1", enforceAppCheck: true },
+  async (request) => {
+    if (!request.auth) {
+      throw new HttpsError("unauthenticated", "Kimlik doğrulaması gerekli.");
+    }
+
+    const data = request.data as Record<string, unknown>;
+    const conversationId = String(data.conversationId ?? "");
+    const text = String(data.text ?? "");
+    const messageType = String(data.messageType ?? "TEXT");
+    const attachmentUrl = data.attachmentUrl == null ? null : String(data.attachmentUrl);
+
+    if (!conversationId) {
+      throw new HttpsError("invalid-argument", "conversationId gerekli.");
+    }
+    if (!["TEXT", "OFFER", "VOICE", "IMAGE"].includes(messageType)) {
+      throw new HttpsError("invalid-argument", "Geçersiz mesaj tipi.");
+    }
+    if (text.length > 2000) {
+      throw new HttpsError("invalid-argument", "Mesaj en fazla 2000 karakter olabilir.");
+    }
+    if (!text.trim() && !attachmentUrl) {
+      throw new HttpsError("invalid-argument", "Mesaj içeriği boş olamaz.");
+    }
+    if (attachmentUrl && attachmentUrl.length > 2048) {
+      throw new HttpsError("invalid-argument", "Ek bağlantısı çok uzun.");
+    }
+
+    const conversationRef = db.collection("conversations").doc(conversationId);
+    const rateLimitRef = db.collection("rateLimits").doc(
+      "message:" + request.auth.uid
+    );
+
+    const messageRef = db.collection("messages").doc();
+    const now = Date.now();
+
+    await db.runTransaction(async (tx) => {
+      const [conversationSnap, rateLimitSnap] = await Promise.all([
+        tx.get(conversationRef),
+        tx.get(rateLimitRef),
+      ]);
+
+      if (!conversationSnap.exists) {
+        throw new HttpsError("not-found", "Sohbet bulunamadı.");
+      }
+
+      const participants = conversationSnap.data()?.participantIds;
+      if (!Array.isArray(participants) || !participants.includes(request.auth!.uid)) {
+        throw new HttpsError("permission-denied", "Bu sohbete mesaj gönderemezsiniz.");
+      }
+
+      const rate = rateLimitSnap.exists ? rateLimitSnap.data()! : {};
+      const windowStart = Number(rate.windowStartMs ?? 0);
+      const count = Number(rate.count ?? 0);
+      const windowMs = 60_000;
+
+      const activeWindow = Number.isSafeInteger(windowStart)
+        && now - windowStart < windowMs;
+
+      if (activeWindow && count >= 30) {
+        throw new HttpsError("resource-exhausted", "Çok fazla mesaj gönderildi. Lütfen biraz sonra tekrar deneyin.");
+      }
+
+      tx.set(rateLimitRef, {
+        windowStartMs: activeWindow ? windowStart : now,
+        count: activeWindow ? count + 1 : 1,
+        updatedAt: FieldValue.serverTimestamp(),
+      }, { merge: true });
+
+      tx.create(messageRef, {
+        conversationId,
+        senderId: request.auth!.uid,
+        text,
+        attachmentUrl,
+        messageType,
+        createdAt: FieldValue.serverTimestamp(),
+      });
+
+      tx.update(conversationRef, {
+        lastMessageAt: FieldValue.serverTimestamp(),
+        lastMessagePreview: messageType === "IMAGE" ? "📷 Fotoğraf" : text.slice(0, 200),
+        updatedAt: FieldValue.serverTimestamp(),
+      });
+    });
+
+    return { messageId: messageRef.id };
+  }
+);
+
+export const startConversation = onCall(
+  { region: "europe-west1", enforceAppCheck: true },
+  async (request) => {
+    if (!request.auth) {
+      throw new HttpsError("unauthenticated", "Kimlik doğrulaması gerekli.");
+    }
+
+    const data = request.data as Record<string, unknown>;
+    const targetId = String(data.targetId ?? "");
+    const relatedItemId = String(data.relatedItemId ?? "");
+    const relatedItemTitle = String(data.relatedItemTitle ?? "");
 
     if (!targetId || !relatedItemId && targetId === request.auth.uid) {
       throw new HttpsError("invalid-argument", "Geçerli bir sohbet hedefi gerekli.");
