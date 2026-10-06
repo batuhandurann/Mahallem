@@ -21,7 +21,7 @@ const paytrSalt = defineSecret("PAYTR_MERCHANT_SALT");
 
 async function assertAccountActive(uid: string) {
   const userSnap = await db.collection("users").doc(uid).get();
-  if (userSnap.exists && userSnap.data()?.deletionStatus === "REQUESTED") {
+  if (userSnap.exists && ["REQUESTED", "PURGING"].includes(String(userSnap.data()?.deletionStatus ?? ""))) {
     throw new HttpsError("failed-precondition", "Hesap silme sürecinde olduğu için bu işlem kullanılamaz.");
   }
 }
@@ -658,15 +658,44 @@ export const purgeDeletedAccounts = onSchedule(
       .get();
 
     for (const doc of snapshot.docs) {
-      const dueAt = doc.get("deletionDueAt") as FirestoreTimestamp | Date | undefined;
-      const dueMillis = dueAt instanceof Date
-        ? dueAt.getTime()
-        : dueAt && "toMillis" in dueAt
-          ? dueAt.toMillis()
-          : Number.POSITIVE_INFINITY;
+      const ref = doc.ref;
+      let shouldPurge = false;
 
-      if (dueMillis <= now) {
+      await db.runTransaction(async (tx) => {
+        const fresh = await tx.get(ref);
+        if (!fresh.exists || fresh.data()?.deletionStatus !== "REQUESTED") return;
+
+        const dueAt = fresh.data()?.deletionDueAt as FirestoreTimestamp | Date | undefined;
+        const dueMillis = dueAt instanceof Date
+          ? dueAt.getTime()
+          : dueAt && "toMillis" in dueAt
+            ? dueAt.toMillis()
+            : Number.POSITIVE_INFINITY;
+
+        if (dueMillis <= now) {
+          tx.update(ref, {
+            deletionStatus: "PURGING",
+            purgeStartedAt: FieldValue.serverTimestamp(),
+            updatedAt: FieldValue.serverTimestamp(),
+          });
+          shouldPurge = true;
+        }
+      });
+
+      if (!shouldPurge) continue;
+
+      try {
         await anonymizeAccount(doc.id);
+      } catch (error) {
+        logger.error("Account purge failed; returning account to REQUESTED", {
+          uid: doc.id,
+          error,
+        });
+        await ref.set({
+          deletionStatus: "REQUESTED",
+          purgeStartedAt: FieldValue.delete(),
+          updatedAt: FieldValue.serverTimestamp(),
+        }, { merge: true });
       }
     }
   }
