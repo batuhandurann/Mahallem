@@ -985,8 +985,8 @@ export const paytrWebhook = onRequest(
           return;
         }
 
-        if (receivedTotalMinor < expectedMinor) {
-          logger.error("PayTR webhook ignored: callback amount below order amount", {
+        if (receivedTotalMinor !== expectedMinor) {
+          logger.error("PayTR webhook ignored: callback amount does not match order amount", {
             merchantOid,
             expectedMinor,
             receivedTotalMinor,
