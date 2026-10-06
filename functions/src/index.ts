@@ -280,6 +280,61 @@ export const saveProviderListing = onCall(
   }
 );
 
+export const updateProviderAvailability = onCall(
+  { enforceAppCheck: true },
+  async (request) => {
+    if (!request.auth) throw new HttpsError("unauthenticated", "Kimlik doğrulaması gerekli.");
+    await assertAccountActive(request.auth.uid);
+
+    const data = callableData(request.data);
+    const providerId = requireString(data, "providerId", 120, 1);
+    const dateIso = data.dateIso == null ? "" : requireString(data, "dateIso", 10, 0);
+    const dateBooked = data.dateBooked == null ? null : data.dateBooked === true;
+    const isOpenForOffers = data.isOpenForOffers == null ? null : data.isOpenForOffers === true;
+
+    if (!ID_PATTERN.test(providerId)) {
+      throw new HttpsError("invalid-argument", "Geçersiz hizmet sağlayıcı kimliği.");
+    }
+    if ((dateBooked !== null) !== Boolean(dateIso)) {
+      throw new HttpsError("invalid-argument", "Takvim güncellemesi için dateIso ve dateBooked birlikte gönderilmeli.");
+    }
+    if (dateIso && !/^\d{4}-\d{2}-\d{2}$/.test(dateIso)) {
+      throw new HttpsError("invalid-argument", "Geçersiz takvim tarihi.");
+    }
+    if (isOpenForOffers === null && dateBooked === null) {
+      throw new HttpsError("invalid-argument", "Güncelleme alanı bulunamadı.");
+    }
+
+    const ref = db.collection("providers").doc(providerId);
+    await db.runTransaction(async (tx) => {
+      const snap = await tx.get(ref);
+      if (!snap.exists || snap.data()?.ownerId !== request.auth!.uid) {
+        throw new HttpsError("permission-denied", "Bu hizmet sağlayıcıyı güncelleyemezsiniz.");
+      }
+
+      const update: Record<string, unknown> = {
+        updatedAt: FieldValue.serverTimestamp(),
+      };
+      if (isOpenForOffers !== null) update.isOpenForOffers = isOpenForOffers;
+
+      if (dateBooked !== null) {
+        const current = snap.data()?.bookedDates;
+        const dates = Array.isArray(current)
+          ? current.filter((value): value is string => typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value))
+          : [];
+        const next = new Set(dates);
+        if (dateBooked) next.add(dateIso);
+        else next.delete(dateIso);
+        update.bookedDates = [...next].sort();
+      }
+
+      tx.update(ref, update);
+    });
+
+    return { updated: true, providerId };
+  }
+);
+
 export const saveJobRequest = onCall(
   { enforceAppCheck: true },
   async (request) => {
