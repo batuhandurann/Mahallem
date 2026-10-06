@@ -484,6 +484,7 @@ private fun MarketplaceContent(
                             jobTitle = req.title,
                             customerName = req.customerName,
                             district = req.district,
+                            customerEmail = FirebaseAuth.getInstance().currentUser?.email.orEmpty(),
                             onReceiptGenerated = { receipt ->
                                 activeReceipt = receipt
                             },
