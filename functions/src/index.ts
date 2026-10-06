@@ -91,7 +91,19 @@ export const createPaymentIntent = onCall(
     const paymentRef = db.collection("payments").doc(idemHash);
     const existing = await paymentRef.get();
     if (existing.exists) {
-      return existing.data();
+      const existingPayment = existing.data()!;
+      if (
+        String(existingPayment.requestId ?? "") !== requestId ||
+        String(existingPayment.quoteId ?? "") !== quoteId ||
+        Number(existingPayment.amountMinor ?? 0) !== amountMinor ||
+        String(existingPayment.customerId ?? "") !== request.auth.uid
+      ) {
+        throw new HttpsError(
+          "already-exists",
+          "Idempotency anahtarı farklı bir ödeme işlemi için kullanılmış."
+        );
+      }
+      return existingPayment;
     }
 
     if (!paytrKey.value() || !paytrSalt.value()) {
