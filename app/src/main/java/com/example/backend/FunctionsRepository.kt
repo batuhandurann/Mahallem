@@ -33,6 +33,26 @@ class FunctionsRepository(
         return (result.data as? Map<*, *>) ?: error("Sunucudan geçersiz ödeme yanıtı.")
     }
 
+    suspend fun sendMessage(
+        conversationId: String,
+        text: String,
+        messageType: String = "TEXT",
+        attachmentUrl: String? = null
+    ): String {
+        val result = functions.getHttpsCallable("sendMessage")
+            .call(
+                mapOf(
+                    "conversationId" to conversationId,
+                    "text" to text,
+                    "messageType" to messageType,
+                    "attachmentUrl" to attachmentUrl
+                )
+            )
+            .await()
+        val data = result.data as? Map<*, *> ?: error("Sunucudan geçersiz mesaj yanıtı.")
+        return data["messageId"] as? String ?: error("Sunucudan mesaj kimliği alınamadı.")
+    }
+
     suspend fun startConversation(
         targetId: String,
         relatedItemId: String = "",
