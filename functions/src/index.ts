@@ -869,6 +869,8 @@ export const purgeDeletedAccounts = onSchedule(
     const now = Date.now();
     const snapshot = await db.collection("users")
       .where("deletionStatus", "==", "REQUESTED")
+      .where("deletionDueAt", "<=", new Date(now))
+      .orderBy("deletionDueAt")
       .limit(20)
       .get();
 
