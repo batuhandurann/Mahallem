@@ -45,6 +45,15 @@ function hashDeviceToken(token: string): string {
   return createHash("sha256").update(token).digest("hex");
 }
 
+function isValidIsoDate(value: string): boolean {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const [year, month, day] = value.split("-").map(Number);
+  const date = new Date(Date.UTC(year, month - 1, day));
+  return Number.isFinite(date.getTime())
+    && date.getUTCFullYear() === year
+    && date.getUTCMonth() === month - 1
+    && date.getUTCDate() === day;
+}
 
 async function getUsableAuthUser(uid: string) {
   const authUser = await adminAuth.getUser(uid).catch((error: { code?: string }) => {
@@ -298,7 +307,7 @@ export const updateProviderAvailability = onCall(
     if ((dateBooked !== null) !== Boolean(dateIso)) {
       throw new HttpsError("invalid-argument", "Takvim güncellemesi için dateIso ve dateBooked birlikte gönderilmeli.");
     }
-    if (dateIso && !/^\d{4}-\d{2}-\d{2}$/.test(dateIso)) {
+    if (dateIso && !isValidIsoDate(dateIso)) {
       throw new HttpsError("invalid-argument", "Geçersiz takvim tarihi.");
     }
     if (isOpenForOffers === null && dateBooked === null) {
