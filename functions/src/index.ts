@@ -123,10 +123,7 @@ export const createPaymentIntent = onCall(
 
     await assertAccountActive(request.auth.uid);
 
-    const authTime = Number(request.auth.token.auth_time ?? 0);
-    if (!Number.isFinite(authTime) || authTime <= 0 || Date.now() - authTime * 1000 > 15 * 60 * 1000) {
-      throw new HttpsError("failed-precondition", "Ödeme işlemi için yakın zamanda yeniden doğrulama gerekli.");
-    }
+    requireRecentAuthentication(request.auth.token.auth_time);
 
     const data = callableData(request.data);
     const requestId = String(data.requestId ?? "");
@@ -215,7 +212,7 @@ export const createPaymentIntent = onCall(
     }
 
     const merchantOid = "MHL" + idemHash.slice(0, 45);
-    const noInstallment = "0";
+    const noInstallment = "1";
     const maxInstallment = "0";
     const timeoutLimit = "30";
     const paymentAmount = String(amountMinor);
