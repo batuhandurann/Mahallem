@@ -2209,6 +2209,15 @@ export const syncPublicProvider = onDocumentWritten(
       hourlyOrBasePrice: provider.hourlyOrBasePrice ?? "Anlaşmaya Bağlı",
       isEmergencyAvailable: provider.isEmergencyAvailable === true,
       experienceYears: provider.experienceYears ?? 0,
+      paintBrandsJson: typeof provider.paintBrandsJson === "string"
+        ? provider.paintBrandsJson.slice(0, 2000)
+        : "",
+      charactersOfferedJson: typeof provider.charactersOfferedJson === "string"
+        ? provider.charactersOfferedJson.slice(0, 2000)
+        : "",
+      includedEquipmentsJson: typeof provider.includedEquipmentsJson === "string"
+        ? provider.includedEquipmentsJson.slice(0, 2000)
+        : "",
       serviceArea: (() => {
         const area = provider.serviceArea;
         if (!area || typeof area !== "object") return null;
