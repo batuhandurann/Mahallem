@@ -118,6 +118,9 @@ class FunctionsRepository(
         return result["grantId"] as? String ?: error("Sunucudan geçersiz yükleme kimliği.")
     }
 
+    suspend fun reportContent(targetType: String, targetId: String, reason: String): Map<*, *> =
+        call("reportContent", mapOf("targetType" to targetType, "targetId" to targetId, "reason" to reason))
+
     suspend fun registerDeviceToken(token: String, platform: String = "android"): Map<*, *> =
         call("registerDeviceToken", mapOf("token" to token, "platform" to platform))
 
