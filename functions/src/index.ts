@@ -1207,7 +1207,12 @@ const ACCOUNT_DELETION_DELAY_MS = 30 * 24 * 60 * 60 * 1000;
 
 function requireRecentAuthentication(authTimeSeconds: unknown) {
   const authTime = Number(authTimeSeconds ?? 0);
-  if (!Number.isFinite(authTime) || Date.now() - authTime * 1000 > 15 * 60 * 1000) {
+  const now = Date.now();
+  const authTimeMs = authTime * 1000;
+  const withinClockSkew = authTimeMs <= now + 60_000;
+  const recentEnough = now - authTimeMs <= 15 * 60 * 1000;
+
+  if (!Number.isSafeInteger(authTime) || authTime <= 0 || !withinClockSkew || !recentEnough) {
     throw new HttpsError("failed-precondition", "Bu güvenlik işlemi için yakın zamanda yeniden doğrulama gerekli.");
   }
 }
