@@ -19,6 +19,7 @@ const env = await initializeTestEnvironment({
 async function run() {
   const alice = env.authenticatedContext("alice", { email_verified: true });
   const bob = env.authenticatedContext("bob", { email_verified: true });
+  const anonymousDb = env.unauthenticatedContext().firestore();
 
   const aliceDb = alice.firestore();
   const bobDb = bob.firestore();
@@ -342,6 +343,8 @@ async function run() {
   await assertFails(getDocs(query(collection(aliceDb, "jobRequests"), limit(50))));
   await assertSucceeds(getDocs(query(collection(aliceDb, "publicProviders"), limit(50))));
   await assertSucceeds(getDocs(query(collection(aliceDb, "publicJobRequests"), limit(50))));
+  await assertFails(getDocs(query(collection(anonymousDb, "publicProviders"), limit(50))));
+  await assertFails(getDocs(query(collection(anonymousDb, "publicJobRequests"), limit(50))));
 
   await assertFails(
     setDoc(doc(aliceDb, "publicProviders/client-write"), {
