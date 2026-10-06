@@ -132,6 +132,54 @@ export const createPaymentIntent = onCall(
   }
 );
 
+export const registerDeviceToken = onCall(
+  { region: "europe-west1", enforceAppCheck: true },
+  async (request) => {
+    if (!request.auth) throw new HttpsError("unauthenticated", "Kimlik doğrulaması gerekli.");
+    await assertAccountActive(request.auth.uid);
+
+    const data = request.data as Record<string, unknown>;
+    const token = String(data.token ?? "");
+    const platform = String(data.platform ?? "android");
+
+    if (platform !== "android" || !/^[A-Za-z0-9:_-]{20,4096}$/.test(token)) {
+      throw new HttpsError("invalid-argument", "Geçersiz cihaz belirteci.");
+    }
+
+    const uid = request.auth.uid;
+    const deviceRef = db.collection("users").doc(uid).collection("devices").doc(token);
+    const devicesQuery = db.collection("users").doc(uid).collection("devices").limit(11);
+
+    await db.runTransaction(async (tx) => {
+      const [existing, devices] = await Promise.all([tx.get(deviceRef), tx.get(devicesQuery)]);
+      if (!existing.exists && devices.size >= 10) {
+        throw new HttpsError("resource-exhausted", "Bu hesap için en fazla 10 cihaz kaydı tutulabilir.");
+      }
+      tx.set(deviceRef, {
+        platform,
+        updatedAt: FieldValue.serverTimestamp(),
+      }, { merge: true });
+    });
+
+    return { registered: true };
+  }
+);
+
+export const unregisterDeviceToken = onCall(
+  { region: "europe-west1", enforceAppCheck: true },
+  async (request) => {
+    if (!request.auth) throw new HttpsError("unauthenticated", "Kimlik doğrulaması gerekli.");
+    const data = request.data as Record<string, unknown>;
+    const token = String(data.token ?? "");
+    if (!/^[A-Za-z0-9:_-]{20,4096}$/.test(token)) {
+      throw new HttpsError("invalid-argument", "Geçersiz cihaz belirteci.");
+    }
+
+    await db.collection("users").doc(request.auth.uid).collection("devices").doc(token).delete();
+    return { unregistered: true };
+  }
+);
+
 export const sendMessage = onCall(
   { region: "europe-west1", enforceAppCheck: true },
   async (request) => {
