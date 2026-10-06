@@ -5,7 +5,7 @@ import {
   assertFails,
 } from "@firebase/rules-unit-testing";
 import { doc, setDoc } from "firebase/firestore";
-import { ref, uploadBytes } from "firebase/storage";
+import { ref, uploadBytes, getBytes } from "firebase/storage";
 
 const rules = readFileSync(new URL("../../storage.rules", import.meta.url), "utf8");
 const projectId = process.env.FIREBASE_PROJECT_ID || "mahallem-rules-test";
@@ -57,6 +57,28 @@ async function run() {
     uploadBytes(ref(alice.storage("gs://" + bucket), "jobRequests/alice/request-1/photo.png"), validImage, {
       contentType: "image/png",
     })
+  );
+
+  await env.withSecurityRulesDisabled(async (ctx) => {
+    await setDoc(doc(ctx.firestore(), "conversations/chat-1"), {
+      participantIds: ["alice", "bob"],
+    });
+  });
+
+  const chatPath = "chatAttachments/chat-1/alice/photo.png";
+  await assertSucceeds(
+    uploadBytes(ref(alice.storage("gs://" + bucket), chatPath), validImage, {
+      contentType: "image/png",
+    })
+  );
+
+  await assertSucceeds(
+    getBytes(ref(bob.storage("gs://" + bucket), chatPath), 64)
+  );
+
+  const charlie = env.authenticatedContext("charlie");
+  await assertFails(
+    getBytes(ref(charlie.storage("gs://" + bucket), chatPath), 64)
   );
 
   console.log("Storage rules tests passed.");
