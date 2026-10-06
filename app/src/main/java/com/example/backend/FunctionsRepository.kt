@@ -9,6 +9,22 @@ class FunctionsRepository(
     suspend fun saveProviderListing(data: Map<String, Any?>): Map<*, *> =
         call("saveProviderListing", data)
 
+    suspend fun updateProviderAvailability(
+        providerId: String,
+        isOpenForOffers: Boolean? = null,
+        dateIso: String? = null,
+        dateBooked: Boolean? = null
+    ): Map<*, *> =
+        call(
+            "updateProviderAvailability",
+            buildMap {
+                put("providerId", providerId)
+                isOpenForOffers?.let { put("isOpenForOffers", it) }
+                dateIso?.let { put("dateIso", it) }
+                dateBooked?.let { put("dateBooked", it) }
+            }
+        )
+
     suspend fun saveJobRequest(data: Map<String, Any?>): Map<*, *> =
         call("saveJobRequest", data)
 
