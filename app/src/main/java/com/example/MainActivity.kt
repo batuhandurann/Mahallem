@@ -376,21 +376,15 @@ private fun MarketplaceContent(
                             escrowTargetQuote = Pair(quote, request)
                         },
                         onViewReceipt = { quote ->
-                            val dummyReceipt = DigitalReceiptEntity(
-                                receiptCode = if (quote.receiptCode.isNotBlank()) quote.receiptCode else "MHL-2026-8812",
-                                requestId = quote.requestId,
-                                quoteId = quote.id,
-                                jobTitle = "3+1 Daire Boya ve Badana Hizmeti",
-                                customerName = "Cemil Kaya",
-                                providerName = quote.providerName,
-                                providerTitle = quote.providerTitle,
-                                totalAmount = quote.price,
-                                escrowStatus = "LOCKED",
-                                warrantyInfo = "2 Yıl İşçilik & Malzeme Mahallemde Güvencesi",
-                                createdAtDate = "05.10.2026",
-                                district = "Kadıköy / Moda"
-                            )
-                            activeReceipt = dummyReceipt
+                            viewModel.loadReceiptForRequest(quote.requestId) { receipt ->
+                                if (receipt != null) {
+                                    activeReceipt = receipt
+                                } else if (AppEnvironment.mode == AppEnvironment.Mode.LOCAL) {
+                                    coroutineScope.launch {
+                                        snackbarHostState.showSnackbar("Bu talep için henüz dijital iş fişi oluşturulmadı.")
+                                    }
+                                }
+                            }
                         },
                         onRejectQuote = { quoteId ->
                             viewModel.rejectQuote(quoteId)
