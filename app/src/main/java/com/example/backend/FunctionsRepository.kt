@@ -16,4 +16,13 @@ class FunctionsRepository(private val functions: FirebaseFunctions = FirebaseFun
         @Suppress("UNCHECKED_CAST")
         return (result.data as? Map<*, *>) ?: error("Sunucudan geçersiz iade yanıtı.")
     }
+    suspend fun acceptQuote(quoteId: Long): Map<*, *> = call("acceptQuote", mapOf("quoteId" to quoteId.toString()))
+    suspend fun rejectQuote(quoteId: Long): Map<*, *> = call("rejectQuote", mapOf("quoteId" to quoteId.toString()))
+    suspend fun releaseEscrowPayment(paymentId: String): Map<*, *> = call("releaseEscrowPayment", mapOf("paymentId" to paymentId))
+
+    private suspend fun call(name: String, data: Map<String, Any>): Map<*, *> {
+        val result = functions.getHttpsCallable(name).call(data).await()
+        @Suppress("UNCHECKED_CAST")
+        return (result.data as? Map<*, *>) ?: error("Sunucudan geçersiz yanıt.")
+    }
 }
