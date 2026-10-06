@@ -831,11 +831,12 @@ export const createQuote = onCall(
       throw new HttpsError("invalid-argument", "Geçersiz teklif verisi.");
     }
 
+    const uid = request.auth.uid;
     const providerRef = db.collection("providers").doc(providerId);
     const requestRef = db.collection("jobRequests").doc(requestId);
     const quoteRef = db.collection("quotes").doc(quoteId);
-    const rateLimitRef = db.collection("rateLimits").doc("quote:" + request.auth.uid);
-    const hourlyRateLimitRef = db.collection("rateLimits").doc("quote-hour:" + request.auth.uid);
+    const rateLimitRef = db.collection("rateLimits").doc("quote:" + uid);
+    const hourlyRateLimitRef = db.collection("rateLimits").doc("quote-hour:" + uid);
 
     await db.runTransaction(async (tx) => {
       const [providerSnap, requestSnap, quoteSnap, rateSnap, hourlyRateSnap] = await Promise.all([
@@ -846,7 +847,7 @@ export const createQuote = onCall(
         tx.get(hourlyRateLimitRef),
       ]);
 
-      if (!providerSnap.exists || providerSnap.data()?.ownerId !== request.auth!.uid) {
+      if (!providerSnap.exists || providerSnap.data()?.ownerId !== uid) {
         throw new HttpsError("permission-denied", "Bu hizmet sağlayıcı adına teklif veremezsiniz.");
       }
       if (providerSnap.data()?.isOpenForOffers !== true) {
@@ -857,7 +858,7 @@ export const createQuote = onCall(
       }
 
       const customerId = String(requestSnap.data()?.ownerId ?? "");
-      if (!customerId || customerId === request.auth.uid) {
+      if (!customerId || customerId === uid) {
         throw new HttpsError("permission-denied", "Geçerli bir müşteri talebi bulunamadı.");
       }
 
