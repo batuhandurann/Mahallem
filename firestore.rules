@@ -149,6 +149,11 @@ service cloud.firestore {
       allow create, update, delete: if isAdmin();
     }
 
+    match /contentReports/{reportId} {
+      allow get, list: if isAdmin();
+      allow create, update, delete: if false;
+    }
+
     match /_admin/{document=**} { allow read, write: if isAdmin(); }
   }
 }
