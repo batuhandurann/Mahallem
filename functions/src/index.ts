@@ -235,8 +235,18 @@ export const notifyNewMessage = onDocumentCreated(
     const message = event.data?.data();
     if (!message?.participantIds || !Array.isArray(message.participantIds)) return;
 
-    const recipientIds = message.participantIds.filter((id: unknown) =>
-      typeof id === "string" && id !== message.senderId
+    const conversationId = String(message.conversationId ?? "");
+    const senderId = String(message.senderId ?? "");
+    if (!conversationId || !senderId) return;
+
+    const conversationSnap = await db.collection("conversations").doc(conversationId).get();
+    if (!conversationSnap.exists) return;
+
+    const participantIds = conversationSnap.data()?.participantIds;
+    if (!Array.isArray(participantIds)) return;
+
+    const recipientIds = participantIds.filter((id: unknown) =>
+      typeof id === "string" && id !== senderId
     ) as string[];
 
     if (recipientIds.length === 0) return;
