@@ -46,16 +46,13 @@ function hashDeviceToken(token: string): string {
 }
 
 
-async function assertAccountActive(uid: string) {
-  const [authUser, userSnap] = await Promise.all([
-    adminAuth.getUser(uid).catch((error: { code?: string }) => {
-      if (error.code === "auth/user-not-found") {
-        throw new HttpsError("failed-precondition", "Kullanıcı hesabı artık etkin değil.");
-      }
-      throw error;
-    }),
-    db.collection("users").doc(uid).get(),
-  ]);
+async function getUsableAuthUser(uid: string) {
+  const authUser = await adminAuth.getUser(uid).catch((error: { code?: string }) => {
+    if (error.code === "auth/user-not-found") {
+      throw new HttpsError("failed-precondition", "Kullanıcı hesabı artık etkin değil.");
+    }
+    throw error;
+  });
 
   if (authUser.disabled) {
     throw new HttpsError("failed-precondition", "Kullanıcı hesabı devre dışı.");
@@ -64,6 +61,15 @@ async function assertAccountActive(uid: string) {
   if (!authUser.emailVerified && !authUser.phoneNumber) {
     throw new HttpsError("failed-precondition", "Bu işlem için doğrulanmış e-posta veya telefon gerekir.");
   }
+
+  return authUser;
+}
+
+async function assertAccountActive(uid: string) {
+  const [, userSnap] = await Promise.all([
+    getUsableAuthUser(uid),
+    db.collection("users").doc(uid).get(),
+  ]);
 
   if (userSnap.exists && ["REQUESTED", "PURGING"].includes(String(userSnap.data()?.deletionStatus ?? ""))) {
     throw new HttpsError("failed-precondition", "Hesap silme sürecinde olduğu için bu işlem kullanılamaz.");
@@ -1285,6 +1291,7 @@ export const requestAccountDeletion = onCall(
   { region: "europe-west1", enforceAppCheck: true },
   async (request) => {
     if (!request.auth) throw new HttpsError("unauthenticated", "Kimlik doğrulaması gerekli.");
+    await getUsableAuthUser(request.auth.uid);
     requireRecentAuthentication(request.auth.token.auth_time);
 
     const ref = db.collection("users").doc(request.auth.uid);
@@ -1321,6 +1328,7 @@ export const cancelAccountDeletion = onCall(
   { region: "europe-west1", enforceAppCheck: true },
   async (request) => {
     if (!request.auth) throw new HttpsError("unauthenticated", "Kimlik doğrulaması gerekli.");
+    await getUsableAuthUser(request.auth.uid);
     requireRecentAuthentication(request.auth.token.auth_time);
 
     const ref = db.collection("users").doc(request.auth.uid);
