@@ -31,6 +31,19 @@ service firebase.storage {
           && firestore.get(/databases/(default)/documents/jobRequests/$(requestId)).data.ownerId == ownerUid);
     }
 
+    match /chatAttachments/{conversationId}/{senderUid}/{allPaths=**} {
+      allow read: if signedIn()
+        && firestore.exists(/databases/(default)/documents/conversations/$(conversationId))
+        && request.auth.uid in firestore.get(/databases/(default)/documents/conversations/$(conversationId)).data.participantIds;
+      allow write: if signedIn()
+        && request.auth.uid == senderUid
+        && firestore.exists(/databases/(default)/documents/conversations/$(conversationId))
+        && request.auth.uid in firestore.get(/databases/(default)/documents/conversations/$(conversationId)).data.participantIds
+        && safeImage();
+      allow delete: if isAdmin()
+        || (signedIn() && request.auth.uid == senderUid);
+    }
+
     match /providers/{providerId}/{allPaths=**} {
       allow read: if signedIn();
       allow write, delete: if isAdmin();
