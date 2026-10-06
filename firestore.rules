@@ -87,25 +87,7 @@ service cloud.firestore {
 
     match /quotes/{quoteId} {
       allow read: if isAdmin() || (accountActive() && (resource.data.customerId == request.auth.uid || resource.data.providerOwnerId == request.auth.uid));
-      allow create: if signedIn()
-        && accountActive()
-        && request.resource.data.providerOwnerId == request.auth.uid
-        && request.resource.data.status == 'PENDING'
-        && request.resource.data.amountMinor is int
-        && request.resource.data.amountMinor > 0
-        && request.resource.data.requestId is string
-        && request.resource.data.providerId is string
-        && request.resource.data.customerId is string
-        && request.resource.data.keys().hasOnly([
-          'providerId','providerOwnerId','customerId','requestId',
-          'price','amountMinor','durationOrArrival','notes','status',
-          'createdAt','updatedAt'
-        ])
-        && exists(/databases/$(database)/documents/jobRequests/$(request.resource.data.requestId))
-        && get(/databases/$(database)/documents/jobRequests/$(request.resource.data.requestId)).data.ownerId == request.resource.data.customerId
-        && request.resource.data.customerId != request.auth.uid
-        && get(/databases/$(database)/documents/providers/$(request.resource.data.providerId)).data.ownerId == request.auth.uid
-        && get(/databases/$(database)/documents/jobRequests/$(request.resource.data.requestId)).data.status == 'PENDING';
+      allow create: if false;
       allow update: if isAdmin()
         || (accountActive()
           && resource.data.providerOwnerId == request.auth.uid
