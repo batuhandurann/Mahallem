@@ -1,10 +1,12 @@
 package com.example
 
 import android.os.Bundle
+import android.Manifest
 import android.content.Intent
 import android.net.Uri
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
@@ -16,6 +18,8 @@ import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.runtime.*
 import androidx.compose.ui.platform.LocalContext
+import androidx.core.app.ActivityCompat
+import androidx.core.content.ContextCompat
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -78,6 +82,10 @@ fun MarketplaceApp() {
         onDispose { auth.removeAuthStateListener(listener) }
     }
 
+    val notificationPermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { }
+
     if (currentUser == null) {
         PhoneAuthScreen(onAuthenticated = {})
     } else {
@@ -91,6 +99,16 @@ fun MarketplaceApp() {
                 onCompleted = { currentUser = auth.currentUser }
             )
         } else {
+            LaunchedEffect(currentUser?.uid) {
+                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU
+                    && ContextCompat.checkSelfPermission(
+                        LocalContext.current,
+                        Manifest.permission.POST_NOTIFICATIONS
+                    ) != PackageManager.PERMISSION_GRANTED
+                ) {
+                    notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                }
+            }
             MarketplaceContent()
         }
     }
