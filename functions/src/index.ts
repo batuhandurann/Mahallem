@@ -478,6 +478,7 @@ export const issueImageUploadGrant = onCall(
     const grantId = randomUUID().replace(/-/g, "");
     const grantRef = db.collection("users").doc(uid).collection("uploadGrants").doc(grantId);
     const now = Date.now();
+    let conversationSnapForGrant: FirebaseFirestore.DocumentSnapshot | null = null;
 
     await db.runTransaction(async (tx) => {
       const [rateSnap, grantSnap] = await Promise.all([
@@ -499,17 +500,10 @@ export const issueImageUploadGrant = onCall(
       }
 
       if (kind === "CHAT") {
-        const conversationSnap = await tx.get(db.collection("conversations").doc(conversationId));
-        const participants = conversationSnap.exists ? conversationSnap.data()?.participantIds : null;
+        conversationSnapForGrant = await tx.get(db.collection("conversations").doc(conversationId));
+        const participants = conversationSnapForGrant.exists ? conversationSnapForGrant.data()?.participantIds : null;
         if (!conversationSnap.exists || !Array.isArray(participants) || !participants.includes(uid)) {
           throw new HttpsError("permission-denied", "Bu sohbete görsel yükleyemezsiniz.");
-        }
-      }
-
-      if (kind === "JOB_REQUEST") {
-        const requestSnap = await tx.get(db.collection("jobRequests").doc(requestId));
-        if (!requestSnap.exists || requestSnap.data()?.ownerId !== uid) {
-          throw new HttpsError("permission-denied", "Bu talep için görsel yükleyemezsiniz.");
         }
       }
 
@@ -523,6 +517,11 @@ export const issueImageUploadGrant = onCall(
         ownerUid: uid,
         kind,
         conversationId: kind === "CHAT" ? conversationId : FieldValue.delete(),
+        participantIds: kind === "CHAT"
+          ? ((conversationSnapForGrant?.data()?.participantIds as unknown[] | undefined) ?? [])
+              .filter((id): id is string => typeof id === "string" && ID_PATTERN.test(id))
+              .slice(0, 10)
+          : FieldValue.delete(),
         requestId: kind === "JOB_REQUEST" ? requestId : FieldValue.delete(),
         expiresAt: FirestoreTimestamp.fromMillis(now + 10 * 60_000),
         createdAt: FieldValue.serverTimestamp(),
