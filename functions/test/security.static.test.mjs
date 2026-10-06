@@ -6,10 +6,11 @@ const rules = readFileSync(new URL("../../firestore.rules", import.meta.url), "u
 const storage = readFileSync(new URL("../../storage.rules", import.meta.url), "utf8");
 
 assert.match(source, /setGlobalOptions\(\{[^}]*maxInstances:\s*20[^}]*concurrency:\s*40/s);
-assert.equal((source.match(/export const [A-Za-z0-9_]+ = onCall\(/g) || []).length, 12);
+assert.equal((source.match(/export const [A-Za-z0-9_]+ = onCall\(/g) || []).length, 13);
 assert.equal((source.match(/enforceAppCheck:\s*true/g) || []).length, 12);
 
 assert.match(source, /hashDeviceToken/);
+assert.match(source, /issueImageUploadGrant/);
 assert.match(source, /hourlyRateLimitRef/);
 assert.match(source, /parseTryAmountMinor\(price\) !== amountMinor/);
 assert.match(source, /status === "PURGING"/);
@@ -20,7 +21,7 @@ assert.match(rules, /match \/publicProviders\/\{providerId\}/);
 assert.match(rules, /match \/publicJobRequests\/\{requestId\}/);
 assert.match(rules, /allow list: if false;/);
 
-assert.match(storage, /safeImagePath/);
+assert.match(storage, /validGrant/);
 assert.match(storage, /\\\\.jpg/);
 
 console.log("Security static regression tests passed.");
