@@ -1,10 +1,15 @@
 name: Mahallem QA
+concurrency:
+  group: mahallem-qa-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 
 on:
   push:
-    branches: ["main", "qa/**"]
+    branches: ["main"]
   pull_request:
     branches: ["main"]
+  workflow_dispatch:
 
 permissions:
   contents: read
