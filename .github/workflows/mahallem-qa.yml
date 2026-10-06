@@ -85,6 +85,8 @@ jobs:
         run: npm install --ignore-scripts
       - name: Check backend types and tests
         run: npm test
+      - name: Audit production dependencies
+        run: npm audit --omit=dev --audit-level=high
 
   firebase-rules:
     runs-on: ubuntu-latest
