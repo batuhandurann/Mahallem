@@ -123,9 +123,8 @@ class CloudMarketplaceRepository(
         )
     }
 
-    suspend fun saveQuote(quote: QuoteEntity, providerOwnerId: String) {
-        val uid = requireUid()
-        require(uid == providerOwnerId) { "Teklifi yalnızca hizmet veren hesabı oluşturabilir." }
+    suspend fun saveQuote(quote: QuoteEntity) {
+        requireUid()
         FunctionsRepository().createQuote(
             quoteId = quote.id,
             requestId = quote.requestId,
