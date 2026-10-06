@@ -1503,7 +1503,14 @@ export const cancelAccountDeletion = onCall(
         ? dueAt.getTime()
         : dueAt && "toMillis" in dueAt
           ? dueAt.toMillis()
-          : Number.POSITIVE_INFINITY;
+          : Number.NaN;
+
+      if (!Number.isFinite(dueMillis)) {
+        throw new HttpsError(
+          "failed-precondition",
+          "Hesap silme zamanlayıcısı geçersiz; işlem güvenlik nedeniyle durduruldu."
+        );
+      }
 
       if (dueMillis <= Date.now()) {
         throw new HttpsError(
