@@ -1814,8 +1814,17 @@ export const validateUploadedImage = onObjectFinalized(
     const grantSnap = await grantRef.get();
     if (!grantSnap.exists) return;
 
+    const grant = grantSnap.data() ?? {};
+    const expiresAt = grant.expiresAt as FirestoreTimestamp | Date | undefined;
+    const expiresMillis = expiresAt instanceof Date
+      ? expiresAt.getTime()
+      : expiresAt && "toMillis" in expiresAt
+        ? expiresAt.toMillis()
+        : Number.NaN;
+
     const file = getStorage().bucket(object.bucket).file(name);
-    let valid = size > 0 && size <= 5 * 1024 * 1024
+    let valid = Number.isFinite(expiresMillis) && expiresMillis > Date.now()
+      && size > 0 && size <= 5 * 1024 * 1024
       && ["image/jpeg", "image/png", "image/webp"].includes(contentType);
 
     if (valid) {
