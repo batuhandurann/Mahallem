@@ -13,7 +13,8 @@ interface PaymentGateway {
         quoteId: Long,
         amountMinor: Long,
         currency: String,
-        customerEmail: String? = null
+        customerEmail: String? = null,
+        idempotencyKey: String? = null
     ): PaymentIntent
 
     suspend fun refund(paymentId: String, amountMinor: Long? = null)
@@ -29,7 +30,8 @@ class TestPaymentGateway : PaymentGateway {
         quoteId: Long,
         amountMinor: Long,
         currency: String,
-        customerEmail: String?
+        customerEmail: String?,
+        idempotencyKey: String?
     ): PaymentIntent = PaymentIntent(
         id = "TEST-PAY-$requestId-$quoteId",
         checkoutUrl = "https://example.invalid/test-payment"
@@ -57,16 +59,17 @@ class ProductionPaymentGateway(
         quoteId: Long,
         amountMinor: Long,
         currency: String,
-        customerEmail: String?
+        customerEmail: String?,
+        idempotencyKey: String?
     ): PaymentIntent {
         require(amountMinor > 0) { "Ödeme tutarı geçersiz." }
-        val idempotencyKey = java.util.UUID.randomUUID().toString()
+        val key = idempotencyKey ?: java.util.UUID.randomUUID().toString()
         val result = functions.createPaymentIntent(
             requestId = requestId,
             quoteId = quoteId,
             amountMinor = amountMinor,
             currency = currency,
-            idempotencyKey = idempotencyKey,
+            idempotencyKey = key,
             customerEmail = customerEmail
         )
         val id = result["id"]?.toString() ?: error("Ödeme kimliği alınamadı.")
