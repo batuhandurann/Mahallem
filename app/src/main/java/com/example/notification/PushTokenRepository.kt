@@ -1,10 +1,9 @@
 package com.example.notification
 
-import com.google.firebase.Timestamp
 import com.google.firebase.auth.FirebaseAuth
-import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.messaging.FirebaseMessaging
 import kotlinx.coroutines.tasks.await
+import com.example.backend.FunctionsRepository
 
 class PushTokenRepository(
     private val auth: FirebaseAuth = FirebaseAuth.getInstance(),
@@ -12,16 +11,14 @@ class PushTokenRepository(
     private val messaging: FirebaseMessaging = FirebaseMessaging.getInstance()
 ) {
     suspend fun registerCurrentDevice() {
-        val uid = auth.currentUser?.uid ?: return
+        if (auth.currentUser == null) return
         val token = messaging.token.await()
-        firestore.collection("users").document(uid).collection("devices").document(token)
-            .set(mapOf("platform" to "android", "updatedAt" to Timestamp.now())).await()
+        FunctionsRepository().registerDeviceToken(token)
     }
 
     suspend fun unregisterCurrentDevice() {
-        val uid = auth.currentUser?.uid ?: return
+        if (auth.currentUser == null) return
         val token = messaging.token.await()
-        firestore.collection("users").document(uid).collection("devices").document(token)
-            .delete().await()
+        FunctionsRepository().unregisterDeviceToken(token)
     }
 }
