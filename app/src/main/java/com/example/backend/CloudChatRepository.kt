@@ -55,10 +55,15 @@ class CloudChatRepository(
                 val list = snap?.documents.orEmpty().map { d ->
                     val timestamp = d.getTimestamp("createdAt")?.toDate()?.time ?: System.currentTimeMillis()
                     val sender = d.getString("senderId").orEmpty()
+                    val messageType = d.getString("messageType").orEmpty()
+                    val attachmentPath = d.getString("attachmentUrl").orEmpty()
                     ChatMessageEntity(
                         id = d.id.hashCode().toLong() and 0x7fffffffL, conversationId = conversationId,
                         senderId = sender, senderName = if (sender == auth.currentUser?.uid) "Ben" else "Hizmet Sağlayıcı",
-                        text = d.getString("text") ?: "", timestamp = timestamp, isFromMe = sender == auth.currentUser?.uid
+                        text = d.getString("text") ?: "", timestamp = timestamp,
+                        isFromMe = sender == auth.currentUser?.uid,
+                        hasPhotoAttachment = messageType == "IMAGE",
+                        photoDescription = if (messageType == "IMAGE") attachmentPath else ""
                     )
                 }.sortedBy { it.timestamp }
                 trySend(list)
