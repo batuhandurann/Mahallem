@@ -102,7 +102,7 @@ fun MarketplaceApp() {
             LaunchedEffect(currentUser?.uid) {
                 if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU
                     && ContextCompat.checkSelfPermission(
-                        LocalContext.current,
+                        context,
                         Manifest.permission.POST_NOTIFICATIONS
                     ) != PackageManager.PERMISSION_GRANTED
                 ) {
