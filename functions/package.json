@@ -7,7 +7,7 @@
   "scripts": {
     "build": "tsc",
     "check": "tsc --noEmit",
-    "test": "npm run build && node --test test/paytr.test.mjs test/function-exports.test.mjs",
+    "test": "npm run build && node --test test/paytr.test.mjs test/function-exports.test.mjs test/money.test.mjs",
     "rules:test": "firebase emulators:exec --only firestore,storage --project mahallem-rules-test \"node test/firestore.rules.test.mjs && node test/storage.rules.test.mjs\""
   },
   "dependencies": {
