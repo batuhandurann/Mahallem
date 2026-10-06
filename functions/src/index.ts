@@ -262,6 +262,17 @@ export const saveJobRequest = onCall(
     const eventTime = requireString(data, "eventTime", 32, 0);
     const budgetEstimate = requireString(data, "budgetEstimate", 200, 0);
 
+    const customerPhone = typeof data.customerPhone === "string" ? data.customerPhone.slice(0, 32) : "";
+    const phoneVerified = data.phoneVerified === true;
+    if (phoneVerified) {
+      const authPhone = typeof request.auth.token.phone_number === "string"
+        ? request.auth.token.phone_number
+        : "";
+      if (!authPhone || customerPhone !== authPhone) {
+        throw new HttpsError("permission-denied", "Doğrulanmamış telefon bilgisi.");
+      }
+    }
+
     const ref = db.collection("jobRequests").doc(requestId);
     const privateRef = db.collection("jobRequestPrivate").doc(requestId);
     const rateRef = db.collection("rateLimits").doc("request-write-day:" + request.auth.uid);
@@ -311,8 +322,8 @@ export const saveJobRequest = onCall(
         ownerId: request.auth!.uid,
         address: typeof data.address === "string" ? data.address.slice(0, 500) : "",
         customerName: typeof data.customerName === "string" ? data.customerName.slice(0, 120) : "",
-        customerPhone: typeof data.customerPhone === "string" ? data.customerPhone.slice(0, 32) : "",
-        phoneVerified: data.phoneVerified === true,
+        customerPhone,
+        phoneVerified,
         areaSquareMeters: Number.isSafeInteger(Number(data.areaSquareMeters)) ? Number(data.areaSquareMeters) : 0,
         roomCount: typeof data.roomCount === "string" ? data.roomCount.slice(0, 32) : "",
         isFurnished: data.isFurnished === true,
