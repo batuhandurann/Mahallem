@@ -27,4 +27,22 @@ class UserProfileRepository(
             ref.set(mapOf("updatedAt" to Timestamp.now()), SetOptions.merge()).await()
         }
     }
+
+    suspend fun saveNotificationPreferences(
+        messagesEnabled: Boolean,
+        marketingEnabled: Boolean
+    ) {
+        val user = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser
+            ?: error("Giriş gerekli.")
+        firestore.collection("users").document(user.uid).set(
+            mapOf(
+                "notificationPreferences" to mapOf(
+                    "messages" to messagesEnabled,
+                    "marketing" to marketingEnabled
+                ),
+                "updatedAt" to Timestamp.now()
+            ),
+            SetOptions.merge()
+        ).await()
+    }
 }
