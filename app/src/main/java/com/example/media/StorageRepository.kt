@@ -34,6 +34,24 @@ class StorageRepository(
         )
     }
 
+    suspend fun uploadChatImage(
+        senderUid: String,
+        conversationId: String,
+        uri: Uri,
+        contentResolver: ContentResolver
+    ): String {
+        require(senderUid.isNotBlank()) { "Kullanıcı kimliği gerekli." }
+        require(conversationId.matches(Regex("^[A-Fa-f0-9]{64}$"))) {
+            "Geçersiz sohbet kimliği."
+        }
+        return uploadNormalizedImage(
+            uri = uri,
+            contentResolver = contentResolver,
+            ref = storage.reference.child(
+                "chatAttachments/$conversationId/$senderUid/${UUID.randomUUID()}.jpg"
+            )
+        )
+    }
     suspend fun uploadJobRequestImage(
         ownerUid: String,
         requestId: String,
