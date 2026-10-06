@@ -46,7 +46,7 @@ internal fun isAllowedPaytrCheckoutUrl(value: String): Boolean {
     val uri = runCatching { Uri.parse(value) }.getOrNull() ?: return false
     return uri.scheme.equals("https", ignoreCase = true)
         && uri.host.equals("www.paytr.com", ignoreCase = true)
-        && uri.encodedPath.startsWith("/odeme/")
+        && uri.encodedPath.startsWith("/odeme/guvenli/")
 }
 
 class ProductionPaymentGateway(
