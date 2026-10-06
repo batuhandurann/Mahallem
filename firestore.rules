@@ -100,7 +100,7 @@ service cloud.firestore {
           && resource.data.providerOwnerId == request.auth.uid
           && resource.data.status == 'PENDING'
           && request.resource.data.status == 'PENDING'
-          && get(/databases/$(database)/documents/jobRequests/$(request.resource.data.requestId)).data.ownerId == request.auth.uid
+          && get(/databases/$(database)/documents/jobRequests/$(request.resource.data.requestId)).data.ownerId == request.resource.data.customerId
           && get(/databases/$(database)/documents/jobRequests/$(request.resource.data.requestId)).data.status == 'PENDING'
           && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['price','durationOrArrival','notes','updatedAt'])
           && request.resource.data.price is string && request.resource.data.price.size() <= 200
