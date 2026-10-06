@@ -117,7 +117,7 @@ async function run() {
       district: "Karşıyaka",
       city: "İzmir",
       experienceYears: 3,
-      serviceArea: "Karşıyaka",
+      serviceArea: { latitude: 38.46, longitude: 27.11 },
       isOpenForOffers: true,
       createdAt: new Date(),
       updatedAt: new Date(),
@@ -291,6 +291,17 @@ async function run() {
       ownerId: "bob",
       displayName: "Bob Provider",
     });
+    await setDoc(doc(db, "publicProviders/provider-visible"), {
+      displayName: "Bob Provider",
+      title: "Temizlik",
+      district: "Karşıyaka",
+      city: "İzmir",
+    });
+    await setDoc(doc(db, "publicJobRequests/request-visible"), {
+      title: "Visible request",
+      district: "Karşıyaka",
+      status: "PENDING",
+    });
     await setDoc(doc(db, "jobRequests/request-visible"), {
       ownerId: "bob",
       status: "PENDING",
@@ -326,8 +337,9 @@ async function run() {
   await assertFails(getDoc(doc(deletingDb, "quotes/quote-visible")));
   await assertFails(getDoc(doc(deletingDb, "payments/payment-visible")));
 
-  await assertFails(getDocs(query(collection(aliceDb, "providers"))));
-  await assertSucceeds(getDocs(query(collection(aliceDb, "providers"), limit(50))));
+  await assertFails(getDocs(query(collection(aliceDb, "providers"), limit(50))));
+  await assertSucceeds(getDocs(query(collection(aliceDb, "publicProviders"), limit(50))));
+  await assertSucceeds(getDocs(query(collection(aliceDb, "publicJobRequests"), limit(50))));
 
   await assertFails(getDoc(doc(aliceDb, "users/alice/devices/device-1")));
   await assertFails(
