@@ -63,7 +63,7 @@ class CloudChatRepository(
                         text = d.getString("text") ?: "", timestamp = timestamp,
                         isFromMe = sender == auth.currentUser?.uid,
                         hasPhotoAttachment = messageType == "IMAGE",
-                        photoDescription = if (messageType == "IMAGE") attachmentPath else ""
+                        photoDescription = if (messageType == "IMAGE" && attachmentPath.isNotBlank()) "Fotoğraf gönderildi" else ""
                     )
                 }.sortedBy { it.timestamp }
                 trySend(list)
