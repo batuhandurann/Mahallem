@@ -49,6 +49,7 @@ sealed class ScreenDestination {
 
 class MarketplaceViewModel(application: Application) : AndroidViewModel(application) {
 
+    private val paymentIdempotencyKeys = mutableMapOf<String, String>()
     private val repository: MarketplaceRepository
     private val cloudRepository = com.example.backend.CloudMarketplaceRepository()
     private val cloudChatRepository = com.example.backend.CloudChatRepository()
@@ -534,13 +535,16 @@ class MarketplaceViewModel(application: Application) : AndroidViewModel(applicat
                     _toastMessage.value = "Bu teklif gerçek ödeme için güvenilir tutar içermiyor."
                     return@launch
                 }
+                val paymentKey = "${quote.requestId}:${quote.id}"
+                val idempotencyKey = paymentIdempotencyKeys.getOrPut(paymentKey) { java.util.UUID.randomUUID().toString() }
                 runCatching {
                     com.example.integration.ProductionPaymentGateway().createPayment(
                         requestId = quote.requestId,
                         quoteId = quote.id,
                         amountMinor = quote.amountMinor,
                         currency = "TRY",
-                        customerEmail = customerEmail
+                        customerEmail = customerEmail,
+                        idempotencyKey = idempotencyKey
                     )
                 }.onSuccess { intent ->
                     _lastPaymentId.value = intent.id
@@ -548,6 +552,7 @@ class MarketplaceViewModel(application: Application) : AndroidViewModel(applicat
                     _toastMessage.value = "Güvenli ödeme ekranı açılıyor. Ödeme sonucu sunucudan doğrulanacak."
                     onCheckoutUrl(intent.checkoutUrl)
                 }.onFailure {
+                    paymentIdempotencyKeys.remove(paymentKey)
                     _toastMessage.value = it.message ?: "Ödeme başlatılamadı."
                 }
                 return@launch
