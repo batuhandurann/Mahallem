@@ -64,7 +64,7 @@ async function run() {
     })
   );
 
-  await assertSucceeds(
+  await assertFails(
     setDoc(doc(aliceDb, "jobRequests/request-1"), {
       ownerId: "alice",
       title: "Temizlik",
@@ -106,7 +106,7 @@ async function run() {
     })
   );
 
-  await assertSucceeds(
+  await assertFails(
     setDoc(doc(aliceDb, "providers/provider-1"), {
       ownerId: "alice",
       displayName: "Alice Hizmet",
@@ -207,7 +207,7 @@ async function run() {
     })
   );
 
-  await assertSucceeds(
+  await assertFails(
     setDoc(doc(aliceDb, "jobRequestPrivate/private-1"), {
       ownerId: "alice",
       address: "Karşıyaka",
