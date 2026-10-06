@@ -20,6 +20,19 @@ async function run() {
   const alice = env.authenticatedContext("alice");
   const bob = env.authenticatedContext("bob");
 
+  await env.withSecurityRulesDisabled(async (ctx) => {
+    await setDoc(doc(ctx.firestore(), "users/alice"), {
+      uid: "alice",
+      role: "user",
+      deletionStatus: "ACTIVE",
+    });
+    await setDoc(doc(ctx.firestore(), "users/bob"), {
+      uid: "bob",
+      role: "user",
+      deletionStatus: "ACTIVE",
+    });
+  });
+
   const validImage = new Uint8Array([0x89, 0x50, 0x4e, 0x47]);
 
   await env.withSecurityRulesDisabled(async (ctx) => {
