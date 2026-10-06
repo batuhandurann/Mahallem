@@ -9,7 +9,6 @@ import { defineSecret } from "firebase-functions/params";
 import { logger } from "firebase-functions";
 import { onSchedule } from "firebase-functions/v2/scheduler";
 import { setGlobalOptions } from "firebase-functions/options";
-import { setGlobalOptions } from "firebase-functions/v2";
 import {
   verifyPaytrCallback,
 } from "./payments/paytr";
