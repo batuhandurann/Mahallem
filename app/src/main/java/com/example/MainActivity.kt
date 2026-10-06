@@ -78,7 +78,7 @@ fun MarketplaceApp() {
     if (currentUser == null) {
         PhoneAuthScreen(onAuthenticated = {})
     } else {
-        val consent = remember { ConsentRepository(this@MainActivity) }
+        val consent = remember { ConsentRepository(androidx.compose.ui.platform.LocalContext.current) }
         if (!consent.privacyNoticeAcknowledged) {
             PrivacyConsentScreen(
                 onCompleted = { currentUser = auth.currentUser }
