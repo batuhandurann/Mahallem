@@ -19,11 +19,21 @@ class CloudMarketplaceRepository(
 ) {
     private fun requireUid(): String = auth.currentUser?.uid ?: error("Giriş gerekli.")
 
-    fun observeProviders(): Flow<List<ServiceProviderEntity>> = callbackFlow {
-        val listener = firestore.collection("publicProviders")
-            .orderBy("updatedAt", Query.Direction.DESCENDING)
-            .limit(50)
-            .addSnapshotListener { snapshot, error ->
+    fun observeProviders(
+        categoryId: String? = null,
+        sector: String? = null,
+        district: String? = null,
+        emergencyOnly: Boolean = false
+    ): Flow<List<ServiceProviderEntity>> = callbackFlow {
+        var query: Query = firestore.collection("publicProviders")
+        when {
+            !categoryId.isNullOrBlank() -> query = query.whereEqualTo("categoryId", categoryId)
+            !sector.isNullOrBlank() -> query = query.whereEqualTo("sector", sector)
+            emergencyOnly -> query = query.whereEqualTo("isEmergencyAvailable", true)
+            !district.isNullOrBlank() -> query = query.whereEqualTo("district", district)
+            else -> query = query.orderBy("updatedAt", Query.Direction.DESCENDING)
+        }
+        val listener = query.limit(50).addSnapshotListener { snapshot, error ->
             if (error != null) { close(error); return@addSnapshotListener }
             val providers = snapshot?.documents.orEmpty().mapNotNull { doc ->
                 runCatching { providerFromDocument(doc.id, doc.data.orEmpty()) }.getOrNull()
@@ -33,11 +43,21 @@ class CloudMarketplaceRepository(
         awaitClose { listener.remove() }
     }
 
-    fun observeRequests(): Flow<List<JobRequestEntity>> = callbackFlow {
-        val listener = firestore.collection("publicJobRequests")
-            .orderBy("updatedAt", Query.Direction.DESCENDING)
-            .limit(50)
-            .addSnapshotListener { snapshot, error ->
+    fun observeRequests(
+        categoryId: String? = null,
+        sector: String? = null,
+        district: String? = null,
+        urgency: String? = null
+    ): Flow<List<JobRequestEntity>> = callbackFlow {
+        var query: Query = firestore.collection("publicJobRequests")
+        when {
+            !categoryId.isNullOrBlank() -> query = query.whereEqualTo("categoryId", categoryId)
+            !sector.isNullOrBlank() -> query = query.whereEqualTo("sector", sector)
+            urgency == "EMERGENCY" -> query = query.whereEqualTo("urgencyMode", "EMERGENCY")
+            !district.isNullOrBlank() -> query = query.whereEqualTo("district", district)
+            else -> query = query.orderBy("updatedAt", Query.Direction.DESCENDING)
+        }
+        val listener = query.limit(50).addSnapshotListener { snapshot, error ->
             if (error != null) { close(error); return@addSnapshotListener }
             val requests = snapshot?.documents.orEmpty().mapNotNull { doc ->
                 runCatching { requestFromDocument(doc.id, doc.data.orEmpty()) }.getOrNull()
