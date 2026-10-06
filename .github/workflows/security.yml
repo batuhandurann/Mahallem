@@ -47,7 +47,7 @@ jobs:
           languages: ${{ matrix.language }}
       - name: Build Android code for CodeQL
         if: matrix.language == 'java-kotlin'
-        run: gradle assembleDebug --no-daemon --stacktrace
+        run: gradle assembleDebug --no-daemon --stacktrace -PallowMissingGoogleServices=true
       - name: Analyze
         uses: github/codeql-action/analyze@v4
 
