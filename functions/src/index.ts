@@ -3,12 +3,14 @@ import { initializeApp } from "firebase-admin/app";
 import { getAuth } from "firebase-admin/auth";
 import { getFirestore, FieldValue, Timestamp as FirestoreTimestamp } from "firebase-admin/firestore";
 import { getMessaging } from "firebase-admin/messaging";
+import { getStorage } from "firebase-admin/storage";
 import { onDocumentCreated, onDocumentWritten } from "firebase-functions/v2/firestore";
 import { onCall, onRequest, HttpsError } from "firebase-functions/v2/https";
 import { defineSecret } from "firebase-functions/params";
 import { logger } from "firebase-functions";
 import { onSchedule } from "firebase-functions/v2/scheduler";
 import { setGlobalOptions } from "firebase-functions/options";
+import { onObjectFinalized } from "firebase-functions/storage";
 import {
   verifyPaytrCallback,
 } from "./payments/paytr";
@@ -459,17 +461,23 @@ export const registerDeviceToken = onCall(
 
     const uid = request.auth.uid;
     const tokenId = hashDeviceToken(token);
+    const tokenOwnerRef = db.collection("deviceTokenOwners").doc(tokenId);
     const deviceRef = db.collection("users").doc(uid).collection("devices").doc(tokenId);
     const devicesQuery = db.collection("users").doc(uid).collection("devices").limit(11);
     const rateLimitRef = db.collection("rateLimits").doc("device-register:" + uid);
     const now = Date.now();
 
     await db.runTransaction(async (tx) => {
-      const [existing, devices, rateSnap] = await Promise.all([
+      const [existing, devices, rateSnap, tokenOwnerSnap] = await Promise.all([
         tx.get(deviceRef),
         tx.get(devicesQuery),
         tx.get(rateLimitRef),
+        tx.get(tokenOwnerRef),
       ]);
+
+      if (tokenOwnerSnap.exists && tokenOwnerSnap.data()?.uid !== uid) {
+        throw new HttpsError("permission-denied", "Bu cihaz belirteci başka bir hesaba bağlı.");
+      }
 
       const rate = rateSnap.exists ? rateSnap.data()! : {};
       const windowStart = Number(rate.windowStartMs ?? 0);
@@ -494,6 +502,10 @@ export const registerDeviceToken = onCall(
         platform,
         updatedAt: FieldValue.serverTimestamp(),
       }, { merge: true });
+      tx.set(tokenOwnerRef, {
+        uid,
+        updatedAt: FieldValue.serverTimestamp(),
+      }, { merge: true });
     });
 
     return { registered: true };
@@ -511,7 +523,14 @@ export const unregisterDeviceToken = onCall(
     }
 
     const tokenId = hashDeviceToken(token);
-    await db.collection("users").doc(request.auth.uid).collection("devices").doc(tokenId).delete();
+    const deviceRef = db.collection("users").doc(request.auth.uid).collection("devices").doc(tokenId);
+    const tokenOwnerRef = db.collection("deviceTokenOwners").doc(tokenId);
+    await db.runTransaction(async (tx) => {
+      const ownerSnap = await tx.get(tokenOwnerRef);
+      if (ownerSnap.exists && ownerSnap.data()?.uid !== request.auth!.uid) return;
+      tx.delete(deviceRef);
+      if (ownerSnap.exists) tx.delete(tokenOwnerRef);
+    });
     return { unregistered: true };
   }
 );
@@ -574,6 +593,17 @@ export const sendMessage = onCall(
 
     await db.runTransaction(async (tx) => {
       const conversationSnap = await tx.get(conversationRef);
+      if (attachmentUrl) {
+        const attachmentParts = attachmentUrl.split("/");
+        const grantId = attachmentParts[3]?.replace(/\\.jpg$/, "");
+        const grantRef = db.collection("users").doc(request.auth!.uid).collection("uploadGrants").doc(grantId || "invalid");
+        const grantSnap = await tx.get(grantRef);
+        const grant = grantSnap.data();
+        if (!grantSnap.exists || grant?.ownerUid !== request.auth!.uid || grant?.kind !== "CHAT"
+          || grant?.conversationId !== conversationId || grant?.validated !== true) {
+          throw new HttpsError("failed-precondition", "Medya dosyası henüz doğrulanmadı.");
+        }
+      }
       const [rateLimitSnap, hourlyRateSnap] = await Promise.all([
         tx.get(rateLimitRef),
         tx.get(hourlyRateLimitRef),
@@ -949,6 +979,7 @@ export const rejectQuote = onCall({ region: "europe-west1", enforceAppCheck: tru
 export const releaseEscrowPayment = onCall({ region: "europe-west1", enforceAppCheck: true }, async (request) => {
   if (!request.auth) throw new HttpsError("unauthenticated", "Kimlik doğrulaması gerekli.");
     await assertAccountActive(request.auth.uid);
+    requireRecentAuthentication(request.auth.token.auth_time);
   const paymentId = String((request.data as Record<string, unknown>).paymentId ?? "");
   if (!paymentId) throw new HttpsError("invalid-argument", "paymentId gerekli.");
   const paymentRef = db.collection("payments").doc(paymentId);
@@ -974,6 +1005,9 @@ export const requestRefund = onCall(
   async (request) => {
     if (!request.auth) throw new HttpsError("unauthenticated", "Kimlik doğrulaması gerekli.");
     await assertAccountActive(request.auth.uid);
+    if (request.auth.token.admin !== true) {
+      requireRecentAuthentication(request.auth.token.auth_time);
+    }
     const paymentId = String((request.data as Record<string, unknown>).paymentId ?? "");
     if (!paymentId) throw new HttpsError("invalid-argument", "paymentId gerekli.");
     const paymentRef = db.collection("payments").doc(paymentId);
@@ -1490,6 +1524,54 @@ export const syncPublicJobRequest = onDocumentWritten(
       createdAt: jobRequest.createdAt ?? FieldValue.serverTimestamp(),
       updatedAt: FieldValue.serverTimestamp(),
     }, { merge: false });
+  }
+);
+
+export const validateUploadedImage = onObjectFinalized(
+  { region: "europe-west1" },
+  async (event) => {
+    const object = event.data;
+    const name = String(object.name ?? "");
+    const contentType = String(object.contentType ?? "");
+    const size = Number(object.size ?? 0);
+    const match = name.match(/^(?:users\\/([^/]+)\\/images|jobRequests\\/([^/]+)\\/([^/]+)\\/images|chatAttachments\\/([^/]+)\\/([^/]+))\\/([A-Za-z0-9_-]{1,120})\\.jpg$/);
+    if (!match) return;
+
+    const uid = match[1] ?? match[2] ?? match[5];
+    const grantId = match[6];
+    if (!uid || !grantId) return;
+
+    const grantRef = db.collection("users").doc(uid).collection("uploadGrants").doc(grantId);
+    const grantSnap = await grantRef.get();
+    if (!grantSnap.exists) return;
+
+    const file = getStorage().bucket(object.bucket).file(name);
+    let valid = size > 0 && size <= 5 * 1024 * 1024
+      && ["image/jpeg", "image/png", "image/webp"].includes(contentType);
+
+    if (valid) {
+      try {
+        const [bytes] = await file.download({ start: 0, end: 15 });
+        const jpeg = bytes.length >= 3 && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff;
+        const png = bytes.length >= 8 && bytes.subarray(0, 8).equals(Buffer.from([0x89,0x50,0x4e,0x47,0x0d,0x0a,0x1a,0x0a]));
+        const webp = bytes.length >= 12 && bytes.subarray(0, 4).toString("ascii") === "RIFF"
+          && bytes.subarray(8, 12).toString("ascii") === "WEBP";
+        valid = (contentType === "image/jpeg" && jpeg)
+          || (contentType === "image/png" && png)
+          || (contentType === "image/webp" && webp);
+      } catch (error) {
+        logger.error("Image validation failed", { name, error });
+        valid = false;
+      }
+    }
+
+    if (!valid) {
+      await file.delete().catch(() => undefined);
+      await grantRef.set({ validated: false, rejectedAt: FieldValue.serverTimestamp() }, { merge: true });
+      return;
+    }
+
+    await grantRef.set({ validated: true, validatedAt: FieldValue.serverTimestamp() }, { merge: true });
   }
 );
 
