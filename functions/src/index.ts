@@ -3,7 +3,7 @@ import { initializeApp } from "firebase-admin/app";
 import { getAuth } from "firebase-admin/auth";
 import { getFirestore, FieldValue, Timestamp as FirestoreTimestamp } from "firebase-admin/firestore";
 import { getMessaging } from "firebase-admin/messaging";
-import { onDocumentCreated } from "firebase-functions/v2/firestore";
+import { onDocumentCreated, onDocumentWritten } from "firebase-functions/v2/firestore";
 import { onCall, onRequest, HttpsError } from "firebase-functions/v2/https";
 import { defineSecret } from "firebase-functions/params";
 import { logger } from "firebase-functions";
@@ -1072,6 +1072,59 @@ export const paytrWebhook = onRequest(
     }
 
     res.status(200).send("OK");
+  }
+);
+
+export const syncPublicProvider = onDocumentWritten(
+  { document: "providers/{providerId}", region: "europe-west1" },
+  async (event) => {
+    const providerRef = db.collection("publicProviders").doc(event.params.providerId);
+    const provider = event.data?.after.data();
+    if (!event.data?.after.exists || !provider) {
+      await providerRef.delete().catch(() => undefined);
+      return;
+    }
+
+    await providerRef.set({
+      displayName: provider.displayName ?? "",
+      title: provider.title ?? "",
+      bio: provider.bio ?? "",
+      sector: provider.sector ?? "",
+      categoryId: provider.categoryId ?? "",
+      district: provider.district ?? "",
+      city: provider.city ?? "",
+      experienceYears: provider.experienceYears ?? 0,
+      serviceArea: provider.serviceArea ?? null,
+      isOpenForOffers: provider.isOpenForOffers === true,
+      createdAt: provider.createdAt ?? FieldValue.serverTimestamp(),
+      updatedAt: FieldValue.serverTimestamp(),
+    }, { merge: false });
+  }
+);
+
+export const syncPublicJobRequest = onDocumentWritten(
+  { document: "jobRequests/{requestId}", region: "europe-west1" },
+  async (event) => {
+    const requestRef = db.collection("publicJobRequests").doc(event.params.requestId);
+    const jobRequest = event.data?.after.data();
+    if (!event.data?.after.exists || !jobRequest) {
+      await requestRef.delete().catch(() => undefined);
+      return;
+    }
+
+    await requestRef.set({
+      title: jobRequest.title ?? "",
+      sector: jobRequest.sector ?? "",
+      categoryId: jobRequest.categoryId ?? "",
+      district: jobRequest.district ?? "",
+      urgencyMode: jobRequest.urgencyMode ?? "",
+      eventOrJobDate: jobRequest.eventOrJobDate ?? "",
+      eventTime: jobRequest.eventTime ?? "",
+      budgetEstimate: jobRequest.budgetEstimate ?? "",
+      status: jobRequest.status ?? "PENDING",
+      createdAt: jobRequest.createdAt ?? FieldValue.serverTimestamp(),
+      updatedAt: FieldValue.serverTimestamp(),
+    }, { merge: false });
   }
 );
 
