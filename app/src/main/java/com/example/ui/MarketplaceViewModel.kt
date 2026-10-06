@@ -43,6 +43,7 @@ sealed class ScreenDestination {
 class MarketplaceViewModel(application: Application) : AndroidViewModel(application) {
 
     private val repository: MarketplaceRepository
+    private val cloudRepository = com.example.backend.CloudMarketplaceRepository()
 
     init {
         val database = AppDatabase.getDatabase(application)
@@ -116,10 +117,26 @@ class MarketplaceViewModel(application: Application) : AndroidViewModel(applicat
     ) { sector, urgency, category, query, district ->
         FilterState(sector, urgency, category, query, district)
     }.flatMapLatest { f ->
-        repository.getFilteredProviders(f.sector, f.urgency, f.category, f.query, f.district)
+        if (AppEnvironment.mode == AppEnvironment.Mode.LOCAL) {
+            repository.getFilteredProviders(f.sector, f.urgency, f.category, f.query, f.district)
+        } else {
+            cloudRepository.observeProviders().map { list ->
+                list.filter { p ->
+                    val sectorMatch = f.sector == SectorType.ALL || p.sector == f.sector.name
+                    val urgencyMatch = when (f.urgency) {
+                        UrgencyMode.ALL -> true
+                        UrgencyMode.EMERGENCY -> p.isEmergencyAvailable
+                        UrgencyMode.PLANNED -> !p.isEmergencyAvailable || p.isOpenForOffers
+                    }
+                    val categoryMatch = f.category.isNullOrBlank() || p.categoryId == f.category
+                    val districtMatch = f.district == "Tüm İlçeler" || p.district.contains(f.district.split("/").first().trim(), true)
+                    val queryMatch = f.query.isBlank() || p.name.contains(f.query, true) || p.title.contains(f.query, true) || p.bio.contains(f.query, true)
+                    sectorMatch && urgencyMatch && categoryMatch && districtMatch && queryMatch
+                }
+            }
+        }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    // --- Job Requests Flow (Flow B: Hizmet Arayan Talepleri - Armut) ---
     @OptIn(ExperimentalCoroutinesApi::class)
     val jobRequests: StateFlow<List<JobRequestEntity>> = combine(
         _selectedSector,
@@ -130,7 +147,20 @@ class MarketplaceViewModel(application: Application) : AndroidViewModel(applicat
     ) { sector, urgency, category, query, district ->
         FilterState(sector, urgency, category, query, district)
     }.flatMapLatest { f ->
-        repository.getFilteredRequests(f.sector, f.urgency, f.category, f.query, f.district)
+        if (AppEnvironment.mode == AppEnvironment.Mode.LOCAL) {
+            repository.getFilteredRequests(f.sector, f.urgency, f.category, f.query, f.district)
+        } else {
+            cloudRepository.observeRequests().map { list ->
+                list.filter { req ->
+                    val sectorMatch = f.sector == SectorType.ALL || req.sector == f.sector.name
+                    val urgencyMatch = f.urgency == UrgencyMode.ALL || req.urgencyMode == f.urgency.name
+                    val categoryMatch = f.category.isNullOrBlank() || req.categoryId == f.category
+                    val districtMatch = f.district == "Tüm İlçeler" || req.district.contains(f.district.split("/").first().trim(), true)
+                    val queryMatch = f.query.isBlank() || req.title.contains(f.query, true) || req.budgetEstimate.contains(f.query, true)
+                    sectorMatch && urgencyMatch && categoryMatch && districtMatch && queryMatch
+                }
+            }
+        }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     // --- Quotes Flow ---
@@ -430,6 +460,11 @@ class MarketplaceViewModel(application: Application) : AndroidViewModel(applicat
                 bio = bio.ifBlank { "Garantili ve güvenilir hizmet sunuyorum." }
             )
             repository.publishProviderListing(entity)
+            if (AppEnvironment.mode != AppEnvironment.Mode.LOCAL) {
+                runCatching { cloudRepository.saveProvider(entity) }
+                    .onFailure { _toastMessage.value = "Buluta yayınlanamadı: ${it.message ?: "Bilinmeyen hata"}" }
+                    .onSuccess { _toastMessage.value = "Hizmet ilanınız güvenli şekilde yayına alındı." }
+            }
             _toastMessage.value = "Hizmet ilanınız başarıyla yayına alındı! Mahalle sakinleri artık profilinize ulaşabilir 🎉"
             popToHome()
         }
@@ -488,6 +523,11 @@ class MarketplaceViewModel(application: Application) : AndroidViewModel(applicat
                 budgetEstimate = budget
             )
             val newId = repository.createJobRequest(entity)
+            val storedEntity = entity.copy(id = newId)
+            if (AppEnvironment.mode != AppEnvironment.Mode.LOCAL) {
+                runCatching { cloudRepository.saveJobRequest(storedEntity) }
+                    .onFailure { _toastMessage.value = "Talep buluta kaydedilemedi: ${it.message ?: "Bilinmeyen hata"}" }
+            }
             if (AppEnvironment.mode == AppEnvironment.Mode.LOCAL) {
                 simulateProviderResponse(newId, category, urgency)
             }
@@ -561,7 +601,11 @@ class MarketplaceViewModel(application: Application) : AndroidViewModel(applicat
                 notes = notes,
                 status = "PENDING"
             )
-            repository.sendQuote(quote)
+            val quoteId = repository.sendQuote(quote)
+            if (AppEnvironment.mode != AppEnvironment.Mode.LOCAL) {
+                runCatching { cloudRepository.saveQuote(quote.copy(id = quoteId), provider.id) }
+                    .onFailure { _toastMessage.value = "Teklif buluta gönderilemedi: ${it.message ?: "Bilinmeyen hata"}" }
+            }
             _toastMessage.value = "Teklifiniz müşteriye başarıyla iletildi 🚀"
         }
     }
