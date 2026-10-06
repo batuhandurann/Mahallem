@@ -1582,13 +1582,8 @@ export const getPaymentStatus = onCall(
 
     const payment = snap.data()!;
     const isCustomer = payment.customerId === request.auth.uid;
-    const providerId = String(payment.providerId ?? "");
-    let isProvider = false;
-
-    if (!isCustomer && providerId) {
-      const providerSnap = await db.collection("providers").doc(providerId).get();
-      isProvider = providerSnap.exists && providerSnap.data()?.ownerId === request.auth.uid;
-    }
+    // payments.providerId stores the provider owner's Firebase UID, not the provider document ID.
+    const isProvider = payment.providerId === request.auth.uid;
 
     if (!isCustomer && !isProvider && request.auth.token.admin !== true) {
       throw new HttpsError("permission-denied", "Bu ödemenin durumunu görüntüleyemezsiniz.");
