@@ -1,4 +1,8 @@
 name: Mahallem Security
+concurrency:
+  group: mahallem-security-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 
 on:
   pull_request:
