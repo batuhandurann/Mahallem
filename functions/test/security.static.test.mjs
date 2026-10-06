@@ -28,6 +28,8 @@ assert.match(source, /String\(jobRequest\.status \?\? ""\) === "CLOSED"/);
 assert.match(source, /function requireRecentAuthentication/);
 assert.match(source, /Number\.isSafeInteger\(authTime\)/);
 assert.match(source, /authTime <= 0/);
+assert.match(source, /const noInstallment = "1"/);
+assert.match(source, /okUrlParsed\.protocol !== "https:"/);
 assert.match(source, /withinClockSkew/);
 assert.match(source, /recentEnough/);
 
