@@ -478,9 +478,11 @@ private fun MarketplaceContent(
                             },
                             onCheckoutUrl = { url ->
                                 runCatching {
-                                    startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
+                                    context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
                                 }.onFailure {
-                                    snackbarHostState.showSnackbar("Ödeme sayfası açılamadı.")
+                                    coroutineScope.launch {
+                                        snackbarHostState.showSnackbar("Ödeme sayfası açılamadı.")
+                                    }
                                 }
                             }
                         )
