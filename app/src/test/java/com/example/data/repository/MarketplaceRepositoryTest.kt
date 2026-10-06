@@ -69,6 +69,38 @@ class MarketplaceRepositoryTest {
     }
 
     @Test
+    fun reopeningExistingConversation_preservesConversationId() = runBlocking {
+        val existing = ConversationEntity(
+            id = "conv-p1",
+            participantId = "p1",
+            participantName = "Usta",
+            participantTitle = "Boyacı",
+            lastMessage = "Merhaba",
+            lastTimestamp = 1234L,
+            unreadCount = 2,
+            relatedItemTitle = "Boya"
+        )
+        val dao = FakeDao(initialConversation = existing)
+        val repo = MarketplaceRepository(dao)
+
+        val id = repo.startOrGetConversation("p1", "Usta", "Boyacı", "Boya")
+
+        assertEquals("conv-p1", id)
+        assertEquals("Merhaba", dao.conversations["conv-p1"]?.lastMessage)
+    }
+
+    @Test
+    fun startConversation_createsWhenMissing() = runBlocking {
+        val dao = FakeDao()
+        val repo = MarketplaceRepository(dao)
+
+        val id = repo.startOrGetConversation("p2", "Usta 2", "Tesisat", "Su kaçağı")
+
+        assertEquals("conv-p2", id)
+        assertEquals("Sohbet başlatıldı", dao.conversations["conv-p2"]?.lastMessage)
+    }
+
+    @Test
     fun releaseEscrow_marksReceiptReleased() = runBlocking {
         val receipt = DigitalReceiptEntity(
             receiptCode = "MHL-2026-1234", requestId = 42, quoteId = 7,
@@ -141,11 +173,15 @@ class MarketplaceRepositoryTest {
     private class FakeDao(
         providers: List<ServiceProviderEntity> = emptyList(),
         requests: List<JobRequestEntity> = emptyList(),
-        initialReceipt: DigitalReceiptEntity? = null
+        initialReceipt: DigitalReceiptEntity? = null,
+        initialConversation: ConversationEntity? = null
     ) : AppDao {
         private var storedReceipt: DigitalReceiptEntity? = initialReceipt
         private val providersFlow = MutableStateFlow(providers)
         private val requestsFlow = MutableStateFlow(requests)
+        val conversations = mutableMapOf<String, ConversationEntity>().apply {
+            initialConversation?.let { put(it.id, it) }
+        }
         val favoriteUpdates = mutableListOf<Boolean>()
         val requestStatuses = mutableMapOf<Long, String>()
         val insertedQuotes = mutableListOf<QuoteEntity>()
@@ -186,8 +222,8 @@ class MarketplaceRepositoryTest {
         override fun getAllReceipts(): Flow<List<DigitalReceiptEntity>> = flowOf(emptyList())
 
         override fun getAllConversations(): Flow<List<ConversationEntity>> = flowOf(emptyList())
-        override fun getConversationById(id: String): Flow<ConversationEntity?> = flowOf(null)
-        override suspend fun insertConversation(conv: ConversationEntity) = Unit
+        override fun getConversationById(id: String): Flow<ConversationEntity?> = flowOf(conversations[id])
+        override suspend fun insertConversation(conv: ConversationEntity) { conversations[conv.id] = conv }
         override suspend fun updateConversationLastMessage(id: String, lastMsg: String, timestamp: Long) = Unit
         override fun getMessagesForConversation(convId: String): Flow<List<ChatMessageEntity>> = flowOf(emptyList())
         override suspend fun insertMessage(msg: ChatMessageEntity): Long = 1L
