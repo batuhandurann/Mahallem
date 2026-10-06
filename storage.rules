@@ -69,195 +69,88 @@ service firebase.storage {
     }
 
     function filenameGrantId(fileName) {
-      return fileName.split('\\.jpg
-
-    match /providers/{providerId}/{allPaths=**} {
-      allow read: if signedIn();
-      allow write, delete: if isAdmin();
-    }
-
-    match /admin/{allPaths=**} {
-      allow read, write: if isAdmin();
-    }
-  }
-}
-)[0];
+      return fileName.split('\\.jpg$')[0];
     }
 
     match /users/{uid}/images/{fileName} {
       allow read: if accountActive(uid)
         && request.auth.uid == uid
-        && fileName.matches('^[A-Za-z0-9_-]{1,80}\\.jpg
-
-    match /providers/{providerId}/{allPaths=**} {
-      allow read: if signedIn();
-      allow write, delete: if isAdmin();
-    }
-
-    match /admin/{allPaths=**} {
-      allow read, write: if isAdmin();
-    }
-  }
-}
-)
+        && fileName.matches('^[A-Za-z0-9_-]{1,80}\\.jpg$')
         && validGrant(uid, filenameGrantId(fileName), 'USER')
-        && firestore.get(/databases/(default)/documents/users/$(uid)/uploadGrants/$(filenameGrantId(fileName))).data.validated == true;
+        && firestore.get(
+          /databases/(default)/documents/users/$(uid)/uploadGrants/$(filenameGrantId(fileName))
+        ).data.validated == true;
+
       allow write: if accountActive(uid)
         && request.auth.uid == uid
         && resource == null
-        && fileName.matches('^[A-Za-z0-9_-]{1,80}\\.jpg
-
-    match /providers/{providerId}/{allPaths=**} {
-      allow read: if signedIn();
-      allow write, delete: if isAdmin();
-    }
-
-    match /admin/{allPaths=**} {
-      allow read, write: if isAdmin();
-    }
-  }
-}
-)
+        && fileName.matches('^[A-Za-z0-9_-]{1,80}\\.jpg$')
         && validActiveGrant(uid, filenameGrantId(fileName), 'USER')
         && safeImage();
+
       allow delete: if accountActive(uid)
         && request.auth.uid == uid
-        && fileName.matches('^[A-Za-z0-9_-]{1,80}\\.jpg
-
-    match /providers/{providerId}/{allPaths=**} {
-      allow read: if signedIn();
-      allow write, delete: if isAdmin();
-    }
-
-    match /admin/{allPaths=**} {
-      allow read, write: if isAdmin();
-    }
-  }
-}
-);
+        && fileName.matches('^[A-Za-z0-9_-]{1,80}\\.jpg$');
     }
 
     match /jobRequests/{ownerUid}/{requestId}/images/{fileName} {
       allow read: if accountActive(ownerUid)
         && request.auth.uid == ownerUid
-        && fileName.matches('^[A-Za-z0-9_-]{1,80}\\.jpg
-
-    match /providers/{providerId}/{allPaths=**} {
-      allow read: if signedIn();
-      allow write, delete: if isAdmin();
-    }
-
-    match /admin/{allPaths=**} {
-      allow read, write: if isAdmin();
-    }
-  }
-}
-)
+        && fileName.matches('^[A-Za-z0-9_-]{1,80}\\.jpg$')
         && validJobGrant(ownerUid, requestId, filenameGrantId(fileName))
-        && firestore.get(/databases/(default)/documents/users/$(ownerUid)/uploadGrants/$(filenameGrantId(fileName))).data.validated == true;
+        && firestore.get(
+          /databases/(default)/documents/users/$(ownerUid)/uploadGrants/$(filenameGrantId(fileName))
+        ).data.validated == true;
+
       allow write: if accountActive(ownerUid)
         && request.auth.uid == ownerUid
         && resource == null
-        && fileName.matches('^[A-Za-z0-9_-]{1,80}\\.jpg
-
-    match /providers/{providerId}/{allPaths=**} {
-      allow read: if signedIn();
-      allow write, delete: if isAdmin();
-    }
-
-    match /admin/{allPaths=**} {
-      allow read, write: if isAdmin();
-    }
-  }
-}
-)
+        && fileName.matches('^[A-Za-z0-9_-]{1,80}\\.jpg$')
         && validActiveJobGrant(ownerUid, requestId, filenameGrantId(fileName))
         && firestore.exists(/databases/(default)/documents/jobRequests/$(requestId))
         && firestore.get(/databases/(default)/documents/jobRequests/$(requestId)).data.ownerId == ownerUid
         && safeImage();
+
       allow delete: if isAdmin()
-        || (signedIn()
+        || (accountActive(ownerUid)
           && request.auth.uid == ownerUid
-          && fileName.matches('^[A-Za-z0-9_-]{1,80}\\.jpg
-
-    match /providers/{providerId}/{allPaths=**} {
-      allow read: if signedIn();
-      allow write, delete: if isAdmin();
-    }
-
-    match /admin/{allPaths=**} {
-      allow read, write: if isAdmin();
-    }
-  }
-}
-)
+          && fileName.matches('^[A-Za-z0-9_-]{1,80}\\.jpg$')
           && firestore.exists(/databases/(default)/documents/jobRequests/$(requestId))
           && firestore.get(/databases/(default)/documents/jobRequests/$(requestId)).data.ownerId == ownerUid);
     }
 
     match /chatAttachments/{conversationId}/{senderUid}/{fileName} {
-      allow read: if accountActive(request.auth.uid)
-        && fileName.matches('^[A-Za-z0-9_-]{1,80}\\.jpg
-
-    match /providers/{providerId}/{allPaths=**} {
-      allow read: if signedIn();
-      allow write, delete: if isAdmin();
-    }
-
-    match /admin/{allPaths=**} {
-      allow read, write: if isAdmin();
-    }
-  }
-}
-)
+      allow read: if accountActive(senderUid)
+        && fileName.matches('^[A-Za-z0-9_-]{1,80}\\.jpg$')
         && firestore.exists(/databases/(default)/documents/conversations/$(conversationId))
         && request.auth.uid in firestore.get(
           /databases/(default)/documents/conversations/$(conversationId)
         ).data.participantIds
         && validChatGrant(senderUid, conversationId, filenameGrantId(fileName))
-        && firestore.get(/databases/(default)/documents/users/$(senderUid)/uploadGrants/$(filenameGrantId(fileName))).data.validated == true;
+        && firestore.get(
+          /databases/(default)/documents/users/$(senderUid)/uploadGrants/$(filenameGrantId(fileName))
+        ).data.validated == true;
+
       allow write: if accountActive(senderUid)
         && request.auth.uid == senderUid
         && resource == null
-        && fileName.matches('^[A-Za-z0-9_-]{1,80}\\.jpg
-
-    match /providers/{providerId}/{allPaths=**} {
-      allow read: if signedIn();
-      allow write, delete: if isAdmin();
-    }
-
-    match /admin/{allPaths=**} {
-      allow read, write: if isAdmin();
-    }
-  }
-}
-)
+        && fileName.matches('^[A-Za-z0-9_-]{1,80}\\.jpg$')
         && validActiveChatGrant(senderUid, conversationId, filenameGrantId(fileName))
         && firestore.exists(/databases/(default)/documents/conversations/$(conversationId))
         && request.auth.uid in firestore.get(
           /databases/(default)/documents/conversations/$(conversationId)
         ).data.participantIds
         && safeImage();
+
       allow delete: if isAdmin()
-        || (accountActive(senderUid) && request.auth.uid == senderUid
-          && fileName.matches('^[A-Za-z0-9_-]{1,80}\\.jpg
-
-    match /providers/{providerId}/{allPaths=**} {
-      allow read: if signedIn();
-      allow write, delete: if isAdmin();
-    }
-
-    match /admin/{allPaths=**} {
-      allow read, write: if isAdmin();
-    }
-  }
-}
-));
+        || (accountActive(senderUid)
+          && request.auth.uid == senderUid
+          && fileName.matches('^[A-Za-z0-9_-]{1,80}\\.jpg$'));
     }
 
     match /providers/{providerId}/{allPaths=**} {
-      allow read: if signedIn();
-      allow write, delete: if isAdmin();
+      // Legacy provider-media namespace: current app media uses grant-scoped paths above.
+      allow read, write, delete: if isAdmin();
     }
 
     match /admin/{allPaths=**} {
