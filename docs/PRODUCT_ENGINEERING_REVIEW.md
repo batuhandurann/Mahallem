@@ -47,3 +47,27 @@ Every new feature should answer four questions before merge:
 - **Failure behavior**: what happens offline, after token expiry, after duplicate taps, on retries, or after account deletion starts?
 
 Prefer server-authoritative state for money, identity, permissions, moderation, and marketplace ownership. Prefer local caching for read-mostly public discovery only when cache invalidation and account boundaries are explicit.
+
+
+## 2026-10-07 production hardening follow-up
+
+Implemented on the QA/Security branch:
+
+- Replaced the simulated Canvas neighborhood map and hard-coded pins/distances with Google Maps Compose using real backend coordinates. Public marketplace coordinates remain rounded to an approximate area before they reach discovery.
+- Removed false production trust signals: fixed "online" presence, fixed message timestamps/read receipts, production fake voice notes, and hard-coded portfolio/view-count examples.
+- Added backend-only account-scoped favorites, bidirectional user blocking, blocked-message/quote/notification enforcement, and user-level abuse reporting.
+- Added a server-authoritative job lifecycle: pending cancellation, accepted work, two-party completion confirmation, dispute freeze, admin dispute resolution, and transaction-verified reviews.
+- Added customer and provider quote visibility, verified review summaries on provider profiles, and server-derived rating/review counts.
+- Added message and offer notification routing. Message taps target the conversation; offer taps target My Requests. Notification preferences and blocked relationships are enforced server-side.
+- Public job discovery now contains only PENDING requests and uses approximate service-area coordinates sourced from the private request document.
+- Removed client timestamp IDs for new production provider/request/quote writes in favor of opaque identifiers.
+- Clarified payment UX: standard PayTR hosted checkout is described as a secure payment flow, not as completed marketplace escrow/settlement.
+
+Still not claimable as complete without external/staging work:
+
+1. PayTR Marketplace seller payout/settlement and real refund execution require merchant approval, credentials, provider onboarding and sandbox/live verification.
+2. Play Integrity/App Check enforcement, Firebase environment separation, production domains and provider configuration must be verified in the target Firebase consoles.
+3. Google Maps SDK must be enabled and a production-restricted Maps API key supplied outside Git.
+4. Identity/KYC, MYK, criminal-record or other trust badges require a legitimate verification provider/workflow; production currently fails closed instead of trusting self-declared badges.
+5. True infinite pagination/full-text/geospatial relevance at large scale remains a scale feature; current real-time discovery queries remain bounded.
+6. A production moderation operations console, support/SLA process and marketplace financial reconciliation remain operational work, not client-only code.

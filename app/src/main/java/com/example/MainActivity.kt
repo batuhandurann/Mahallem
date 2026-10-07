@@ -60,8 +60,11 @@ class MainActivity : ComponentActivity() {
 
     private fun captureNavigationIntent(intent: Intent?) {
         val conversationId = intent?.getStringExtra(EXTRA_CONVERSATION_ID)
+            ?: intent?.getStringExtra("conversationId")
         pendingConversationId.value = conversationId?.takeIf { it.matches(Regex("^[a-f0-9]{64}$")) }
-        pendingOpenMyRequests.value = intent?.getBooleanExtra(EXTRA_OPEN_MY_REQUESTS, false) == true
+        pendingOpenMyRequests.value =
+            intent?.getBooleanExtra(EXTRA_OPEN_MY_REQUESTS, false) == true ||
+                intent?.getStringExtra("destination") == "MY_REQUESTS"
     }
 
     override fun onNewIntent(intent: Intent) {
@@ -231,6 +234,7 @@ private fun MarketplaceContent(
     val requests by viewModel.jobRequests.collectAsStateWithLifecycle()
     val myRequests by viewModel.myJobRequests.collectAsStateWithLifecycle()
     val quotes by viewModel.allQuotes.collectAsStateWithLifecycle()
+    val providerReviews by viewModel.providerReviews.collectAsStateWithLifecycle()
     val conversations by viewModel.conversations.collectAsStateWithLifecycle()
     val activeChatMessages by viewModel.activeChatMessages.collectAsStateWithLifecycle()
     val toastMessage by viewModel.toastMessage.collectAsStateWithLifecycle()
@@ -411,6 +415,7 @@ private fun MarketplaceContent(
                     val provider = providers.find { it.id == screen.providerId }
                     ProviderDetailScreen(
                         provider = provider,
+                        reviews = providerReviews,
                         onBackClick = { viewModel.navigateBack() },
                         onFavoriteToggle = { provider?.let { viewModel.toggleFavorite(it) } },
                         onRequestQuoteClick = {

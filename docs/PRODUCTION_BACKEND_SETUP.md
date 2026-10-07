@@ -106,3 +106,17 @@ Production secrets must be supplied through deployment secrets, not Git.
 The repository now contains Firebase Auth/Firestore dependencies and integration boundaries for Auth, Firestore, SMS and payments.
 
 A Firebase project and payment/SMS provider credentials are still required before live connections can be enabled.
+
+
+## 8. Google Maps
+
+Mahallem uses Google Maps Compose for the marketplace map.
+
+Production setup:
+- Enable Maps SDK for Android in the production Google Cloud project.
+- Supply `MAPS_API_KEY` through the environment/secrets workflow; never commit the real key.
+- Restrict the key to the Android application package and production signing certificate.
+- Verify billing/quota alerts before release.
+- Public provider/request coordinates are intentionally approximate. Exact customer request coordinates stay in the private request document.
+
+A placeholder key exists only so non-map CI/debug compilation can complete; it is not a production credential.

@@ -1,6 +1,7 @@
 package com.example.ui.screens
 
 import com.example.core.AppEnvironment
+import com.example.backend.ProviderReview
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -30,6 +31,7 @@ import com.example.ui.theme.*
 @Composable
 fun ProviderDetailScreen(
     provider: ServiceProviderEntity?,
+    reviews: List<ProviderReview> = emptyList(),
     onBackClick: () -> Unit,
     onFavoriteToggle: () -> Unit,
     onRequestQuoteClick: (String) -> Unit,
@@ -286,6 +288,45 @@ fun ProviderDetailScreen(
                     }
                 }
                 Spacer(modifier = Modifier.height(16.dp))
+            }
+
+            if (reviews.isNotEmpty()) {
+                item {
+                    DetailSectionCard(title = "⭐ Doğrulanmış Değerlendirmeler") {
+                        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                            reviews.take(8).forEach { review ->
+                                Column {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        repeat(review.rating) {
+                                            Icon(
+                                                Icons.Default.Star,
+                                                contentDescription = null,
+                                                tint = StarGold,
+                                                modifier = Modifier.size(14.dp)
+                                            )
+                                        }
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                        Text(
+                                            "Doğrulanmış iş",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = SafeBadgeText,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                    }
+                                    if (review.comment.isNotBlank()) {
+                                        Text(
+                                            review.comment,
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = Slate700,
+                                            modifier = Modifier.padding(top = 3.dp)
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(16.dp))
+                }
             }
 
             // Sektörel Detaylar: Boya Markaları veya Karakterler

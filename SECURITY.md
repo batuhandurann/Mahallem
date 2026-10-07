@@ -29,3 +29,13 @@ Do not open a public issue for a suspected security vulnerability. Report it pri
 - Storage upload validation is asynchronous: invalid objects can exist briefly before the finalization trigger deletes them, although client reads require a validated grant. Upload quotas limit abuse but do not eliminate storage-processing cost.
 - Existing environments may contain legacy orphaned device-token ownership records or media created before this purge hardening; perform a one-time maintenance cleanup before production if such data exists.
 
+
+
+## Marketplace trust controls added
+
+- User blocks are backend-controlled and enforced in both directions for new conversations, messages, quotes and push notifications.
+- Job completion requires confirmation from both the customer and accepted provider before the request becomes COMPLETED.
+- Transaction-verified reviews can be created only by the request owner after a completed accepted job; clients cannot write review documents directly.
+- Disputes freeze the job into DISPUTED and require an authenticated admin resolution path to resume, complete or cancel it.
+- Public discovery publishes only open PENDING requests and approximate coordinates; accepted, disputed, completed and cancelled jobs are removed from the public mirror.
+- Favorites are account-scoped backend records rather than shared/local-only production state.

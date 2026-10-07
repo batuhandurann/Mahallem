@@ -13,11 +13,41 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.tasks.await
 
+data class ProviderReview(
+    val id: String,
+    val rating: Int,
+    val comment: String,
+    val createdAt: Long,
+    val verifiedTransaction: Boolean
+)
+
 class CloudMarketplaceRepository(
     private val auth: FirebaseAuth = FirebaseAuth.getInstance(),
     private val firestore: FirebaseFirestore = FirebaseFirestore.getInstance()
 ) {
     private fun requireUid(): String = auth.currentUser?.uid ?: error("Giriş gerekli.")
+
+    fun observeProviderReviews(providerId: String): Flow<List<ProviderReview>> = callbackFlow {
+        requireUid()
+        val listener = firestore.collection("reviews")
+            .whereEqualTo("providerId", providerId)
+            .limit(50)
+            .addSnapshotListener { snapshot, error ->
+                if (error != null) { close(error); return@addSnapshotListener }
+                val reviews = snapshot?.documents.orEmpty().mapNotNull { doc ->
+                    val rating = (doc.get("rating") as? Number)?.toInt() ?: return@mapNotNull null
+                    ProviderReview(
+                        id = doc.id,
+                        rating = rating.coerceIn(1, 5),
+                        comment = doc.getString("comment").orEmpty(),
+                        createdAt = doc.getTimestamp("createdAt")?.toDate()?.time ?: 0L,
+                        verifiedTransaction = doc.getBoolean("verifiedTransaction") == true
+                    )
+                }.sortedByDescending { it.createdAt }
+                trySend(reviews)
+            }
+        awaitClose { listener.remove() }
+    }
 
     fun observeFavoriteProviderIds(): Flow<Set<String>> = callbackFlow {
         val me = requireUid()

@@ -257,6 +257,17 @@ class MarketplaceViewModel(application: Application) : AndroidViewModel(applicat
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
     }
 
+    @OptIn(ExperimentalCoroutinesApi::class)
+    val providerReviews: StateFlow<List<com.example.backend.ProviderReview>> =
+        _screenStack.flatMapLatest { stack ->
+            val providerId = (stack.lastOrNull() as? ScreenDestination.ProviderDetail)?.providerId
+            if (providerId == null || AppEnvironment.mode == AppEnvironment.Mode.LOCAL) {
+                kotlinx.coroutines.flow.flowOf(emptyList())
+            } else {
+                cloudRepository.observeProviderReviews(providerId)
+            }
+        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
     // --- Conversations List Flow (In-App Messaging) ---
     val conversations: StateFlow<List<ConversationEntity>> = if (AppEnvironment.mode == AppEnvironment.Mode.LOCAL) {
         repository.getAllConversations().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
