@@ -52,6 +52,11 @@ android {
     }
     debug {
       buildConfigField("boolean", "USE_FIREBASE_EMULATOR", "true")
+      // Debug/test builds must be reproducible on clean CI machines without
+      // requiring a real Google Maps credential. Production/release builds do
+      // not inherit this placeholder and still require secure key injection.
+      manifestPlaceholders["MAPS_API_KEY"] =
+        System.getenv("MAPS_API_KEY") ?: "DEBUG_ONLY_NO_MAPS_API_KEY"
       // Use Android's default debug signing configuration so fresh clones and CI
       // do not depend on a repository-local debug.keystore.
     }
