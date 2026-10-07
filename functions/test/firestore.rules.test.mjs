@@ -491,6 +491,14 @@ async function run() {
   await assertFails(deleteDoc(doc(aliceDb, "jobRequests/accepted-request")));
 
   await env.withSecurityRulesDisabled(async (ctx) => {
+    await setDoc(doc(ctx.firestore(), "jobRequests/pending-delete-request"), {
+      ownerId: "alice",
+      status: "PENDING",
+    });
+  });
+  await assertFails(deleteDoc(doc(aliceDb, "jobRequests/pending-delete-request")));
+
+  await env.withSecurityRulesDisabled(async (ctx) => {
     await setDoc(doc(ctx.firestore(), "providers/provider-bob"), {
       ownerId: "bob",
       displayName: "Bob Hizmet",
@@ -526,11 +534,11 @@ async function run() {
     });
   });
 
-  await assertSucceeds(
+  await assertFails(
     updateDoc(doc(bobDb, "quotes/quote-state"), {
       price: "120 TL",
       durationOrArrival: "2 gün",
-      notes: "güncellendi",
+      notes: "doğrudan istemci güncellemesi engellenmeli",
       updatedAt: new Date(),
     })
   );
