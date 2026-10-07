@@ -102,7 +102,10 @@ assert.doesNotMatch(
   /match \/users\/\{uid\}\/images\/\{grantId\}\.jpg/
 );
 assert.doesNotMatch(storage, /allow read: if signedIn\(\);/);
-assert.match(storage, /Legacy provider-media namespace/);
+assert.match(
+  storage,
+  /match \/providers\/\{providerId\}\/\{allPaths=\*\*\} \{[\s\S]*?allow read, write, delete: if isAdmin\(\);/
+);
 
 assert.match(source, /body:\s*"Yeni bir mesajınız var\."\s*,/);
 
