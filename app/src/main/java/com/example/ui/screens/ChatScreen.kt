@@ -53,7 +53,7 @@ fun ChatScreen(
     onSendVoiceNote: (duration: Int) -> Unit = {},
     onSendPhoto: (uri: Uri) -> Unit = {},
     onMarkRead: () -> Unit = {},
-    onCallClick: () -> Unit,
+    onBlockClick: () -> Unit = {},
     onReportClick: () -> Unit
 ) {
     BackHandler { onBackClick() }
@@ -122,10 +122,10 @@ fun ChatScreen(
                 },
                 actions = {
                     IconButton(
-                        onClick = onCallClick,
-                        modifier = Modifier.testTag("btn_chat_call")
+                        onClick = onBlockClick,
+                        modifier = Modifier.testTag("btn_chat_block")
                     ) {
-                        Icon(imageVector = Icons.Default.Phone, contentDescription = "Ara", tint = TealPrimary)
+                        Icon(imageVector = Icons.Default.Block, contentDescription = "Kullanıcıyı Engelle", tint = Slate500)
                     }
                     IconButton(
                         onClick = onReportClick,

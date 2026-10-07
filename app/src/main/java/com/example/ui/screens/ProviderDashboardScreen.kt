@@ -22,6 +22,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.data.local.JobRequestEntity
+import com.example.data.local.QuoteEntity
 import com.example.data.local.ServiceProviderEntity
 import com.example.ui.components.AvailabilityCalendarView
 import com.example.ui.theme.*
@@ -31,15 +32,20 @@ import com.example.ui.theme.*
 fun ProviderDashboardScreen(
     providers: List<ServiceProviderEntity>,
     requests: List<JobRequestEntity>,
+    quotes: List<QuoteEntity>,
     onBackClick: () -> Unit,
     onToggleOffers: (providerId: String, currentStatus: Boolean) -> Unit,
     onToggleCalendarDate: (provider: ServiceProviderEntity, dateIso: String) -> Unit,
-    onSubmitQuote: (requestId: Long, provider: ServiceProviderEntity, price: String, arrival: String, notes: String) -> Unit
+    onSubmitQuote: (requestId: Long, provider: ServiceProviderEntity, price: String, arrival: String, notes: String) -> Unit,
+    onConfirmCompletion: (requestId: Long) -> Unit = {}
 ) {
     BackHandler { onBackClick() }
 
     var selectedProviderIndex by remember { mutableStateOf(0) }
     val currentProv = providers.getOrNull(selectedProviderIndex) ?: providers.firstOrNull()
+    val currentProviderQuotes = currentProv?.let { provider ->
+        quotes.filter { it.providerId == provider.id }
+    }.orEmpty()
 
     var showQuoteDialogForRequest by remember { mutableStateOf<JobRequestEntity?>(null) }
     var quotePriceInput by remember { mutableStateOf("") }
@@ -162,6 +168,56 @@ fun ProviderDashboardScreen(
                             onToggleOffers(currentProv.id, currentProv.isOpenForOffers)
                         }
                     )
+                }
+            }
+
+            item {
+                Text(
+                    text = "🧾 Tekliflerim & Aktif İşler",
+                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
+                )
+            }
+
+            if (currentProviderQuotes.isEmpty()) {
+                item {
+                    Text(
+                        "Henüz bu profil ile gönderilmiş teklif yok.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Slate500
+                    )
+                }
+            } else {
+                items(currentProviderQuotes, key = { "provider_quote_" + it.id }) { quote ->
+                    Card(
+                        shape = RoundedCornerShape(14.dp),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+                    ) {
+                        Column(modifier = Modifier.padding(14.dp)) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Text("Talep #" + quote.requestId, fontWeight = FontWeight.Bold)
+                                Text(quote.price, color = TealPrimary, fontWeight = FontWeight.Bold)
+                            }
+                            Text(
+                                "Durum: " + quote.status,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = Slate600
+                            )
+                            if (quote.status == "ACCEPTED") {
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Button(
+                                    onClick = { onConfirmCompletion(quote.requestId) },
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Icon(Icons.Default.TaskAlt, contentDescription = null, modifier = Modifier.size(15.dp))
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text("İşi Tamamladım")
+                                }
+                            }
+                        }
+                    }
                 }
             }
 

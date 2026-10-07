@@ -359,8 +359,17 @@ class MarketplaceViewModel(application: Application) : AndroidViewModel(applicat
     fun reportListing(providerId: String?, requestId: Long?, reason: String = "") {
         viewModelScope.launch {
             if (AppEnvironment.mode != AppEnvironment.Mode.LOCAL) {
-                val targetType = if (providerId != null) "PROVIDER" else "JOB_REQUEST"
-                val targetId = providerId ?: requestId?.toString().orEmpty()
+                val isUserReport = providerId?.startsWith("user:") == true
+                val targetType = when {
+                    isUserReport -> "USER"
+                    providerId != null -> "PROVIDER"
+                    else -> "JOB_REQUEST"
+                }
+                val targetId = when {
+                    isUserReport -> providerId!!.removePrefix("user:")
+                    providerId != null -> providerId
+                    else -> requestId?.toString().orEmpty()
+                }
                 if (targetId.isBlank()) {
                     _toastMessage.value = "Şikayet hedefi bulunamadı."
                     return@launch
@@ -386,6 +395,90 @@ class MarketplaceViewModel(application: Application) : AndroidViewModel(applicat
                 repository.reportJobRequest(requestId)
             }
             _toastMessage.value = "Demo şikayetiniz alındı. 🛡️"
+        }
+    }
+
+    fun setUserBlocked(targetUid: String, blocked: Boolean = true) {
+        if (AppEnvironment.mode == AppEnvironment.Mode.LOCAL) {
+            _toastMessage.value = "Demo modunda kullanıcı engelleme sunucuya yazılmaz."
+            return
+        }
+        viewModelScope.launch {
+            runCatching {
+                com.example.backend.FunctionsRepository().setUserBlocked(targetUid, blocked)
+            }.onSuccess {
+                _toastMessage.value = if (blocked) "Kullanıcı engellendi." else "Kullanıcı engeli kaldırıldı."
+            }.onFailure {
+                _toastMessage.value = it.message ?: "Kullanıcı engellenemedi."
+            }
+        }
+    }
+
+    fun cancelJobRequest(requestId: Long) {
+        if (AppEnvironment.mode == AppEnvironment.Mode.LOCAL) {
+            _toastMessage.value = "Demo talep iptali kalıcı değildir."
+            return
+        }
+        viewModelScope.launch {
+            runCatching {
+                com.example.backend.FunctionsRepository().cancelJobRequest(requestId)
+            }.onSuccess {
+                _toastMessage.value = "Talep iptal edildi."
+            }.onFailure {
+                _toastMessage.value = it.message ?: "Talep iptal edilemedi."
+            }
+        }
+    }
+
+    fun confirmJobCompletion(requestId: Long) {
+        if (AppEnvironment.mode == AppEnvironment.Mode.LOCAL) {
+            _toastMessage.value = "Demo modunda tamamlanma onayı sunucuya yazılmaz."
+            return
+        }
+        viewModelScope.launch {
+            runCatching {
+                com.example.backend.FunctionsRepository().confirmJobCompletion(requestId)
+            }.onSuccess { result ->
+                val status = result["status"]?.toString().orEmpty()
+                _toastMessage.value = if (status == "COMPLETED")
+                    "İş iki tarafça tamamlandı olarak doğrulandı."
+                else
+                    "Tamamlanma onayınız kaydedildi; karşı tarafın onayı bekleniyor."
+            }.onFailure {
+                _toastMessage.value = it.message ?: "Tamamlanma onayı gönderilemedi."
+            }
+        }
+    }
+
+    fun createVerifiedReview(requestId: Long, rating: Int, comment: String) {
+        if (AppEnvironment.mode == AppEnvironment.Mode.LOCAL) {
+            _toastMessage.value = "Demo modunda değerlendirme yayınlanmaz."
+            return
+        }
+        viewModelScope.launch {
+            runCatching {
+                com.example.backend.FunctionsRepository().createReview(requestId, rating, comment)
+            }.onSuccess {
+                _toastMessage.value = "Değerlendirmeniz doğrulanmış işlem olarak yayınlandı."
+            }.onFailure {
+                _toastMessage.value = it.message ?: "Değerlendirme gönderilemedi."
+            }
+        }
+    }
+
+    fun openDispute(requestId: Long, reason: String) {
+        if (AppEnvironment.mode == AppEnvironment.Mode.LOCAL) {
+            _toastMessage.value = "Demo modunda gerçek itiraz kaydı oluşturulmaz."
+            return
+        }
+        viewModelScope.launch {
+            runCatching {
+                com.example.backend.FunctionsRepository().openDispute(requestId, reason)
+            }.onSuccess {
+                _toastMessage.value = "İtiraz açıldı; iş akışı inceleme tamamlanana kadar durduruldu."
+            }.onFailure {
+                _toastMessage.value = it.message ?: "İtiraz açılamadı."
+            }
         }
     }
 
@@ -606,7 +699,17 @@ class MarketplaceViewModel(application: Application) : AndroidViewModel(applicat
                 repository.releaseEscrowPayment(requestId, quoteId, receiptCode)
                 _toastMessage.value = "Demo ödeme yerelde serbest bırakıldı."
             } else {
-                _toastMessage.value = "Gerçek ödeme serbest bırakma, doğrulanmış ödeme kimliği üzerinden sunucudan yapılacak."
+                runCatching {
+                    val payment = com.example.backend.FunctionsRepository().getPaymentForQuote(requestId, quoteId)
+                    val paymentId = payment["id"]?.toString()
+                        ?: error("Bu teklif için ödeme kaydı bulunamadı.")
+                    com.example.backend.FunctionsRepository().releaseEscrowPayment(paymentId)
+                }.onSuccess { result ->
+                    _paymentStatus.value = result["status"]?.toString() ?: "RELEASE_REQUESTED"
+                    _toastMessage.value = "Ödeme serbest bırakma talebi güvenli sunucuya iletildi."
+                }.onFailure {
+                    _toastMessage.value = it.message ?: "Ödeme serbest bırakılamadı."
+                }
             }
         }
     }

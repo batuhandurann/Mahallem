@@ -461,6 +461,18 @@ private fun MarketplaceContent(
                         onRejectQuote = { quoteId ->
                             viewModel.rejectQuote(quoteId)
                         },
+                        onCancelRequest = { requestId ->
+                            viewModel.cancelJobRequest(requestId)
+                        },
+                        onConfirmCompletion = { requestId ->
+                            viewModel.confirmJobCompletion(requestId)
+                        },
+                        onOpenDispute = { requestId, reason ->
+                            viewModel.openDispute(requestId, reason)
+                        },
+                        onCreateReview = { requestId, rating, comment ->
+                            viewModel.createVerifiedReview(requestId, rating, comment)
+                        },
                         onNewRequestClick = {
                             viewModel.navigateTo(ScreenDestination.CreateRequest())
                         }
@@ -495,17 +507,12 @@ private fun MarketplaceContent(
                         onMarkRead = {
                             viewModel.markConversationRead(screen.conversationId)
                         },
-                        onCallClick = {
-                            viewModel.sendChatMessage(
-                                screen.conversationId,
-                                "📞 Sesli arama isteği gönderildi.",
-                                false,
-                                ""
-                            )
+                        onBlockClick = {
+                            conv?.let { viewModel.setUserBlocked(it.participantId, true) }
                         },
                         onReportClick = {
                             conv?.let {
-                                reportingTarget = Triple(it.participantId, null, it.participantName)
+                                reportingTarget = Triple("user:" + it.participantId, null, it.participantName)
                             }
                         }
                     )
@@ -515,6 +522,7 @@ private fun MarketplaceContent(
                     ProviderDashboardScreen(
                         providers = providers,
                         requests = requests,
+                        quotes = quotes,
                         onBackClick = { viewModel.navigateBack() },
                         onToggleOffers = { pId, status ->
                             viewModel.toggleProviderOpenForOffers(pId, status)
@@ -524,6 +532,9 @@ private fun MarketplaceContent(
                         },
                         onSubmitQuote = { reqId, prov, price, arrival, notes ->
                             viewModel.submitProviderQuote(reqId, prov, price, arrival, notes)
+                        },
+                        onConfirmCompletion = { requestId ->
+                            viewModel.confirmJobCompletion(requestId)
                         }
                     )
                 }
@@ -575,7 +586,10 @@ private fun MarketplaceContent(
                         activeReceipt = null
                     },
                     onDisputeClick = {
-                        reportingTarget = Triple(null, receipt.requestId, "İtiraz: ${receipt.jobTitle}")
+                        viewModel.openDispute(
+                            receipt.requestId,
+                            "Dijital iş fişi üzerinden kullanıcı itirazı."
+                        )
                         activeReceipt = null
                     }
                 )

@@ -35,6 +35,10 @@ fun MyRequestsScreen(
     onAcceptWithEscrow: (quote: QuoteEntity, request: JobRequestEntity) -> Unit = { _, _ -> },
     onViewReceipt: (QuoteEntity) -> Unit = {},
     onRejectQuote: (quoteId: Long) -> Unit,
+    onCancelRequest: (requestId: Long) -> Unit = {},
+    onConfirmCompletion: (requestId: Long) -> Unit = {},
+    onOpenDispute: (requestId: Long, reason: String) -> Unit = { _, _ -> },
+    onCreateReview: (requestId: Long, rating: Int, comment: String) -> Unit = { _, _, _ -> },
     onNewRequestClick: () -> Unit
 ) {
     BackHandler { onBackClick() }
@@ -103,7 +107,11 @@ fun MyRequestsScreen(
                         onAcceptQuote = { qId, pName -> onAcceptQuote(req.id, qId, pName) },
                         onAcceptWithEscrow = { q -> onAcceptWithEscrow(q, req) },
                         onViewReceipt = onViewReceipt,
-                        onRejectQuote = onRejectQuote
+                        onRejectQuote = onRejectQuote,
+                        onCancelRequest = { onCancelRequest(req.id) },
+                        onConfirmCompletion = { onConfirmCompletion(req.id) },
+                        onOpenDispute = { reason -> onOpenDispute(req.id, reason) },
+                        onCreateReview = { rating, comment -> onCreateReview(req.id, rating, comment) }
                     )
                 }
             }
@@ -118,8 +126,17 @@ private fun RequestItemCard(
     onAcceptQuote: (Long, String) -> Unit,
     onAcceptWithEscrow: (QuoteEntity) -> Unit,
     onViewReceipt: (QuoteEntity) -> Unit,
-    onRejectQuote: (Long) -> Unit
+    onRejectQuote: (Long) -> Unit,
+    onCancelRequest: () -> Unit,
+    onConfirmCompletion: () -> Unit,
+    onOpenDispute: (String) -> Unit,
+    onCreateReview: (Int, String) -> Unit
 ) {
+    var showDisputeDialog by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
+    var disputeReason by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf("") }
+    var showReviewDialog by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
+    var reviewComment by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf("") }
+    var reviewRating by androidx.compose.runtime.remember { androidx.compose.runtime.mutableIntStateOf(5) }
     val isRenovation = request.sector == "HOME_REPAIR"
     val isEmergency = request.urgencyMode == "EMERGENCY"
 
@@ -172,21 +189,27 @@ private fun RequestItemCard(
                 Surface(
                     shape = RoundedCornerShape(8.dp),
                     color = when (request.status) {
-                        "ACCEPTED" -> SafeBadgeGreenContainer
+                        "ACCEPTED", "COMPLETION_PENDING", "COMPLETED" -> SafeBadgeGreenContainer
+                        "DISPUTED" -> EmergencyRedContainer
                         "QUOTED" -> FestiveAmberLight
                         else -> Slate100
                     }
                 ) {
                     Text(
                         text = when (request.status) {
-                            "ACCEPTED" -> "Usta Onaylandı"
+                            "ACCEPTED" -> "İş Aktif"
+                            "COMPLETION_PENDING" -> "Tamamlanma Onayı Bekleniyor"
+                            "COMPLETED" -> "Tamamlandı"
+                            "DISPUTED" -> "İtiraz İnceleniyor"
+                            "CANCELLED" -> "İptal Edildi"
                             "QUOTED" -> "${quotes.size} Teklif Geldi"
                             else -> "Teklif Bekleniyor"
                         },
                         fontSize = 11.sp,
                         fontWeight = FontWeight.Bold,
                         color = when (request.status) {
-                            "ACCEPTED" -> SafeBadgeText
+                            "ACCEPTED", "COMPLETION_PENDING", "COMPLETED" -> SafeBadgeText
+                            "DISPUTED" -> EmergencyRed
                             "QUOTED" -> Color(0xFF92400E)
                             else -> Slate700
                         },
@@ -234,6 +257,50 @@ private fun RequestItemCard(
             }
 
             // Quotes Section
+            when (request.status) {
+                "PENDING" -> {
+                    Spacer(modifier = Modifier.height(12.dp))
+                    OutlinedButton(
+                        onClick = onCancelRequest,
+                        modifier = Modifier.fillMaxWidth().testTag("btn_cancel_request_" + request.id)
+                    ) {
+                        Text("Talebi İptal Et")
+                    }
+                }
+                "ACCEPTED", "COMPLETION_PENDING" -> {
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Button(
+                            onClick = onConfirmCompletion,
+                            modifier = Modifier.weight(1f).testTag("btn_confirm_completion_" + request.id)
+                        ) {
+                            Icon(Icons.Default.TaskAlt, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("İşi Tamamladım", fontSize = 12.sp)
+                        }
+                        OutlinedButton(
+                            onClick = { showDisputeDialog = true },
+                            modifier = Modifier.weight(1f).testTag("btn_open_dispute_" + request.id)
+                        ) {
+                            Icon(Icons.Default.ReportProblem, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("İtiraz Aç", fontSize = 12.sp)
+                        }
+                    }
+                }
+                "COMPLETED" -> {
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Button(
+                        onClick = { showReviewDialog = true },
+                        modifier = Modifier.fillMaxWidth().testTag("btn_review_request_" + request.id)
+                    ) {
+                        Icon(Icons.Default.StarRate, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("Doğrulanmış Değerlendirme Yaz")
+                    }
+                }
+            }
+
             if (quotes.isNotEmpty()) {
                 Spacer(modifier = Modifier.height(14.dp))
                 HorizontalDivider(color = SurfaceCardBorder)
@@ -259,6 +326,71 @@ private fun RequestItemCard(
                 }
             }
         }
+    }
+
+    if (showDisputeDialog) {
+        AlertDialog(
+            onDismissRequest = { showDisputeDialog = false },
+            title = { Text("İtiraz Aç") },
+            text = {
+                OutlinedTextField(
+                    value = disputeReason,
+                    onValueChange = { disputeReason = it.take(1000) },
+                    label = { Text("Sorunu açıklayın") },
+                    modifier = Modifier.fillMaxWidth()
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        if (disputeReason.isNotBlank()) {
+                            onOpenDispute(disputeReason.trim())
+                            disputeReason = ""
+                            showDisputeDialog = false
+                        }
+                    }
+                ) { Text("İtirazı Gönder") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDisputeDialog = false }) { Text("Vazgeç") }
+            }
+        )
+    }
+
+    if (showReviewDialog) {
+        AlertDialog(
+            onDismissRequest = { showReviewDialog = false },
+            title = { Text("Hizmeti Değerlendir") },
+            text = {
+                Column {
+                    Text("Puan: " + reviewRating + "/5", fontWeight = FontWeight.Bold)
+                    Slider(
+                        value = reviewRating.toFloat(),
+                        onValueChange = { reviewRating = it.toInt().coerceIn(1, 5) },
+                        valueRange = 1f..5f,
+                        steps = 3
+                    )
+                    OutlinedTextField(
+                        value = reviewComment,
+                        onValueChange = { reviewComment = it.take(1000) },
+                        label = { Text("Yorumunuz") },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        onCreateReview(reviewRating, reviewComment.trim())
+                        reviewComment = ""
+                        showReviewDialog = false
+                    }
+                ) { Text("Yayınla") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showReviewDialog = false }) { Text("Vazgeç") }
+            }
+        )
     }
 }
 
@@ -350,7 +482,7 @@ private fun QuoteCardView(
                             Icon(Icons.Default.CheckCircle, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
                             Spacer(modifier = Modifier.width(6.dp))
                             Text(
-                                text = "Teklif Onaylandı • Mahallemde Güvencesi Aktif",
+                                text = "Teklif Onaylandı",
                                 color = Color.White,
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 12.sp

@@ -1551,7 +1551,10 @@ export const reportContent = onCall(
     const targetId = requireString(data, "targetId", 120, 1);
     const reason = requireString(data, "reason", 500, 1).trim();
 
-    if (!["PROVIDER", "JOB_REQUEST", "USER"].includes(targetType) || !ID_PATTERN.test(targetId) || !reason) {
+    const targetIdValid = targetType === "USER"
+      ? targetId.length <= 128 && !targetId.includes("/")
+      : ID_PATTERN.test(targetId);
+    if (!["PROVIDER", "JOB_REQUEST", "USER"].includes(targetType) || !targetIdValid || !reason) {
       throw new HttpsError("invalid-argument", "Geçersiz şikayet bilgisi.");
     }
 
@@ -2838,10 +2841,12 @@ export const notifyNewMessage = onDocumentCreated(
     const messageCreatedAt = event.data?.data()?.createdAt;
     const candidateRegistrations = await Promise.all(
       recipientIds.map(async (uid) => {
-        const [profileSnap, tokenSnap, stateSnap] = await Promise.all([
+        const [profileSnap, tokenSnap, stateSnap, recipientBlockSnap, senderBlockSnap] = await Promise.all([
           db.collection("users").doc(uid).get(),
           db.collection("users").doc(uid).collection("devices").get(),
           db.collection("users").doc(uid).collection("conversationState").doc(conversationId).get(),
+          db.collection("users").doc(uid).collection("blockedUsers").doc(senderId).get(),
+          db.collection("users").doc(senderId).collection("blockedUsers").doc(uid).get(),
         ]);
 
         if (
@@ -2850,6 +2855,8 @@ export const notifyNewMessage = onDocumentCreated(
         ) {
           return [];
         }
+
+        if (recipientBlockSnap.exists || senderBlockSnap.exists) return [];
 
         const preferences = profileSnap.data()?.notificationPreferences;
         const messagesEnabled = preferences == null || preferences.messages !== false;
