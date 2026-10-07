@@ -2079,6 +2079,19 @@ export const releaseEscrowPayment = onCall({ region: "europe-west1", enforceAppC
     if (!["PAID", "HELD"].includes(String(payment.status ?? ""))) {
       throw new HttpsError("failed-precondition", "Ödeme serbest bırakılabilir durumda değil.");
     }
+
+    const linkedRequestId = String(payment.requestId ?? "");
+    if (!ID_PATTERN.test(linkedRequestId)) {
+      throw new HttpsError("failed-precondition", "Ödeme iş bağlantısı geçersiz.");
+    }
+    const linkedRequestSnap = await tx.get(db.collection("jobRequests").doc(linkedRequestId));
+    if (!linkedRequestSnap.exists) {
+      throw new HttpsError("failed-precondition", "Ödemeye bağlı iş bulunamadı.");
+    }
+    if (String(linkedRequestSnap.data()?.status ?? "") === "DISPUTED") {
+      throw new HttpsError("failed-precondition", "Açık itiraz bulunan iş için ödeme serbest bırakılamaz.");
+    }
+
     tx.update(paymentRef, { status: "RELEASE_REQUESTED", updatedAt: FieldValue.serverTimestamp() });
   });
 
