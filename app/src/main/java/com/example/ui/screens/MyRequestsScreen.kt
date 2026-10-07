@@ -316,7 +316,7 @@ private fun RequestItemCard(
                 quotes.forEach { quote ->
                     QuoteCardView(
                         quote = quote,
-                        isRequestAccepted = request.status == "ACCEPTED",
+                        isRequestAccepted = request.status in setOf("ACCEPTED", "COMPLETION_PENDING", "COMPLETED", "DISPUTED", "CANCELLED"),
                         onAccept = { onAcceptQuote(quote.id, quote.providerName) },
                         onAcceptWithEscrow = { onAcceptWithEscrow(quote) },
                         onViewReceipt = { onViewReceipt(quote) },

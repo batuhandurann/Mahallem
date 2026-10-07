@@ -23,7 +23,7 @@ assert.match(source, /authUser\.phoneNumber/);
 assert.match(source, /if \(!userSnap\.exists\)/);
 assert.match(source, /bucket\.deleteFiles/);
 assert.match(source, /users.*devices/);
-assert.match(source, /String\(jobRequest\.status \?\? ""\) === "CLOSED"/);
+assert.match(source, /String\(jobRequest\.status \?\? ""\) !== "PENDING"/);
 
 assert.match(source, /function requireRecentAuthentication/);
 assert.match(source, /Number\.isSafeInteger\(authTime\)/);
@@ -54,6 +54,8 @@ assert.match(source, /getPaymentForQuote/);
 assert.match(source, /conversationState/);
 assert.match(source, /notificationPreferences/);
 assert.match(source, /messagesEnabled/);
+assert.match(source, /recipientBlockSnap/);
+assert.match(source, /senderBlockSnap/);
 assert.match(source, /messages !== false/);
 assert.match(source, /function isValidIsoDate/);
 assert.match(source, /isValidIsoDate\(dateIso\)/);
