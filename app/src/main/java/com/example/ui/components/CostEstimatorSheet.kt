@@ -205,7 +205,7 @@ fun CostEstimatorSheet(
                 )
 
                 PriceTierCard(
-                    title = "Premium / Garantili",
+                    title = "Kapsamlı / Premium",
                     price = "$highPrice ₺",
                     subtitle = "Malzeme Dahil",
                     color = FestiveCoral,

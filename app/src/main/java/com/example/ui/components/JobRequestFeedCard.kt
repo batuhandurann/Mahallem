@@ -16,6 +16,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.core.AppEnvironment
 import com.example.data.local.JobRequestEntity
 import com.example.ui.theme.*
 
@@ -134,7 +135,7 @@ fun JobRequestFeedCard(
                         color = SafeBadgeGreenContainer
                     ) {
                         Text(
-                            text = "✓ Tel Doğrulandı",
+                            text = if (AppEnvironment.isLocal) "✓ Tel Doğrulandı • Demo" else "✓ Tel Doğrulandı",
                             fontSize = 9.5.sp,
                             fontWeight = FontWeight.Bold,
                             color = SafeBadgeText,

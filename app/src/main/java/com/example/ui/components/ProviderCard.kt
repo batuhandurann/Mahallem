@@ -21,6 +21,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.core.AppEnvironment
 import com.example.data.local.ServiceProviderEntity
 import com.example.ui.theme.*
 
@@ -105,7 +106,7 @@ fun ProviderCard(
                                 Spacer(modifier = Modifier.width(4.dp))
                                 Icon(
                                     imageVector = Icons.Default.Verified,
-                                    contentDescription = "Onaylı Hizmet Veren",
+                                    contentDescription = if (AppEnvironment.isLocal) "Demo doğrulama rozeti" else "Onaylı Hizmet Veren",
                                     tint = if (isRenovation) TealPrimary else SafeBadgeGreen,
                                     modifier = Modifier.size(18.dp)
                                 )
@@ -184,7 +185,7 @@ fun ProviderCard(
                 if (provider.phoneVerified) {
                     BadgeChip(
                         icon = Icons.Default.PhoneAndroid,
-                        text = "Tel Doğrulandı",
+                        text = if (AppEnvironment.isLocal) "Tel Doğrulandı • Demo" else "Tel Doğrulandı",
                         bgColor = SafeBadgeGreenContainer,
                         textColor = SafeBadgeText
                     )
@@ -193,7 +194,7 @@ fun ProviderCard(
                 if (provider.childSafeCertified) {
                     BadgeChip(
                         icon = Icons.Default.ChildCare,
-                        text = "Çocuk Dostu",
+                        text = if (AppEnvironment.isLocal) "Çocuk Dostu • Demo" else "Çocuk Dostu",
                         bgColor = FestiveAmberLight,
                         textColor = Color(0xFF92400E)
                     )
@@ -202,7 +203,7 @@ fun ProviderCard(
                 if (provider.mykCertified) {
                     BadgeChip(
                         icon = Icons.Default.WorkspacePremium,
-                        text = "MYK Usta",
+                        text = if (AppEnvironment.isLocal) "MYK Usta • Demo" else "MYK Usta",
                         bgColor = TealContainer,
                         textColor = OnTealContainer
                     )

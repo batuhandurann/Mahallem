@@ -257,7 +257,7 @@ fun PublishProviderOfferScreen(
             OutlinedTextField(
                 value = bio,
                 onValueChange = { bio = it },
-                label = { Text("Hizmet Açıklaması & Güvenceniz") },
+                label = { Text("Hizmet Açıklaması") },
                 placeholder = { Text("İşimizde temizlik ve müşteri memnuniyeti esastır...") },
                 modifier = Modifier.fillMaxWidth().height(100.dp).testTag("input_provider_bio")
             )

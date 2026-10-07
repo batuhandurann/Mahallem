@@ -388,7 +388,7 @@ private fun HeroMarketplaceBanner(
                                 color = Color.White.copy(alpha = 0.25f)
                             ) {
                                 Text(
-                                    text = "🌟 TÜRKIYE'NIN İLK ÇİFT YÖNLÜ PAZAR YERİ",
+                                    text = "YEREL HİZMET & İHTİYAÇ PAZARI",
                                     fontSize = 10.sp,
                                     fontWeight = FontWeight.Bold,
                                     color = Color.White,
@@ -400,7 +400,7 @@ private fun HeroMarketplaceBanner(
                                 color = StarGold.copy(alpha = 0.9f)
                             ) {
                                 Text(
-                                    text = "🔒 GÜVENLİ HAVUZ",
+                                    text = "🔒 GÜVENLİ İLETİŞİM",
                                     fontSize = 9.5.sp,
                                     fontWeight = FontWeight.Bold,
                                     color = Slate900,
@@ -421,7 +421,7 @@ private fun HeroMarketplaceBanner(
                         )
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(
-                            text = "Armut'un teklif güvencesi + Sahibinden'in esnaf vitrini + Letgo'nun anlık sohbeti tek bir ferah uygulamada.",
+                            text = "Yakındaki hizmet verenleri keşfet, ihtiyacını yayınla, teklifleri karşılaştır ve uygulama içinden güvenle iletişim kur.",
                             style = MaterialTheme.typography.bodySmall,
                             color = Color.White.copy(alpha = 0.92f),
                             fontSize = 11.5.sp,
