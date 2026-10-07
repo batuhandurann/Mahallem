@@ -86,6 +86,7 @@ jobs:
       - name: Check backend types and tests
         run: npm test
       - name: Audit production dependencies
+        if: ${{ always() }}
         run: npm audit --omit=dev --audit-level=high
 
   firebase-rules:
