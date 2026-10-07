@@ -137,6 +137,7 @@ class MarketplaceViewModel(application: Application) : AndroidViewModel(applicat
         FilterState(sector, urgency, category, "", district)
     }.distinctUntilChanged()
 
+    @OptIn(ExperimentalCoroutinesApi::class)
     private val cloudProviderSource: Flow<List<ServiceProviderEntity>> =
         if (AppEnvironment.mode == AppEnvironment.Mode.LOCAL) {
             emptyFlow()
