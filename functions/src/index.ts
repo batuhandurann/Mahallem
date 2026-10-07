@@ -945,6 +945,58 @@ export const unregisterDeviceToken = onCall(
   }
 );
 
+export const setUserBlock = onCall(
+  { region: "europe-west1", enforceAppCheck: true },
+  async (request) => {
+    if (!request.auth) throw new HttpsError("unauthenticated", "Kimlik doğrulaması gerekli.");
+    await assertAccountActive(request.auth.uid);
+
+    const data = callableData(request.data);
+    const targetUid = requireString(data, "targetUid", 128, 1);
+    const blocked = data.blocked;
+    if (typeof blocked !== "boolean" || targetUid === request.auth.uid || targetUid.includes("/")) {
+      throw new HttpsError("invalid-argument", "Geçersiz engelleme isteği.");
+    }
+
+    if (blocked) {
+      await assertAccountActive(targetUid);
+    }
+
+    const ref = db.collection("users").doc(request.auth.uid).collection("blockedUsers").doc(targetUid);
+    const rateRef = db.collection("rateLimits").doc("block-day:" + request.auth.uid);
+    const now = Date.now();
+
+    await db.runTransaction(async (tx) => {
+      const rateSnap = await tx.get(rateRef);
+      const rate = rateSnap.exists ? rateSnap.data()! : {};
+      const windowStart = Number(rate.windowStartMs ?? 0);
+      const count = Number(rate.count ?? 0);
+      const activeWindow = Number.isSafeInteger(windowStart) && now - windowStart < 86_400_000;
+      if (activeWindow && count >= 100) {
+        throw new HttpsError("resource-exhausted", "Günlük engelleme değişikliği kotanıza ulaştınız.");
+      }
+
+      tx.set(rateRef, {
+        windowStartMs: activeWindow ? windowStart : now,
+        count: activeWindow ? count + 1 : 1,
+        updatedAt: FieldValue.serverTimestamp(),
+      }, { merge: true });
+
+      if (blocked) {
+        tx.set(ref, {
+          blockedUid: targetUid,
+          createdAt: FieldValue.serverTimestamp(),
+          updatedAt: FieldValue.serverTimestamp(),
+        }, { merge: true });
+      } else {
+        tx.delete(ref);
+      }
+    });
+
+    return { targetUid, blocked };
+  }
+);
+
 export const sendMessage = onCall(
   { region: "europe-west1", enforceAppCheck: true },
   async (request) => {
@@ -963,7 +1015,7 @@ export const sendMessage = onCall(
     if (!/^[a-f0-9]{64}$/.test(conversationId)) {
       throw new HttpsError("invalid-argument", "Geçersiz conversationId.");
     }
-    if (!["TEXT", "OFFER", "VOICE", "IMAGE"].includes(messageType)) {
+    if (!["TEXT", "OFFER", "IMAGE"].includes(messageType)) {
       throw new HttpsError("invalid-argument", "Geçersiz mesaj tipi.");
     }
     if (text.length > 2000) {
@@ -1029,6 +1081,20 @@ export const sendMessage = onCall(
       const participants = conversationSnap.data()?.participantIds;
       if (!Array.isArray(participants) || !participants.includes(request.auth!.uid)) {
         throw new HttpsError("permission-denied", "Bu sohbete mesaj gönderemezsiniz.");
+      }
+
+      const otherUid = participants.find((id: unknown) =>
+        typeof id === "string" && id !== request.auth!.uid
+      );
+      if (typeof otherUid !== "string") {
+        throw new HttpsError("failed-precondition", "Sohbet katılımcıları geçersiz.");
+      }
+      const [senderBlock, recipientBlock] = await Promise.all([
+        tx.get(db.collection("users").doc(request.auth!.uid).collection("blockedUsers").doc(otherUid)),
+        tx.get(db.collection("users").doc(otherUid).collection("blockedUsers").doc(request.auth!.uid)),
+      ]);
+      if (senderBlock.exists || recipientBlock.exists) {
+        throw new HttpsError("permission-denied", "Bu kullanıcıyla mesajlaşma engellendi.");
       }
 
       const rate = rateLimitSnap.exists ? rateLimitSnap.data()! : {};
@@ -1259,10 +1325,15 @@ export const startConversation = onCall(
       const existing = await tx.get(ref);
       if (existing.exists) return;
 
-      const [rateLimitSnap, hourlyRateSnap] = await Promise.all([
+      const [rateLimitSnap, hourlyRateSnap, callerBlock, targetBlock] = await Promise.all([
         tx.get(rateLimitRef),
         tx.get(hourlyRateLimitRef),
+        tx.get(db.collection("users").doc(request.auth!.uid).collection("blockedUsers").doc(participantUid)),
+        tx.get(db.collection("users").doc(participantUid).collection("blockedUsers").doc(request.auth!.uid)),
       ]);
+      if (callerBlock.exists || targetBlock.exists) {
+        throw new HttpsError("permission-denied", "Yeni sohbet engellenmiş kullanıcıyla başlatılamaz.");
+      }
       const rate = rateLimitSnap.exists ? rateLimitSnap.data()! : {};
       const hourlyRate = hourlyRateSnap.exists ? hourlyRateSnap.data()! : {};
       const windowStart = Number(rate.windowStartMs ?? 0);
@@ -1391,8 +1462,12 @@ export const createQuote = onCall(
       tx.create(quoteRef, {
         providerId,
         providerOwnerId: request.auth!.uid,
+        providerName: String(providerSnap.data()?.displayName ?? "Hizmet Sağlayıcı").slice(0, 120),
+        providerTitle: String(providerSnap.data()?.title ?? "Hizmet").slice(0, 200),
+        providerRating: Number(providerSnap.data()?.rating ?? 0),
         customerId,
         requestId,
+        requestTitle: String(requestSnap.data()?.title ?? "").slice(0, 200),
         price,
         amountMinor,
         durationOrArrival,
@@ -1442,7 +1517,13 @@ export const acceptQuote = onCall({ region: "europe-west1", enforceAppCheck: tru
     }
 
     tx.update(quoteRef, { status: "ACCEPTED", updatedAt: FieldValue.serverTimestamp() });
-    tx.update(requestRef, { status: "ACCEPTED", updatedAt: FieldValue.serverTimestamp() });
+    tx.update(requestRef, {
+      status: "ACCEPTED",
+      acceptedQuoteId: quoteId,
+      providerOwnerId: String(quote.providerOwnerId ?? ""),
+      acceptedAt: FieldValue.serverTimestamp(),
+      updatedAt: FieldValue.serverTimestamp(),
+    });
   });
 
   const alternatives = await db.collection("quotes").where("requestId", "==", acceptedRequestId).get();
@@ -1470,13 +1551,15 @@ export const reportContent = onCall(
     const targetId = requireString(data, "targetId", 120, 1);
     const reason = requireString(data, "reason", 500, 1).trim();
 
-    if (!["PROVIDER", "JOB_REQUEST"].includes(targetType) || !ID_PATTERN.test(targetId) || !reason) {
+    if (!["PROVIDER", "JOB_REQUEST", "USER"].includes(targetType) || !ID_PATTERN.test(targetId) || !reason) {
       throw new HttpsError("invalid-argument", "Geçersiz şikayet bilgisi.");
     }
 
     const targetRef = targetType === "PROVIDER"
       ? db.collection("providers").doc(targetId)
-      : db.collection("jobRequests").doc(targetId);
+      : targetType === "JOB_REQUEST"
+        ? db.collection("jobRequests").doc(targetId)
+        : db.collection("users").doc(targetId);
     const reportRef = db.collection("contentReports").doc(
       createHash("sha256")
         .update(request.auth.uid + ":" + targetType + ":" + targetId)
@@ -1495,7 +1578,9 @@ export const reportContent = onCall(
         throw new HttpsError("not-found", "Şikayet edilecek içerik bulunamadı.");
       }
 
-      const ownerId = String(targetSnap.data()?.ownerId ?? "");
+      const ownerId = targetType === "USER"
+        ? targetId
+        : String(targetSnap.data()?.ownerId ?? "");
       if (!ownerId || ownerId === request.auth!.uid) {
         throw new HttpsError("permission-denied", "Bu içeriği şikayet edemezsiniz.");
       }
@@ -1556,6 +1641,344 @@ export const rejectQuote = onCall({ region: "europe-west1", enforceAppCheck: tru
 
   return { rejected: true, quoteId };
 });
+
+export const cancelJobRequest = onCall(
+  { region: "europe-west1", enforceAppCheck: true },
+  async (request) => {
+    if (!request.auth) throw new HttpsError("unauthenticated", "Kimlik doğrulaması gerekli.");
+    await assertAccountActive(request.auth.uid);
+
+    const data = callableData(request.data);
+    const requestId = requireString(data, "requestId", 80, 1);
+    if (!ID_PATTERN.test(requestId)) throw new HttpsError("invalid-argument", "Geçersiz talep kimliği.");
+
+    const requestRef = db.collection("jobRequests").doc(requestId);
+    await db.runTransaction(async (tx) => {
+      const snap = await tx.get(requestRef);
+      if (!snap.exists) throw new HttpsError("not-found", "Talep bulunamadı.");
+      const job = snap.data()!;
+      if (job.ownerId !== request.auth!.uid) {
+        throw new HttpsError("permission-denied", "Bu talebi yalnızca sahibi iptal edebilir.");
+      }
+      if (String(job.status ?? "") !== "PENDING") {
+        throw new HttpsError("failed-precondition", "Kabul edilmiş veya kapanmış talep iptal edilemez.");
+      }
+      tx.update(requestRef, {
+        status: "CANCELLED",
+        cancelledAt: FieldValue.serverTimestamp(),
+        updatedAt: FieldValue.serverTimestamp(),
+      });
+    });
+
+    return { cancelled: true, requestId };
+  }
+);
+
+export const confirmJobCompletion = onCall(
+  { region: "europe-west1", enforceAppCheck: true },
+  async (request) => {
+    if (!request.auth) throw new HttpsError("unauthenticated", "Kimlik doğrulaması gerekli.");
+    await assertAccountActive(request.auth.uid);
+
+    const data = callableData(request.data);
+    const requestId = requireString(data, "requestId", 80, 1);
+    if (!ID_PATTERN.test(requestId)) throw new HttpsError("invalid-argument", "Geçersiz talep kimliği.");
+
+    const requestRef = db.collection("jobRequests").doc(requestId);
+    let resultStatus = "COMPLETION_PENDING";
+
+    await db.runTransaction(async (tx) => {
+      const requestSnap = await tx.get(requestRef);
+      if (!requestSnap.exists) throw new HttpsError("not-found", "Talep bulunamadı.");
+      const job = requestSnap.data()!;
+      const status = String(job.status ?? "");
+      if (!["ACCEPTED", "COMPLETION_PENDING"].includes(status)) {
+        throw new HttpsError("failed-precondition", "Bu iş tamamlanma onayı için uygun durumda değil.");
+      }
+
+      const quoteId = String(job.acceptedQuoteId ?? "");
+      if (!ID_PATTERN.test(quoteId)) {
+        throw new HttpsError("failed-precondition", "Kabul edilmiş teklif bağlantısı eksik.");
+      }
+      const quoteRef = db.collection("quotes").doc(quoteId);
+      const quoteSnap = await tx.get(quoteRef);
+      if (!quoteSnap.exists) throw new HttpsError("failed-precondition", "Kabul edilmiş teklif bulunamadı.");
+      const quote = quoteSnap.data()!;
+
+      const isCustomer = job.ownerId === request.auth!.uid;
+      const isProvider = quote.providerOwnerId === request.auth!.uid;
+      if (!isCustomer && !isProvider) {
+        throw new HttpsError("permission-denied", "Bu işin tamamlanmasını onaylayamazsınız.");
+      }
+
+      const customerConfirmed = isCustomer || job.completionCustomerConfirmedAt != null;
+      const providerConfirmed = isProvider || job.completionProviderConfirmedAt != null;
+      resultStatus = customerConfirmed && providerConfirmed ? "COMPLETED" : "COMPLETION_PENDING";
+
+      const update: Record<string, unknown> = {
+        status: resultStatus,
+        updatedAt: FieldValue.serverTimestamp(),
+      };
+      if (isCustomer && job.completionCustomerConfirmedAt == null) {
+        update.completionCustomerConfirmedAt = FieldValue.serverTimestamp();
+      }
+      if (isProvider && job.completionProviderConfirmedAt == null) {
+        update.completionProviderConfirmedAt = FieldValue.serverTimestamp();
+      }
+      if (resultStatus === "COMPLETED") {
+        update.completedAt = FieldValue.serverTimestamp();
+        tx.update(quoteRef, { status: "COMPLETED", updatedAt: FieldValue.serverTimestamp() });
+      }
+      tx.update(requestRef, update);
+    });
+
+    return { requestId, status: resultStatus };
+  }
+);
+
+export const createReview = onCall(
+  { region: "europe-west1", enforceAppCheck: true },
+  async (request) => {
+    if (!request.auth) throw new HttpsError("unauthenticated", "Kimlik doğrulaması gerekli.");
+    await assertAccountActive(request.auth.uid);
+
+    const data = callableData(request.data);
+    const requestId = requireString(data, "requestId", 80, 1);
+    const rating = Number(data.rating);
+    const comment = data.comment == null ? "" : requireString(data, "comment", 1000, 0).trim();
+    if (!ID_PATTERN.test(requestId) || !Number.isSafeInteger(rating) || rating < 1 || rating > 5) {
+      throw new HttpsError("invalid-argument", "Geçersiz değerlendirme.");
+    }
+
+    const requestRef = db.collection("jobRequests").doc(requestId);
+    const reviewId = createHash("sha256").update(requestId + ":" + request.auth.uid).digest("hex");
+    const reviewRef = db.collection("reviews").doc(reviewId);
+
+    await db.runTransaction(async (tx) => {
+      const [requestSnap, reviewSnap] = await Promise.all([
+        tx.get(requestRef),
+        tx.get(reviewRef),
+      ]);
+      if (!requestSnap.exists) throw new HttpsError("not-found", "Talep bulunamadı.");
+      if (reviewSnap.exists) throw new HttpsError("already-exists", "Bu iş için daha önce değerlendirme yaptınız.");
+
+      const job = requestSnap.data()!;
+      if (job.ownerId !== request.auth!.uid || String(job.status ?? "") !== "COMPLETED") {
+        throw new HttpsError("permission-denied", "Yalnızca tamamlanmış kendi işinizi değerlendirebilirsiniz.");
+      }
+
+      const quoteId = String(job.acceptedQuoteId ?? "");
+      if (!ID_PATTERN.test(quoteId)) throw new HttpsError("failed-precondition", "Kabul edilmiş teklif bulunamadı.");
+      const quoteRef = db.collection("quotes").doc(quoteId);
+      const quoteSnap = await tx.get(quoteRef);
+      if (!quoteSnap.exists) throw new HttpsError("failed-precondition", "Kabul edilmiş teklif bulunamadı.");
+      const quote = quoteSnap.data()!;
+      const providerId = String(quote.providerId ?? "");
+      if (!ID_PATTERN.test(providerId)) throw new HttpsError("failed-precondition", "Hizmet sağlayıcı bağlantısı geçersiz.");
+      const providerRef = db.collection("providers").doc(providerId);
+      const providerSnap = await tx.get(providerRef);
+      if (!providerSnap.exists) throw new HttpsError("not-found", "Hizmet sağlayıcı bulunamadı.");
+
+      const oldCount = Number(providerSnap.data()?.reviewCount ?? 0);
+      const oldSum = Number(providerSnap.data()?.ratingSum ?? 0);
+      const safeCount = Number.isSafeInteger(oldCount) && oldCount >= 0 ? oldCount : 0;
+      const safeSum = Number.isFinite(oldSum) && oldSum >= 0 ? oldSum : 0;
+      const newCount = safeCount + 1;
+      const newSum = safeSum + rating;
+      const newRating = Math.round((newSum / newCount) * 10) / 10;
+
+      tx.create(reviewRef, {
+        requestId,
+        providerId,
+        providerOwnerId: String(quote.providerOwnerId ?? ""),
+        reviewerHash: createHash("sha256").update(request.auth!.uid).digest("hex").slice(0, 20),
+        rating,
+        comment,
+        verifiedTransaction: true,
+        createdAt: FieldValue.serverTimestamp(),
+      });
+      tx.update(providerRef, {
+        reviewCount: newCount,
+        ratingSum: newSum,
+        rating: newRating,
+        updatedAt: FieldValue.serverTimestamp(),
+      });
+    });
+
+    return { created: true, reviewId };
+  }
+);
+
+export const openDispute = onCall(
+  { region: "europe-west1", enforceAppCheck: true },
+  async (request) => {
+    if (!request.auth) throw new HttpsError("unauthenticated", "Kimlik doğrulaması gerekli.");
+    await assertAccountActive(request.auth.uid);
+
+    const data = callableData(request.data);
+    const requestId = requireString(data, "requestId", 80, 1);
+    const reason = requireString(data, "reason", 1000, 1).trim();
+    if (!ID_PATTERN.test(requestId) || !reason) throw new HttpsError("invalid-argument", "Geçersiz itiraz.");
+
+    const requestRef = db.collection("jobRequests").doc(requestId);
+    const disputeRef = db.collection("disputes").doc(requestId);
+
+    await db.runTransaction(async (tx) => {
+      const [requestSnap, disputeSnap] = await Promise.all([
+        tx.get(requestRef),
+        tx.get(disputeRef),
+      ]);
+      if (!requestSnap.exists) throw new HttpsError("not-found", "Talep bulunamadı.");
+      if (disputeSnap.exists && String(disputeSnap.data()?.status ?? "") === "OPEN") {
+        throw new HttpsError("already-exists", "Bu iş için açık bir itiraz zaten var.");
+      }
+
+      const job = requestSnap.data()!;
+      const status = String(job.status ?? "");
+      if (!["ACCEPTED", "COMPLETION_PENDING", "COMPLETED"].includes(status)) {
+        throw new HttpsError("failed-precondition", "Bu iş itiraz için uygun durumda değil.");
+      }
+
+      if (status === "COMPLETED") {
+        const completedAt = job.completedAt;
+        const completedMillis = completedAt && typeof completedAt.toMillis === "function"
+          ? completedAt.toMillis()
+          : Number.NaN;
+        if (!Number.isFinite(completedMillis) || Date.now() - completedMillis > 7 * 24 * 60 * 60 * 1000) {
+          throw new HttpsError("failed-precondition", "Tamamlanan iş için itiraz süresi dolmuş.");
+        }
+      }
+
+      const quoteId = String(job.acceptedQuoteId ?? "");
+      if (!ID_PATTERN.test(quoteId)) throw new HttpsError("failed-precondition", "Kabul edilmiş teklif bağlantısı eksik.");
+      const quoteSnap = await tx.get(db.collection("quotes").doc(quoteId));
+      if (!quoteSnap.exists) throw new HttpsError("failed-precondition", "Kabul edilmiş teklif bulunamadı.");
+      const quote = quoteSnap.data()!;
+      const participantIds = [String(job.ownerId ?? ""), String(quote.providerOwnerId ?? "")].filter(Boolean);
+      if (!participantIds.includes(request.auth!.uid)) {
+        throw new HttpsError("permission-denied", "Bu iş için itiraz açamazsınız.");
+      }
+
+      tx.set(disputeRef, {
+        requestId,
+        quoteId,
+        participantIds,
+        openedBy: request.auth!.uid,
+        reason,
+        status: "OPEN",
+        preDisputeStatus: status,
+        createdAt: FieldValue.serverTimestamp(),
+        updatedAt: FieldValue.serverTimestamp(),
+      }, { merge: false });
+      tx.update(requestRef, {
+        status: "DISPUTED",
+        updatedAt: FieldValue.serverTimestamp(),
+      });
+    });
+
+    return { opened: true, disputeId: requestId };
+  }
+);
+
+export const resolveDispute = onCall(
+  { region: "europe-west1", enforceAppCheck: true },
+  async (request) => {
+    if (!request.auth || request.auth.token.admin !== true) {
+      throw new HttpsError("permission-denied", "Yönetici yetkisi gerekli.");
+    }
+    await assertAccountActive(request.auth.uid);
+    requireRecentAuthentication(request.auth.token.auth_time);
+
+    const data = callableData(request.data);
+    const requestId = requireString(data, "requestId", 80, 1);
+    const resolution = requireString(data, "resolution", 32, 1);
+    if (!ID_PATTERN.test(requestId) || !["RESUME_JOB", "COMPLETE_JOB", "CANCEL_JOB"].includes(resolution)) {
+      throw new HttpsError("invalid-argument", "Geçersiz itiraz çözümü.");
+    }
+
+    const disputeRef = db.collection("disputes").doc(requestId);
+    const requestRef = db.collection("jobRequests").doc(requestId);
+
+    await db.runTransaction(async (tx) => {
+      const [disputeSnap, requestSnap] = await Promise.all([
+        tx.get(disputeRef),
+        tx.get(requestRef),
+      ]);
+      if (!disputeSnap.exists || String(disputeSnap.data()?.status ?? "") !== "OPEN") {
+        throw new HttpsError("failed-precondition", "Açık itiraz bulunamadı.");
+      }
+      if (!requestSnap.exists) throw new HttpsError("not-found", "Talep bulunamadı.");
+
+      const dispute = disputeSnap.data()!;
+      const previous = String(dispute.preDisputeStatus ?? "ACCEPTED");
+      const nextStatus = resolution === "COMPLETE_JOB"
+        ? "COMPLETED"
+        : resolution === "CANCEL_JOB"
+          ? "CANCELLED"
+          : (["ACCEPTED", "COMPLETION_PENDING"].includes(previous) ? previous : "ACCEPTED");
+
+      tx.update(disputeRef, {
+        status: "RESOLVED",
+        resolution,
+        resolvedBy: request.auth!.uid,
+        resolvedAt: FieldValue.serverTimestamp(),
+        updatedAt: FieldValue.serverTimestamp(),
+      });
+      tx.update(requestRef, {
+        status: nextStatus,
+        ...(nextStatus === "COMPLETED" ? { completedAt: FieldValue.serverTimestamp() } : {}),
+        updatedAt: FieldValue.serverTimestamp(),
+      });
+
+      const quoteId = String(dispute.quoteId ?? "");
+      if (nextStatus === "COMPLETED" && ID_PATTERN.test(quoteId)) {
+        tx.update(db.collection("quotes").doc(quoteId), {
+          status: "COMPLETED",
+          updatedAt: FieldValue.serverTimestamp(),
+        });
+      }
+    });
+
+    return { resolved: true, requestId, resolution };
+  }
+);
+
+export const getPaymentForQuote = onCall(
+  { region: "europe-west1", enforceAppCheck: true },
+  async (request) => {
+    if (!request.auth) throw new HttpsError("unauthenticated", "Kimlik doğrulaması gerekli.");
+    await assertAccountActive(request.auth.uid);
+
+    const data = callableData(request.data);
+    const requestId = requireString(data, "requestId", 80, 1);
+    const quoteId = requireString(data, "quoteId", 80, 1);
+    if (!ID_PATTERN.test(requestId) || !ID_PATTERN.test(quoteId)) {
+      throw new HttpsError("invalid-argument", "Geçersiz iş/teklif kimliği.");
+    }
+
+    const snap = await db.collection("payments")
+      .where("requestId", "==", requestId)
+      .where("quoteId", "==", quoteId)
+      .limit(5)
+      .get();
+
+    const paymentDoc = snap.docs.find((doc) => {
+      const payment = doc.data();
+      return payment.customerId === request.auth!.uid
+        || payment.providerId === request.auth!.uid
+        || request.auth!.token.admin === true;
+    });
+    if (!paymentDoc) throw new HttpsError("not-found", "Bu teklif için erişilebilir ödeme bulunamadı.");
+
+    const payment = paymentDoc.data();
+    return {
+      id: paymentDoc.id,
+      status: String(payment.status ?? "UNKNOWN"),
+      amountMinor: Number(payment.amountMinor ?? 0),
+      currency: String(payment.currency ?? "TRY"),
+    };
+  }
+);
 
 export const releaseEscrowPayment = onCall({ region: "europe-west1", enforceAppCheck: true }, async (request) => {
   if (!request.auth) throw new HttpsError("unauthenticated", "Kimlik doğrulaması gerekli.");
@@ -1796,6 +2219,21 @@ async function anonymizeAccount(uid: string): Promise<void> {
     );
 
     await processQueryInPages(
+      db.collection("disputes").where("participantIds", "array-contains", uid),
+      async (disputes) => {
+        for (const dispute of disputes) {
+          const participantIds = (dispute.data().participantIds as unknown[])
+            .map((id) => id === uid ? anonymizedId : id);
+          writer.set(dispute.ref, {
+            participantIds,
+            openedBy: dispute.data().openedBy === uid ? anonymizedId : dispute.data().openedBy,
+            accountDeletedAt: FieldValue.serverTimestamp(),
+          }, { merge: true });
+        }
+      }
+    );
+
+    await processQueryInPages(
       db.collection("conversations").where("participantIds", "array-contains", uid),
       async (conversations) => {
         for (const conversation of conversations) {
@@ -1825,6 +2263,15 @@ async function anonymizeAccount(uid: string): Promise<void> {
     );
 
     await writer.close();
+
+    await processQueryInPages(
+      db.collectionGroup("blockedUsers").where("blockedUid", "==", uid),
+      async (blocks) => {
+        const batch = db.batch();
+        for (const block of blocks) batch.delete(block.ref);
+        await batch.commit();
+      }
+    );
 
     await processQueryInPages(
       db.collection("deviceTokenOwners").where("uid", "==", uid),
@@ -1860,6 +2307,7 @@ async function anonymizeAccount(uid: string): Promise<void> {
     "availability-hour:" + uid,
     "conversation-read:" + uid,
     "conversation-read-hour:" + uid,
+    "block-day:" + uid,
   ];
   for (const rateLimitId of rateLimitIds) {
     cleanupBatch.delete(db.collection("rateLimits").doc(rateLimitId));
@@ -2199,6 +2647,11 @@ export const syncPublicProvider = onDocumentWritten(
       return;
     }
 
+    const ownerId = String(provider.ownerId ?? "");
+    const ownerProfile = ownerId
+      ? await db.collection("users").doc(ownerId).get()
+      : null;
+
     await providerRef.set({
       displayName: provider.displayName ?? "",
       title: provider.title ?? "",
@@ -2210,6 +2663,9 @@ export const syncPublicProvider = onDocumentWritten(
       hourlyOrBasePrice: provider.hourlyOrBasePrice ?? "Anlaşmaya Bağlı",
       isEmergencyAvailable: provider.isEmergencyAvailable === true,
       experienceYears: provider.experienceYears ?? 0,
+      rating: Number(provider.rating ?? 0),
+      reviewCount: Number(provider.reviewCount ?? 0),
+      phoneVerified: Boolean(ownerProfile?.data()?.phoneNumber),
       paintBrandsJson: typeof provider.paintBrandsJson === "string"
         ? provider.paintBrandsJson.slice(0, 2000)
         : "",
@@ -2251,12 +2707,15 @@ export const syncPublicJobRequest = onDocumentWritten(
     if (
       !event.data?.after.exists
       || !jobRequest
-      || String(jobRequest.status ?? "") === "CLOSED"
+      || String(jobRequest.status ?? "") !== "PENDING"
       || String(jobRequest.ownerId ?? "").startsWith("deleted:")
     ) {
       await requestRef.delete().catch(() => undefined);
       return;
     }
+
+    const privateSnap = await db.collection("jobRequestPrivate").doc(event.params.requestId).get();
+    const privateData = privateSnap.data() ?? {};
 
     await requestRef.set({
       title: jobRequest.title ?? "",
@@ -2267,6 +2726,15 @@ export const syncPublicJobRequest = onDocumentWritten(
       eventOrJobDate: jobRequest.eventOrJobDate ?? "",
       eventTime: jobRequest.eventTime ?? "",
       budgetEstimate: jobRequest.budgetEstimate ?? "",
+      serviceArea: (() => {
+        const latitude = Number(privateData.latitude);
+        const longitude = Number(privateData.longitude);
+        if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return null;
+        return {
+          latitude: Math.round(latitude * 100) / 100,
+          longitude: Math.round(longitude * 100) / 100,
+        };
+      })(),
       status: jobRequest.status ?? "PENDING",
       createdAt: jobRequest.createdAt ?? FieldValue.serverTimestamp(),
       updatedAt: FieldValue.serverTimestamp(),

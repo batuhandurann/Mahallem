@@ -86,27 +86,58 @@ class CloudMarketplaceRepository(
 
     fun observeQuotes(): kotlinx.coroutines.flow.Flow<List<QuoteEntity>> = kotlinx.coroutines.flow.callbackFlow {
         val me = requireUid()
-        val listener = firestore.collection("quotes")
+        var customerQuotes = emptyList<QuoteEntity>()
+        var providerQuotes = emptyList<QuoteEntity>()
+
+        fun emitCombined() {
+            trySend(
+                (customerQuotes + providerQuotes)
+                    .associateBy { it.id }
+                    .values
+                    .sortedByDescending { it.createdAt }
+            )
+        }
+
+        fun mapSnapshot(snapshot: com.google.firebase.firestore.QuerySnapshot?): List<QuoteEntity> =
+            snapshot?.documents.orEmpty().map { d ->
+                QuoteEntity(
+                    id = d.id.toLongOrNull() ?: d.id.hashCode().toLong().and(0x7fffffffL),
+                    requestId = d.getString("requestId")?.toLongOrNull() ?: 0L,
+                    providerId = d.getString("providerId").orEmpty(),
+                    providerName = d.getString("providerName") ?: "Hizmet Sağlayıcı",
+                    providerTitle = d.getString("providerTitle") ?: "Hizmet",
+                    providerRating = (d.get("providerRating") as? Number)?.toDouble() ?: 0.0,
+                    price = d.getString("price").orEmpty(),
+                    amountMinor = (d.get("amountMinor") as? Number)?.toLong() ?: 0L,
+                    durationOrArrival = d.getString("durationOrArrival").orEmpty(),
+                    notes = d.getString("notes").orEmpty(),
+                    status = d.getString("status") ?: "PENDING",
+                    createdAt = d.getTimestamp("createdAt")?.toDate()?.time ?: 0L
+                )
+            }
+
+        val customerListener = firestore.collection("quotes")
             .whereEqualTo("customerId", me)
             .limit(100)
             .addSnapshotListener { snap, error ->
                 if (error != null) { close(error); return@addSnapshotListener }
-                val list = snap?.documents.orEmpty().map { d ->
-                    QuoteEntity(
-                        id = d.id.toLongOrNull() ?: d.id.hashCode().toLong().and(0x7fffffffL),
-                        requestId = d.getString("requestId")?.toLongOrNull() ?: 0L,
-                        providerId = d.getString("providerId").orEmpty(),
-                        providerName = "Hizmet Sağlayıcı", providerTitle = "Hizmet",
-                        providerRating = 0.0, price = d.getString("price").orEmpty(),
-                        amountMinor = (d.get("amountMinor") as? Number)?.toLong() ?: 0L,
-                        durationOrArrival = d.getString("durationOrArrival").orEmpty(),
-                        notes = d.getString("notes").orEmpty(),
-                        status = d.getString("status") ?: "PENDING"
-                    )
-                }
-                trySend(list)
+                customerQuotes = mapSnapshot(snap)
+                emitCombined()
             }
-        awaitClose { listener.remove() }
+
+        val providerListener = firestore.collection("quotes")
+            .whereEqualTo("providerOwnerId", me)
+            .limit(100)
+            .addSnapshotListener { snap, error ->
+                if (error != null) { close(error); return@addSnapshotListener }
+                providerQuotes = mapSnapshot(snap)
+                emitCombined()
+            }
+
+        awaitClose {
+            customerListener.remove()
+            providerListener.remove()
+        }
     }
     suspend fun saveProvider(provider: ServiceProviderEntity) {
         requireUid()

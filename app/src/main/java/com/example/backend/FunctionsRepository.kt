@@ -142,6 +142,27 @@ class FunctionsRepository(
     suspend fun reportContent(targetType: String, targetId: String, reason: String): Map<*, *> =
         call("reportContent", mapOf("targetType" to targetType, "targetId" to targetId, "reason" to reason))
 
+    suspend fun setUserBlocked(targetUid: String, blocked: Boolean): Map<*, *> =
+        call("setUserBlock", mapOf("targetUid" to targetUid, "blocked" to blocked))
+
+    suspend fun cancelJobRequest(requestId: Long): Map<*, *> =
+        call("cancelJobRequest", mapOf("requestId" to requestId.toString()))
+
+    suspend fun confirmJobCompletion(requestId: Long): Map<*, *> =
+        call("confirmJobCompletion", mapOf("requestId" to requestId.toString()))
+
+    suspend fun createReview(requestId: Long, rating: Int, comment: String): Map<*, *> =
+        call("createReview", mapOf("requestId" to requestId.toString(), "rating" to rating, "comment" to comment))
+
+    suspend fun openDispute(requestId: Long, reason: String): Map<*, *> =
+        call("openDispute", mapOf("requestId" to requestId.toString(), "reason" to reason))
+
+    suspend fun resolveDispute(requestId: Long, resolution: String): Map<*, *> =
+        call("resolveDispute", mapOf("requestId" to requestId.toString(), "resolution" to resolution))
+
+    suspend fun getPaymentForQuote(requestId: Long, quoteId: Long): Map<*, *> =
+        call("getPaymentForQuote", mapOf("requestId" to requestId.toString(), "quoteId" to quoteId.toString()))
+
     suspend fun registerDeviceToken(token: String, platform: String = "android"): Map<*, *> =
         call("registerDeviceToken", mapOf("token" to token, "platform" to platform))
 

@@ -74,6 +74,12 @@ service cloud.firestore {
         allow read, write: if false;
       }
 
+      match /blockedUsers/{blockedUid} {
+        allow get: if isAdmin() || (accountActive() && request.auth.uid == uid);
+        allow list: if isAdmin() || (accountActive() && request.auth.uid == uid && request.query.limit <= 100);
+        allow create, update, delete: if false;
+      }
+
       match /conversationState/{conversationId} {
         allow get: if isAdmin() || (accountActive() && request.auth.uid == uid);
         allow list: if isAdmin() || (accountActive() && request.auth.uid == uid && request.query.limit <= 50);
@@ -167,6 +173,19 @@ service cloud.firestore {
 
     match /contentReports/{reportId} {
       allow get, list: if isAdmin();
+      allow create, update, delete: if false;
+    }
+
+    match /reviews/{reviewId} {
+      allow get: if accountActive();
+      allow list: if accountActive() && request.query.limit <= 100;
+      allow create, update, delete: if false;
+    }
+
+    match /disputes/{disputeId} {
+      allow get: if isAdmin() || (accountActive() && request.auth.uid in resource.data.participantIds);
+      allow list: if isAdmin() || (accountActive() && request.query.limit <= 50
+        && request.auth.uid in resource.data.participantIds);
       allow create, update, delete: if false;
     }
 
