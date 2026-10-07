@@ -1,6 +1,6 @@
 package com.example.integration
 
-import android.net.Uri
+import java.net.URI
 
 data class PaymentIntent(
     val id: String,
@@ -45,10 +45,15 @@ class TestPaymentGateway : PaymentGateway {
  * Do not put merchant secrets in the Android app.
  */
 internal fun isAllowedPaytrCheckoutUrl(value: String): Boolean {
-    val uri = runCatching { Uri.parse(value) }.getOrNull() ?: return false
-    return uri.scheme.equals("https", ignoreCase = true)
-        && uri.host.equals("www.paytr.com", ignoreCase = true)
-        && uri.encodedPath.startsWith("/odeme/guvenli/")
+    val uri = runCatching { URI(value) }.getOrNull() ?: return false
+    val scheme = uri.scheme ?: return false
+    val host = uri.host ?: return false
+    val path = uri.rawPath ?: return false
+    return scheme.equals("https", ignoreCase = true)
+        && host.equals("www.paytr.com", ignoreCase = true)
+        && uri.rawUserInfo == null
+        && (uri.port == -1 || uri.port == 443)
+        && path.startsWith("/odeme/guvenli/")
 }
 
 class ProductionPaymentGateway(
