@@ -523,6 +523,64 @@ export const saveProviderListing = onCall(
   }
 );
 
+export const setFavorite = onCall(
+  { region: "europe-west1", enforceAppCheck: true },
+  async (request) => {
+    if (!request.auth) throw new HttpsError("unauthenticated", "Kimlik doğrulaması gerekli.");
+    await assertAccountActive(request.auth.uid);
+
+    const data = callableData(request.data);
+    const providerId = requireString(data, "providerId", 120, 1);
+    const favorite = data.favorite;
+    if (!ID_PATTERN.test(providerId) || typeof favorite !== "boolean") {
+      throw new HttpsError("invalid-argument", "Geçersiz favori isteği.");
+    }
+
+    const providerRef = db.collection("providers").doc(providerId);
+    const favoriteRef = db.collection("users").doc(request.auth.uid).collection("favorites").doc(providerId);
+    const rateRef = db.collection("rateLimits").doc("favorite-hour:" + request.auth.uid);
+    const now = Date.now();
+
+    await db.runTransaction(async (tx) => {
+      const [providerSnap, rateSnap] = await Promise.all([
+        tx.get(providerRef),
+        tx.get(rateRef),
+      ]);
+      if (!providerSnap.exists) {
+        throw new HttpsError("not-found", "Hizmet sağlayıcı bulunamadı.");
+      }
+      if (providerSnap.data()?.ownerId === request.auth!.uid) {
+        throw new HttpsError("failed-precondition", "Kendi hizmet ilanınızı favorileyemezsiniz.");
+      }
+
+      const rate = rateSnap.exists ? rateSnap.data()! : {};
+      const windowStart = Number(rate.windowStartMs ?? 0);
+      const count = Number(rate.count ?? 0);
+      const activeWindow = Number.isSafeInteger(windowStart) && now - windowStart < 3_600_000;
+      if (activeWindow && count >= 200) {
+        throw new HttpsError("resource-exhausted", "Saatlik favori değişikliği kotanıza ulaştınız.");
+      }
+      tx.set(rateRef, {
+        windowStartMs: activeWindow ? windowStart : now,
+        count: activeWindow ? count + 1 : 1,
+        updatedAt: FieldValue.serverTimestamp(),
+      }, { merge: true });
+
+      if (favorite) {
+        tx.set(favoriteRef, {
+          providerId,
+          createdAt: FieldValue.serverTimestamp(),
+          updatedAt: FieldValue.serverTimestamp(),
+        }, { merge: true });
+      } else {
+        tx.delete(favoriteRef);
+      }
+    });
+
+    return { providerId, favorite };
+  }
+);
+
 export const updateProviderAvailability = onCall(
   { enforceAppCheck: true },
   async (request) => {
@@ -2311,6 +2369,7 @@ async function anonymizeAccount(uid: string): Promise<void> {
     "conversation-read:" + uid,
     "conversation-read-hour:" + uid,
     "block-day:" + uid,
+    "favorite-hour:" + uid,
   ];
   for (const rateLimitId of rateLimitIds) {
     cleanupBatch.delete(db.collection("rateLimits").doc(rateLimitId));

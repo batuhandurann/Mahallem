@@ -19,6 +19,23 @@ class CloudMarketplaceRepository(
 ) {
     private fun requireUid(): String = auth.currentUser?.uid ?: error("Giriş gerekli.")
 
+    fun observeFavoriteProviderIds(): Flow<Set<String>> = callbackFlow {
+        val me = requireUid()
+        val listener = firestore.collection("users").document(me)
+            .collection("favorites")
+            .limit(200)
+            .addSnapshotListener { snapshot, error ->
+                if (error != null) { close(error); return@addSnapshotListener }
+                trySend(snapshot?.documents.orEmpty().map { it.id }.toSet())
+            }
+        awaitClose { listener.remove() }
+    }
+
+    suspend fun setFavorite(providerId: String, favorite: Boolean) {
+        requireUid()
+        FunctionsRepository().setFavorite(providerId, favorite)
+    }
+
     fun observeProviders(
         categoryId: String? = null,
         sector: String? = null,

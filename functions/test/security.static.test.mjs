@@ -12,7 +12,7 @@ assert.match(
 
 const onCallCount = (source.match(/export const [A-Za-z0-9_]+ = onCall\(/g) || []).length;
 const appCheckCount = (source.match(/enforceAppCheck:\s*true/g) || []).length;
-assert.equal(onCallCount, 26, "Unexpected callable-function count; review App Check coverage.");
+assert.equal(onCallCount, 27, "Unexpected callable-function count; review App Check coverage.");
 assert.equal(appCheckCount, onCallCount, "Every callable function must enforce App Check.");
 
 assert.match(source, /hashDeviceToken/);
@@ -43,6 +43,7 @@ assert.match(source, /reportContent/);
 assert.match(source, /updateProviderAvailability/);
 assert.match(source, /markConversationRead/);
 assert.match(source, /setUserBlock/);
+assert.match(source, /setFavorite/);
 assert.match(source, /blockedUsers/);
 assert.match(source, /cancelJobRequest/);
 assert.match(source, /confirmJobCompletion/);
@@ -91,6 +92,7 @@ assert.match(
 assert.match(rules, /match \/reviews\/\{reviewId\}/);
 assert.match(rules, /match \/disputes\/\{disputeId\}/);
 assert.match(rules, /match \/blockedUsers\/\{blockedUid\}/);
+assert.match(rules, /match \/favorites\/\{providerId\}/);
 assert.match(rules, /\('admin' in request\.auth\.token\)/);
 assert.match(rules, /'deletionStatus' in get\(/);
 assert.match(

@@ -152,6 +152,10 @@ class MarketplaceViewModel(application: Application) : AndroidViewModel(applicat
             }
         }
 
+    private val cloudFavoriteProviderIds: Flow<Set<String>> =
+        if (AppEnvironment.mode == AppEnvironment.Mode.LOCAL) emptyFlow()
+        else cloudRepository.observeFavoriteProviderIds()
+
     @OptIn(ExperimentalCoroutinesApi::class)
     val providers: StateFlow<List<ServiceProviderEntity>> = if (AppEnvironment.mode == AppEnvironment.Mode.LOCAL) {
         combine(
@@ -166,9 +170,11 @@ class MarketplaceViewModel(application: Application) : AndroidViewModel(applicat
             repository.getFilteredProviders(f.sector, f.urgency, f.category, f.query, f.district)
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
     } else {
-        combine(cloudProviderSource, discoveryFilters, debouncedSearchQuery) { list, f, query ->
+        combine(cloudProviderSource, cloudFavoriteProviderIds, discoveryFilters, debouncedSearchQuery) { list, favoriteIds, f, query ->
             val full = f.copy(query = query)
-            list.filter { p ->
+            list.map { provider ->
+                provider.copy(isFavorite = provider.id in favoriteIds)
+            }.filter { p ->
                 val sectorMatch = full.sector == SectorType.ALL || p.sector == full.sector.name
                 val urgencyMatch = when (full.urgency) {
                     UrgencyMode.ALL -> true
@@ -351,7 +357,15 @@ class MarketplaceViewModel(application: Application) : AndroidViewModel(applicat
 
     fun toggleFavorite(provider: ServiceProviderEntity) {
         viewModelScope.launch {
-            repository.toggleFavorite(provider.id, provider.isFavorite)
+            if (AppEnvironment.mode == AppEnvironment.Mode.LOCAL) {
+                repository.toggleFavorite(provider.id, provider.isFavorite)
+            } else {
+                runCatching {
+                    cloudRepository.setFavorite(provider.id, !provider.isFavorite)
+                }.onFailure {
+                    _toastMessage.value = it.message ?: "Favori güncellenemedi."
+                }
+            }
         }
     }
 

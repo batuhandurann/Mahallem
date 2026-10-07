@@ -9,6 +9,9 @@ class FunctionsRepository(
     suspend fun saveProviderListing(data: Map<String, Any?>): Map<*, *> =
         call("saveProviderListing", data)
 
+    suspend fun setFavorite(providerId: String, favorite: Boolean): Map<*, *> =
+        call("setFavorite", mapOf("providerId" to providerId, "favorite" to favorite))
+
     suspend fun updateProviderAvailability(
         providerId: String,
         isOpenForOffers: Boolean? = null,

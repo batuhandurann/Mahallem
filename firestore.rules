@@ -80,6 +80,12 @@ service cloud.firestore {
         allow create, update, delete: if false;
       }
 
+      match /favorites/{providerId} {
+        allow get: if isAdmin() || (accountActive() && request.auth.uid == uid);
+        allow list: if isAdmin() || (accountActive() && request.auth.uid == uid && request.query.limit <= 200);
+        allow create, update, delete: if false;
+      }
+
       match /conversationState/{conversationId} {
         allow get: if isAdmin() || (accountActive() && request.auth.uid == uid);
         allow list: if isAdmin() || (accountActive() && request.auth.uid == uid && request.query.limit <= 50);

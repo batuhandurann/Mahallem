@@ -518,7 +518,7 @@ private fun QuoteCardView(
                     ) {
                         Icon(Icons.Default.Security, contentDescription = null, modifier = Modifier.size(14.dp))
                         Spacer(modifier = Modifier.width(4.dp))
-                        Text("🔒 Güvenli Havuzla Onayla", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        Text("PayTR ile Güvenli Ödeme", fontSize = 12.sp, fontWeight = FontWeight.Bold)
                     }
                 }
             }
