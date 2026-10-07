@@ -1,0 +1,54 @@
+rules_version = '2';
+
+// Private users/{uid} profiles. Required fields:
+// uid: string 1..128, immutable, matches Auth UID and document ID.
+// displayName: string 2..80. email: string 1..254, matches Auth token.
+// createdAt: immutable server timestamp. updatedAt: server timestamp.
+// No roles, public profiles, subcollections or marketplace data are permitted.
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function uidUnchanged(userId) {
+      return request.resource.data.uid == userId
+        && request.resource.data.uid == request.auth.uid;
+    }
+
+    function uidNotModified() {
+      return request.resource.data.uid == resource.data.uid;
+    }
+
+    function isValidUser(data) {
+      return data.keys().hasAll(['uid', 'displayName', 'email', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['uid', 'displayName', 'email', 'createdAt', 'updatedAt'])
+        && data.uid is string && data.uid.size() >= 1 && data.uid.size() <= 128
+        && data.displayName is string && data.displayName.size() >= 2 && data.displayName.size() <= 80
+        && data.email is string && data.email.size() >= 1 && data.email.size() <= 254
+        && data.email == request.auth.token.email
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp && data.updatedAt == request.time;
+    }
+
+    match /users/{userId} {
+      allow read: if isOwner(userId);
+      allow create: if isOwner(userId)
+        && isValidUser(request.resource.data)
+        && uidUnchanged(userId)
+        && request.resource.data.createdAt == request.time;
+      allow update: if isOwner(userId)
+        && isValidUser(request.resource.data)
+        && uidUnchanged(userId) && uidNotModified()
+        && request.resource.data.createdAt == resource.data.createdAt;
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

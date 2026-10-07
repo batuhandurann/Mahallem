@@ -22,6 +22,7 @@ import com.example.data.model.FeedFlowType
 import com.example.data.model.SectorType
 import com.example.data.model.UrgencyMode
 import com.example.ui.MarketplaceViewModel
+import com.example.ui.MahallemApp
 import com.example.ui.ScreenDestination
 import com.example.ui.components.CostEstimatorSheet
 import com.example.ui.components.DigitalReceiptDialog
@@ -36,7 +37,7 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         setContent {
             MyApplicationTheme {
-                MarketplaceApp()
+                MahallemApp()
             }
         }
     }
@@ -44,7 +45,8 @@ class MainActivity : ComponentActivity() {
 
 @Composable
 fun MarketplaceApp(
-    viewModel: MarketplaceViewModel = viewModel()
+    viewModel: MarketplaceViewModel = viewModel(),
+    accountHeader: @Composable () -> Unit = {}
 ) {
     val currentScreen by viewModel.currentScreen.collectAsStateWithLifecycle()
     val isProviderMode by viewModel.isProviderMode.collectAsStateWithLifecycle()
@@ -84,6 +86,7 @@ fun MarketplaceApp(
     Scaffold(
         containerColor = androidx.compose.ui.graphics.Color.White,
         modifier = Modifier.fillMaxSize(),
+        topBar = accountHeader,
         snackbarHost = { SnackbarHost(snackbarHostState) },
         bottomBar = {
             if (isMainTabScreen) {
