@@ -1,0 +1,14 @@
+{
+  "firestore": {
+    "database": "mahallem",
+    "edition": "enterprise",
+    "location": "europe-west3",
+    "rules": "firestore.rules",
+    "indexes": "firestore.indexes.json"
+  },
+  "auth": {
+    "providers": {
+      "emailPassword": true
+    }
+  }
+}
