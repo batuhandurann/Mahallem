@@ -88,7 +88,10 @@ assert.match(storage, /validGrant/);
 assert.match(storage, /data\.validated == true/);
 assert.match(storage, /filenameGrantId\(fileName\)/);
 assert.match(storage, /fileName\.matches/);
-assert.ok(storage.includes("fileName.replace('\\\\.jpg
+assert.ok(storage.includes("fileName.replace('\\\\.jpg$', '')"));
+assert.ok(storage.includes("fileName.matches('^[A-Za-z0-9_-]{1,80}\\\\.jpg$')"));
+assert.ok(!storage.includes("fileName.replace('\\\\\\\\.jpg$', '')"));
+assert.ok(!storage.includes("fileName.matches('^[A-Za-z0-9_-]{1,80}\\\\\\\\.jpg$')"));
 assert.match(storage, /data\.participantIds/);
 assert.doesNotMatch(storage, /documents\/.*\/conversations\//);
 assert.doesNotMatch(storage, /documents\/.*\/jobRequests\//);
