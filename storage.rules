@@ -7,15 +7,18 @@ service firebase.storage {
     }
 
     function isAdmin() {
-      return signedIn() && request.auth.token.admin == true;
+      return signedIn()
+        && ('admin' in request.auth.token)
+        && request.auth.token.admin == true;
     }
 
     // One Firestore document: the caller's account profile.
     function accountActive(uid) {
       return signedIn()
         && firestore.exists(/databases/(default)/documents/users/$(uid))
-        && firestore.get(/databases/(default)/documents/users/$(uid)).data.deletionStatus != 'REQUESTED'
-        && firestore.get(/databases/(default)/documents/users/$(uid)).data.deletionStatus != 'PURGING';
+        && (!('deletionStatus' in firestore.get(/databases/(default)/documents/users/$(uid)).data)
+          || (firestore.get(/databases/(default)/documents/users/$(uid)).data.deletionStatus != 'REQUESTED'
+            && firestore.get(/databases/(default)/documents/users/$(uid)).data.deletionStatus != 'PURGING'));
     }
 
     function safeImage() {
