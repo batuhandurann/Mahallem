@@ -1,6 +1,6 @@
 package com.example.ui.screens
 
-import androidx.compose.ui.test.assertExists
+import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.performClick
@@ -23,12 +23,12 @@ class CreateJobRequestScreenTest {
                     preselectedCategoryId = null,
                     isEmergencyPreselected = false,
                     onBackClick = {},
-                    onSubmitRequest = { _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _ -> }
+                    onSubmitRequest = { _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _ -> }
                 )
             }
         }
 
         composeRule.onNode(hasTestTag("btn_submit_job_request")).performClick()
-        composeRule.onNode(hasTestTag("form_error")).assertExists()
+        composeRule.onNode(hasTestTag("form_error")).assertIsDisplayed()
     }
 }
