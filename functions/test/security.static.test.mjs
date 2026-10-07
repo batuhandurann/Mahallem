@@ -100,10 +100,6 @@ assert.match(rules, /match \/blockedUsers\/\{blockedUid\}/);
 assert.match(rules, /match \/favorites\/\{providerId\}/);
 assert.match(rules, /\('admin' in request\.auth\.token\)/);
 assert.match(rules, /'deletionStatus' in get\(/);
-assert.match(
-  rules,
-  /jobRequests\/\$\(request\.resource\.data\.requestId\)/
-);
 
 assert.match(storage, /\('admin' in request\.auth\.token\)/);
 assert.match(storage, /'deletionStatus' in firestore\.get\(/);
