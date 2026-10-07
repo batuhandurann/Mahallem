@@ -50,22 +50,9 @@ fun ProviderDetailScreen(
     val characterList = parseJsonList(provider.charactersOfferedJson)
     val equipmentList = parseJsonList(provider.includedEquipmentsJson)
 
-    // Parse Before-After items
-    val beforeAfterItems = if (isRenovation) {
-        listOf(
-            BeforeAfterItem("3+1 Daire Salon Badana", "Sararmış duvarlar ve tavan çatlakları", "2 kat Jotun Safir Beyazı pürüzsüz boyama"),
-            BeforeAfterItem("Antre ve Koridor Yenileme", "Eski kabarık duvar kağıdı", "Alçı saten tamiratı + Marshall Kumsal Beji")
-        )
-    } else emptyList()
-
-    // Parse Videos
-    val videoItems = if (!isRenovation) {
-        listOf(
-            VideoShowcaseItem("Doğum Günü Mini Disco Dansı", "1:45 dk", "3.8k izlenme"),
-            VideoShowcaseItem("Sosis Balon Kılıç ve Kuğu Yapımı", "0:55 dk", "2.1k izlenme"),
-            VideoShowcaseItem("İnteraktif Çocuk Oyunları", "2:10 dk", "4.5k izlenme")
-        )
-    } else emptyList()
+    // Portfolio is shown only when real backend media exists. Hard-coded showcase data is intentionally disabled.
+    val beforeAfterItems = emptyList<BeforeAfterItem>()
+    val videoItems = emptyList<VideoShowcaseItem>()
 
     Scaffold(
         topBar = {

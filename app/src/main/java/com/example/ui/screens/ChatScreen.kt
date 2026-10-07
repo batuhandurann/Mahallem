@@ -104,20 +104,11 @@ fun ChatScreen(
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 16.sp
                             )
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(7.dp)
-                                        .clip(CircleShape)
-                                        .background(SafeBadgeGreen)
-                                )
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Text(
-                                    text = "Çevrim içi • ${conversation?.participantTitle ?: "Hizmet Sağlayıcı"}",
-                                    fontSize = 11.sp,
-                                    color = Slate500
-                                )
-                            }
+                            Text(
+                                text = conversation?.participantTitle ?: "Hizmet Sağlayıcı",
+                                fontSize = 11.sp,
+                                color = Slate500
+                            )
                         }
                     }
                 },
@@ -215,20 +206,10 @@ fun ChatScreen(
                             Icon(Icons.Default.PhotoCamera, contentDescription = "Fotoğraf Çek/Yükle", tint = TealPrimary)
                         }
 
-                        // Voice Note Button
-                        IconButton(
-                            onClick = {
-                                onSendVoiceNote(6)
-                            },
-                            modifier = Modifier.size(40.dp).testTag("btn_send_voice_note")
-                        ) {
-                            Icon(Icons.Default.Mic, contentDescription = "Sesli Not Gönder", tint = FestiveCoral)
-                        }
-
                         OutlinedTextField(
                             value = messageInput,
                             onValueChange = { messageInput = it.take(MAX_CHAT_MESSAGE_LENGTH) },
-                            placeholder = { Text("Mesaj veya sesli not...", fontSize = 13.sp) },
+                            placeholder = { Text("Mesaj yaz...", fontSize = 13.sp) },
                             shape = RoundedCornerShape(24.dp),
                             singleLine = true,
                             modifier = Modifier
@@ -397,7 +378,7 @@ fun ChatBubble(message: ChatMessageEntity) {
                     }
                 }
 
-                // If it's a simulated voice note
+                // Legacy/local voice-note placeholder; production recording is disabled until real audio transport exists
                 if (message.isVoiceNote) {
                     Surface(
                         shape = RoundedCornerShape(8.dp),
@@ -475,19 +456,14 @@ fun ChatBubble(message: ChatMessageEntity) {
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = "14:32",
+                        text = remember(message.timestamp) {
+                            java.text.SimpleDateFormat("HH:mm", java.util.Locale.getDefault())
+                                .format(java.util.Date(message.timestamp))
+                        },
                         fontSize = 10.sp,
                         color = if (isMe) TealLight else Slate500
                     )
-                    if (isMe) {
-                        Spacer(modifier = Modifier.width(3.dp))
-                        Icon(
-                            Icons.Default.DoneAll,
-                            contentDescription = "Okundu",
-                            tint = TealLight,
-                            modifier = Modifier.size(12.dp)
-                        )
-                    }
+
                 }
             }
         }

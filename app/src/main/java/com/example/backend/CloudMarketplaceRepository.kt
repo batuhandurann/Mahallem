@@ -183,7 +183,7 @@ class CloudMarketplaceRepository(
         experienceYears=(d["experienceYears"] as? Number)?.toInt() ?: 0, district=d["district"]?.toString().orEmpty(),
         city=d["city"]?.toString().orEmpty(), hourlyOrBasePrice=d["hourlyOrBasePrice"]?.toString().orEmpty(),
         isEmergencyAvailable=d["isEmergencyAvailable"] as? Boolean ?: false, verifiedSafeBadge=false, mykCertified=false,
-        childSafeCertified=false, phoneVerified=true, daysRemaining=30, isReported=false,
+        childSafeCertified=false, phoneVerified=d["phoneVerified"] as? Boolean ?: false, daysRemaining=30, isReported=false,
         paintBrandsJson=d["paintBrandsJson"]?.toString().orEmpty(),
         charactersOfferedJson=d["charactersOfferedJson"]?.toString().orEmpty(),
         includedEquipmentsJson=d["includedEquipmentsJson"]?.toString().orEmpty(),
@@ -203,6 +203,8 @@ class CloudMarketplaceRepository(
         eventOrJobDate=d["eventOrJobDate"]?.toString().orEmpty(), eventTime=d["eventTime"]?.toString().orEmpty(),
         address="", status=d["status"]?.toString() ?: "PENDING", customerName="", customerPhone="",
         phoneVerified=false, daysRemaining=7, isReported=false, escrowStatus="NONE", escrowAmount="",
-        budgetEstimate=d["budgetEstimate"]?.toString().orEmpty(), createdAt=(d["createdAt"] as? Number)?.toLong() ?: System.currentTimeMillis()
+        budgetEstimate=d["budgetEstimate"]?.toString().orEmpty(), createdAt=(d["createdAt"] as? Number)?.toLong() ?: System.currentTimeMillis(),
+        latitude=((d["serviceArea"] as? Map<*, *>)?.get("latitude") as? Number)?.toDouble() ?: 0.0,
+        longitude=((d["serviceArea"] as? Map<*, *>)?.get("longitude") as? Number)?.toDouble() ?: 0.0
     )
 }

@@ -457,24 +457,22 @@ class MarketplaceViewModel(application: Application) : AndroidViewModel(applicat
     }
 
     fun sendVoiceNote(conversationId: String, durationSeconds: Int) {
+        if (AppEnvironment.mode != AppEnvironment.Mode.LOCAL) {
+            _toastMessage.value = "Sesli not, gerçek ses kaydı ve güvenli medya aktarımı tamamlanana kadar kullanılamaz."
+            return
+        }
         viewModelScope.launch {
-            if (AppEnvironment.mode == AppEnvironment.Mode.LOCAL) {
-                repository.sendChatMessage(
-                    conversationId = conversationId, senderName = "Ben", text = "🎙️ Sesli Not",
-                    isFromMe = true, isVoiceNote = true, voiceDurationSeconds = durationSeconds
-                )
-            } else {
-                cloudChatRepository.sendMessage(conversationId, "🎙️ Sesli Not ($durationSeconds sn)", "VOICE")
-            }
-            if (AppEnvironment.mode == AppEnvironment.Mode.LOCAL) {
-                delay(1500)
-                repository.sendChatMessage(
-                    conversationId = conversationId,
-                    senderName = "Hizmet Sağlayıcı",
-                    text = "Sesli mesajınızı dinledim, gayet net anlaşıldı 👍",
-                    isFromMe = false
-                )
-            }
+            repository.sendChatMessage(
+                conversationId = conversationId, senderName = "Ben", text = "🎙️ Sesli Not (Demo)",
+                isFromMe = true, isVoiceNote = true, voiceDurationSeconds = durationSeconds
+            )
+            delay(1500)
+            repository.sendChatMessage(
+                conversationId = conversationId,
+                senderName = "Hizmet Sağlayıcı",
+                text = "Demo sesli mesaj yanıtı.",
+                isFromMe = false
+            )
         }
     }
 
@@ -646,7 +644,7 @@ class MarketplaceViewModel(application: Application) : AndroidViewModel(applicat
         equipments: String
     ) {
         viewModelScope.launch {
-            val id = "p-custom-${System.currentTimeMillis()}"
+            val id = "p-" + java.util.UUID.randomUUID().toString().replace("-", "")
             val entity = ServiceProviderEntity(
                 id = id,
                 name = name.ifBlank { "Usta $name" },
@@ -759,7 +757,7 @@ class MarketplaceViewModel(application: Application) : AndroidViewModel(applicat
             val storedEntity = if (AppEnvironment.mode == AppEnvironment.Mode.LOCAL) {
                 entity.copy(id = repository.createJobRequest(entity))
             } else {
-                entity.copy(id = System.currentTimeMillis().coerceAtLeast(1L))
+                entity.copy(id = newOpaqueLongId())
             }
 
             if (AppEnvironment.mode != AppEnvironment.Mode.LOCAL) {
@@ -865,7 +863,7 @@ class MarketplaceViewModel(application: Application) : AndroidViewModel(applicat
                 status = "PENDING"
             )
             if (AppEnvironment.mode != AppEnvironment.Mode.LOCAL) {
-                val cloudQuote = quote.copy(id = System.currentTimeMillis().coerceAtLeast(1L))
+                val cloudQuote = quote.copy(id = newOpaqueLongId())
                 val result = runCatching { cloudRepository.saveQuote(cloudQuote) }
                 result.exceptionOrNull()?.let {
                     _toastMessage.value = "Teklif gönderilemedi: ${it.message ?: "Bilinmeyen hata"}"
@@ -969,3 +967,7 @@ private data class FilterState(
     val query: String,
     val district: String
 )
+
+
+private fun newOpaqueLongId(): Long =
+    (java.util.UUID.randomUUID().mostSignificantBits and Long.MAX_VALUE).coerceAtLeast(1L)
