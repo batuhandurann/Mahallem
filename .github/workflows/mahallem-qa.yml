@@ -84,6 +84,7 @@ jobs:
           node-version: "22"
       - name: Install backend dependencies without lifecycle scripts
         run: npm install --ignore-scripts
+      # Backend regression tests also protect cross-lifecycle payment/dispute invariants.
       - name: Check backend types and tests
         run: npm test
       - name: Audit production dependencies
