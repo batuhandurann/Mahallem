@@ -4,7 +4,7 @@ rules_version = '2';
 // uid: string 1..128, immutable, matches Auth UID and document ID.
 // displayName: string 2..80. email: string 1..254, matches Auth token.
 // createdAt: immutable server timestamp. updatedAt: server timestamp.
-// No roles, public profiles, subcollections or marketplace data are permitted.
+// Marketplace access is scoped to authenticated UIDs below.
 service cloud.firestore {
   match /databases/{database}/documents {
     function isAuthenticated() {
@@ -47,8 +47,257 @@ service cloud.firestore {
         && request.resource.data.createdAt == resource.data.createdAt;
     }
 
-    match /{document=**} {
-      allow read, write: if false;
+    function validProvider(d) {
+      return d.keys().hasAll(["id", "name", "title", "sector", "categoryId", "rating", "reviewCount", "experienceYears", "district", "city", "hourlyOrBasePrice", "isEmergencyAvailable", "verifiedSafeBadge", "mykCertified", "childSafeCertified", "phoneVerified", "daysRemaining", "isReported", "paintBrandsJson", "charactersOfferedJson", "includedEquipmentsJson", "bookedDatesJson", "isOpenForOffers", "phone", "bio", "beforeAfterJson", "videoShowcasesJson", "isFavorite", "latitude", "longitude", "ownerUid"])
+        && d.keys().hasOnly(["id", "name", "title", "sector", "categoryId", "rating", "reviewCount", "experienceYears", "district", "city", "hourlyOrBasePrice", "isEmergencyAvailable", "verifiedSafeBadge", "mykCertified", "childSafeCertified", "phoneVerified", "daysRemaining", "isReported", "paintBrandsJson", "charactersOfferedJson", "includedEquipmentsJson", "bookedDatesJson", "isOpenForOffers", "phone", "bio", "beforeAfterJson", "videoShowcasesJson", "isFavorite", "latitude", "longitude", "ownerUid"])
+        && d.id is string && d.id.size() <= 5000
+        && d.name is string && d.name.size() <= 5000
+        && d.title is string && d.title.size() <= 5000
+        && d.sector is string && d.sector.size() <= 5000
+        && d.categoryId is string && d.categoryId.size() <= 5000
+        && d.rating is number && d.rating >= 0
+        && d.reviewCount is number && d.reviewCount >= 0
+        && d.experienceYears is number && d.experienceYears >= 0
+        && d.district is string && d.district.size() <= 5000
+        && d.city is string && d.city.size() <= 5000
+        && d.hourlyOrBasePrice is string && d.hourlyOrBasePrice.size() <= 5000
+        && d.isEmergencyAvailable is bool
+        && d.verifiedSafeBadge is bool
+        && d.mykCertified is bool
+        && d.childSafeCertified is bool
+        && d.phoneVerified is bool
+        && d.daysRemaining is number && d.daysRemaining >= 0
+        && d.isReported is bool
+        && d.paintBrandsJson is string && d.paintBrandsJson.size() <= 5000
+        && d.charactersOfferedJson is string && d.charactersOfferedJson.size() <= 5000
+        && d.includedEquipmentsJson is string && d.includedEquipmentsJson.size() <= 5000
+        && d.bookedDatesJson is string && d.bookedDatesJson.size() <= 5000
+        && d.isOpenForOffers is bool
+        && d.phone is string && d.phone.size() <= 5000
+        && d.bio is string && d.bio.size() <= 5000
+        && d.beforeAfterJson is string && d.beforeAfterJson.size() <= 5000
+        && d.videoShowcasesJson is string && d.videoShowcasesJson.size() <= 5000
+        && d.isFavorite is bool
+        && d.latitude is number && d.latitude >= -90 && d.latitude <= 90
+        && d.longitude is number && d.longitude >= -180 && d.longitude <= 180
+        && d.ownerUid is string && d.ownerUid.size() <= 5000
+        && d.phone == ""
+        && d.phoneVerified == false
+        && d.verifiedSafeBadge == false
+        && d.mykCertified == false
+        && d.childSafeCertified == false
+        && d.rating == 0
+        && d.reviewCount == 0
+        && d.isFavorite == false
+        && d.name.size() >= 2
+        && d.title.size() >= 2;
     }
+    function validRequest(d) {
+      return d.keys().hasAll(["id", "title", "sector", "categoryId", "district", "urgencyMode", "eventOrJobDate", "eventTime", "address", "status", "customerName", "customerPhone", "phoneVerified", "daysRemaining", "isReported", "escrowStatus", "escrowAmount", "areaSquareMeters", "roomCount", "isFurnished", "materialsIncluded", "renovationNotes", "eventType", "durationHours", "targetAgeGroup", "selectedCostumeOrCharacter", "extraServicesRequested", "budgetEstimate", "createdAt", "latitude", "longitude", "ownerUid"])
+        && d.keys().hasOnly(["id", "title", "sector", "categoryId", "district", "urgencyMode", "eventOrJobDate", "eventTime", "address", "status", "customerName", "customerPhone", "phoneVerified", "daysRemaining", "isReported", "escrowStatus", "escrowAmount", "areaSquareMeters", "roomCount", "isFurnished", "materialsIncluded", "renovationNotes", "eventType", "durationHours", "targetAgeGroup", "selectedCostumeOrCharacter", "extraServicesRequested", "budgetEstimate", "createdAt", "latitude", "longitude", "ownerUid"])
+        && d.id is string && d.id.size() <= 5000
+        && d.title is string && d.title.size() <= 5000
+        && d.sector is string && d.sector.size() <= 5000
+        && d.categoryId is string && d.categoryId.size() <= 5000
+        && d.district is string && d.district.size() <= 5000
+        && d.urgencyMode is string && d.urgencyMode.size() <= 5000
+        && d.eventOrJobDate is string && d.eventOrJobDate.size() <= 5000
+        && d.eventTime is string && d.eventTime.size() <= 5000
+        && d.address is string && d.address.size() <= 5000
+        && d.status is string && d.status.size() <= 5000
+        && d.customerName is string && d.customerName.size() <= 5000
+        && d.customerPhone is string && d.customerPhone.size() <= 5000
+        && d.phoneVerified is bool
+        && d.daysRemaining is number && d.daysRemaining >= 0
+        && d.isReported is bool
+        && d.escrowStatus is string && d.escrowStatus.size() <= 5000
+        && d.escrowAmount is string && d.escrowAmount.size() <= 5000
+        && d.areaSquareMeters is number && d.areaSquareMeters >= 0
+        && d.roomCount is string && d.roomCount.size() <= 5000
+        && d.isFurnished is bool
+        && d.materialsIncluded is bool
+        && d.renovationNotes is string && d.renovationNotes.size() <= 5000
+        && d.eventType is string && d.eventType.size() <= 5000
+        && d.durationHours is number && d.durationHours >= 0
+        && d.targetAgeGroup is string && d.targetAgeGroup.size() <= 5000
+        && d.selectedCostumeOrCharacter is string && d.selectedCostumeOrCharacter.size() <= 5000
+        && d.extraServicesRequested is string && d.extraServicesRequested.size() <= 5000
+        && d.budgetEstimate is string && d.budgetEstimate.size() <= 5000
+        && d.createdAt is number && d.createdAt >= 0
+        && d.latitude is number && d.latitude >= -90 && d.latitude <= 90
+        && d.longitude is number && d.longitude >= -180 && d.longitude <= 180
+        && d.ownerUid is string && d.ownerUid.size() <= 5000
+        && d.address == ""
+        && d.customerPhone == ""
+        && d.phoneVerified == false
+        && d.escrowStatus == "NONE"
+        && d.escrowAmount == ""
+        && d.title.size() >= 2
+        && d.status in ["PENDING", "ACCEPTED"];
+    }
+    function validQuote(d) {
+      return d.keys().hasAll(["id", "requestId", "providerId", "providerName", "providerTitle", "providerRating", "price", "durationOrArrival", "notes", "status", "escrowFunded", "receiptCode", "warrantyDuration", "createdAt", "providerUid", "customerUid"])
+        && d.keys().hasOnly(["id", "requestId", "providerId", "providerName", "providerTitle", "providerRating", "price", "durationOrArrival", "notes", "status", "escrowFunded", "receiptCode", "warrantyDuration", "createdAt", "providerUid", "customerUid"])
+        && d.id is string && d.id.size() <= 5000
+        && d.requestId is string && d.requestId.size() <= 5000
+        && d.providerId is string && d.providerId.size() <= 5000
+        && d.providerName is string && d.providerName.size() <= 5000
+        && d.providerTitle is string && d.providerTitle.size() <= 5000
+        && d.providerRating is number && d.providerRating >= 0
+        && d.price is string && d.price.size() <= 5000
+        && d.durationOrArrival is string && d.durationOrArrival.size() <= 5000
+        && d.notes is string && d.notes.size() <= 5000
+        && d.status is string && d.status.size() <= 5000
+        && d.escrowFunded is bool
+        && d.receiptCode is string && d.receiptCode.size() <= 5000
+        && d.warrantyDuration is string && d.warrantyDuration.size() <= 5000
+        && d.createdAt is number && d.createdAt >= 0
+        && d.providerUid is string && d.providerUid.size() <= 5000
+        && d.customerUid is string && d.customerUid.size() <= 5000
+        && d.escrowFunded == false
+        && d.receiptCode == ""
+        && d.warrantyDuration == ""
+        && d.status == "PENDING"
+        && d.price.size() > 0;
+    }
+    function validMessage(d) {
+      return d.keys().hasAll(["id", "conversationId", "senderId", "senderName", "text", "timestamp", "isFromMe", "isOfferMessage", "offerPrice", "isVoiceNote", "voiceDurationSeconds", "hasPhotoAttachment", "photoDescription"])
+        && d.keys().hasOnly(["id", "conversationId", "senderId", "senderName", "text", "timestamp", "isFromMe", "isOfferMessage", "offerPrice", "isVoiceNote", "voiceDurationSeconds", "hasPhotoAttachment", "photoDescription"])
+        && d.id is string && d.id.size() <= 5000
+        && d.conversationId is string && d.conversationId.size() <= 5000
+        && d.senderId is string && d.senderId.size() <= 5000
+        && d.senderName is string && d.senderName.size() <= 5000
+        && d.text is string && d.text.size() <= 4000
+        && d.timestamp is number && d.timestamp >= 0
+        && d.isFromMe is bool
+        && d.isOfferMessage is bool
+        && d.offerPrice is string && d.offerPrice.size() <= 5000
+        && d.isVoiceNote is bool
+        && d.voiceDurationSeconds is number && d.voiceDurationSeconds >= 0
+        && d.hasPhotoAttachment is bool
+        && d.photoDescription is string && d.photoDescription.size() <= 5000
+        && d.text.size() > 0
+        && d.isFromMe == false
+        && d.isVoiceNote == false
+        && d.hasPhotoAttachment == false
+        && d.voiceDurationSeconds == 0
+        && d.photoDescription == "";
+    }
+
+    function signed() { return request.auth != null; }
+    function fresh(d) { return d.createdAt == request.time && d.updatedAt == request.time; }
+    function changed(d) { return d.createdAt == resource.data.createdAt && d.updatedAt == request.time; }
+    function member(d) { return signed() && request.auth.uid in d.participantUids; }
+    function requestDoc(id) { return get(/databases/$(database)/documents/requests/$(id)).data; }
+    function requestAfter(id) { return getAfter(/databases/$(database)/documents/requests/$(id)).data; }
+    function quoteAfter(id) { return getAfter(/databases/$(database)/documents/quotes/$(id)).data; }
+    function providerDoc(id) { return get(/databases/$(database)/documents/providers/$(id)).data; }
+
+    match /users/{userId}/favorites/{id} {
+      allow read, delete: if isOwner(userId);
+      allow create: if isOwner(userId) && request.resource.data.keys().hasOnly(['createdAt'])
+        && request.resource.data.createdAt == request.time;
+    }
+    match /providers/{id} {
+      allow read: if signed();
+      allow create: if signed() && request.resource.data.keys().hasOnly(['ownerUid','data','createdAt','updatedAt'])
+        && request.resource.data.ownerUid == request.auth.uid && fresh(request.resource.data)
+        && validProvider(request.resource.data.data) && request.resource.data.data.ownerUid == request.auth.uid
+        && request.resource.data.data.id == id;
+      allow update: if signed() && resource.data.ownerUid == request.auth.uid
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['data','updatedAt'])
+        && changed(request.resource.data) && validProvider(request.resource.data.data)
+        && request.resource.data.data.diff(resource.data.data).affectedKeys().hasOnly(['isOpenForOffers','bookedDatesJson']);
+    }
+    match /requests/{id} {
+      allow read: if signed();
+      allow create: if signed() && request.resource.data.keys().hasOnly(['ownerUid','data','createdAt','updatedAt','acceptedQuoteId','acceptedProviderUid'])
+        && fresh(request.resource.data) && request.resource.data.ownerUid == request.auth.uid
+        && validRequest(request.resource.data.data) && request.resource.data.data.id == id
+        && request.resource.data.data.ownerUid == request.auth.uid && request.resource.data.data.status == 'PENDING'
+        && request.resource.data.acceptedQuoteId == '' && request.resource.data.acceptedProviderUid == '';
+      allow update: if signed() && resource.data.ownerUid == request.auth.uid
+        && resource.data.data.status == 'PENDING' && resource.data.acceptedQuoteId == ''
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['data','updatedAt','acceptedQuoteId','acceptedProviderUid'])
+        && request.resource.data.data.diff(resource.data.data).affectedKeys().hasOnly(['status'])
+        && changed(request.resource.data) && request.resource.data.data.status == 'ACCEPTED'
+        && quoteAfter(request.resource.data.acceptedQuoteId).status == 'ACCEPTED'
+        && quoteAfter(request.resource.data.acceptedQuoteId).requestId == id
+        && quoteAfter(request.resource.data.acceptedQuoteId).customerUid == request.auth.uid
+        && quoteAfter(request.resource.data.acceptedQuoteId).providerUid == request.resource.data.acceptedProviderUid;
+    }
+    match /requestContacts/{id} {
+      allow read: if signed() && (resource.data.ownerUid == request.auth.uid
+        || requestDoc(id).acceptedProviderUid == request.auth.uid);
+      allow create: if signed() && request.resource.data.keys().hasOnly(['ownerUid','phone','address','updatedAt'])
+        && request.resource.data.ownerUid == request.auth.uid && requestAfter(id).ownerUid == request.auth.uid
+        && request.resource.data.phone is string && request.resource.data.phone.size() <= 40
+        && request.resource.data.address is string && request.resource.data.address.size() <= 1000
+        && request.resource.data.updatedAt == request.time;
+    }
+    match /providerContacts/{id} {
+      allow read: if signed() && resource.data.ownerUid == request.auth.uid;
+      allow create: if signed() && request.resource.data.keys().hasOnly(['ownerUid','phone','updatedAt'])
+        && request.resource.data.ownerUid == request.auth.uid
+        && getAfter(/databases/$(database)/documents/providers/$(id)).data.ownerUid == request.auth.uid
+        && request.resource.data.phone is string && request.resource.data.phone.size() <= 40
+        && request.resource.data.updatedAt == request.time;
+    }
+    match /quotes/{id} {
+      allow read: if signed() && (resource.data.customerUid == request.auth.uid || resource.data.providerUid == request.auth.uid);
+      allow create: if signed() && request.resource.data.keys().hasOnly(['providerUid','customerUid','requestId','status','data','createdAt','updatedAt'])
+        && request.resource.data.providerUid == request.auth.uid && request.resource.data.customerUid != request.auth.uid
+        && fresh(request.resource.data) && validQuote(request.resource.data.data)
+        && request.resource.data.data.id == id && request.resource.data.data.requestId == request.resource.data.requestId
+        && request.resource.data.data.providerUid == request.auth.uid
+        && request.resource.data.data.customerUid == request.resource.data.customerUid
+        && request.resource.data.status == 'PENDING'
+        && requestDoc(request.resource.data.requestId).ownerUid == request.resource.data.customerUid
+        && requestDoc(request.resource.data.requestId).data.status == 'PENDING'
+        && providerDoc(request.resource.data.data.providerId).ownerUid == request.auth.uid;
+      allow update: if signed() && resource.data.customerUid == request.auth.uid && resource.data.status == 'PENDING'
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status','updatedAt'])
+        && changed(request.resource.data) && (request.resource.data.status == 'REJECTED'
+          || (request.resource.data.status == 'ACCEPTED' && requestAfter(resource.data.requestId).acceptedQuoteId == id
+            && requestAfter(resource.data.requestId).acceptedProviderUid == resource.data.providerUid
+            && requestAfter(resource.data.requestId).data.status == 'ACCEPTED'));
+    }
+    match /conversations/{id} {
+      allow get: if signed() && (!exists(/databases/$(database)/documents/conversations/$(id)) || member(resource.data));
+      allow list: if member(resource.data);
+      allow create: if signed() && request.resource.data.keys().hasOnly(['participantUids','names','relatedItemTitle','lastMessage','createdAt','updatedAt'])
+        && request.resource.data.participantUids is list && request.resource.data.participantUids.size() == 2
+        && request.resource.data.participantUids[0] is string && request.resource.data.participantUids[1] is string
+        && request.resource.data.participantUids[0] != request.resource.data.participantUids[1]
+        && request.resource.data.participantUids[0].size() <= 128 && request.resource.data.participantUids[1].size() <= 128
+        && member(request.resource.data) && fresh(request.resource.data)
+        && request.resource.data.names is map && request.resource.data.names.keys().hasOnly(request.resource.data.participantUids)
+        && request.resource.data.names.keys().hasAll(request.resource.data.participantUids)
+        && request.resource.data.names[request.resource.data.participantUids[0]] is string
+        && request.resource.data.names[request.resource.data.participantUids[1]] is string
+        && request.resource.data.names[request.resource.data.participantUids[0]].size() <= 80
+        && request.resource.data.names[request.resource.data.participantUids[1]].size() <= 80
+        && request.resource.data.relatedItemTitle is string && request.resource.data.relatedItemTitle.size() <= 5000
+        && request.resource.data.lastMessage == '';
+      allow update: if member(resource.data)
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['lastMessage','updatedAt'])
+        && request.resource.data.lastMessage is string && request.resource.data.lastMessage.size() <= 4000
+        && request.resource.data.updatedAt == request.time;
+      match /messages/{messageId} {
+        allow read: if member(get(/databases/$(database)/documents/conversations/$(id)).data);
+        allow create: if member(get(/databases/$(database)/documents/conversations/$(id)).data)
+          && request.resource.data.keys().hasOnly(['senderUid','data','createdAt','updatedAt'])
+          && request.resource.data.senderUid == request.auth.uid && fresh(request.resource.data)
+          && validMessage(request.resource.data.data) && request.resource.data.data.senderId == request.auth.uid
+          && request.resource.data.data.id == messageId && request.resource.data.data.conversationId == id;
+      }
+    }
+    match /reports/{id} {
+      allow create: if signed() && request.resource.data.keys().hasOnly(['reporterUid','listingId','kind','createdAt'])
+        && request.resource.data.reporterUid == request.auth.uid && request.resource.data.createdAt == request.time
+        && request.resource.data.listingId is string && request.resource.data.listingId.size() <= 1500
+        && request.resource.data.kind in ['provider','request'];
+    }
+    match /{document=**} { allow read, write: if false; }
   }
 }

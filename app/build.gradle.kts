@@ -41,12 +41,18 @@ android {
 
   buildTypes {
     release {
+      buildConfigField("boolean", "USE_FIREBASE_EMULATORS", "false")
+      buildConfigField("String", "EMULATOR_HOST", "\"\"")
       isCrunchPngs = false
       isMinifyEnabled = false
       proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
       signingConfig = signingConfigs.getByName("release")
     }
     debug {
+      buildConfigField("boolean", "USE_FIREBASE_EMULATORS", providers.gradleProperty("firebaseEmulators").orElse("false").get())
+      val emulatorHost = providers.gradleProperty("emulatorHost").orElse("10.0.2.2").get()
+      require(emulatorHost.matches(Regex("[A-Za-z0-9.:-]+")))
+      buildConfigField("String", "EMULATOR_HOST", "\"$emulatorHost\"")
       // Android creates its standard debug key when no project-specific key is supplied.
       signingConfig = if (file("${rootDir}/debug.keystore").exists()) {
         signingConfigs.getByName("debugConfig")
@@ -103,8 +109,6 @@ dependencies {
   implementation(libs.androidx.lifecycle.runtime.ktx)
   implementation(libs.androidx.lifecycle.viewmodel.compose)
   // implementation(libs.androidx.navigation.compose)
-  implementation(libs.androidx.room.ktx)
-  implementation(libs.androidx.room.runtime)
   // implementation(libs.coil.compose)
   implementation(libs.converter.moshi)
   implementation(libs.firebase.ai)
@@ -137,6 +141,5 @@ dependencies {
   androidTestImplementation(libs.androidx.runner)
   debugImplementation(libs.androidx.compose.ui.test.manifest)
   debugImplementation(libs.androidx.compose.ui.tooling)
-  "ksp"(libs.androidx.room.compiler)
   "ksp"(libs.moshi.kotlin.codegen)
 }

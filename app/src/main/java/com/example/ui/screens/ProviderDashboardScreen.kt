@@ -34,7 +34,7 @@ fun ProviderDashboardScreen(
     onBackClick: () -> Unit,
     onToggleOffers: (providerId: String, currentStatus: Boolean) -> Unit,
     onToggleCalendarDate: (provider: ServiceProviderEntity, dateIso: String) -> Unit,
-    onSubmitQuote: (requestId: Long, provider: ServiceProviderEntity, price: String, arrival: String, notes: String) -> Unit
+    onSubmitQuote: (requestId: String, provider: ServiceProviderEntity, price: String, arrival: String, notes: String) -> Unit
 ) {
     BackHandler { onBackClick() }
 

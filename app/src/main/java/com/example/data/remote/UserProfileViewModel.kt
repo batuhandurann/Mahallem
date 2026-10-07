@@ -30,7 +30,7 @@ data class ProfileSyncState(
 
 /** One fixed account per instance; the signed-in UI owns and clears this ViewModel. */
 class UserProfileViewModel(private val user: AuthUser) : ViewModel() {
-    private val auth = FirebaseAuth.getInstance()
+    private val auth = FirebaseServices.auth
     private val mutableState = MutableStateFlow(ProfileSyncState())
     val state: StateFlow<ProfileSyncState> = mutableState.asStateFlow()
 

@@ -60,7 +60,7 @@ fun HomeScreen(
     unreadMessagesCount: Int,
     isProviderMode: Boolean,
     onToggleProviderMode: () -> Unit,
-    onReportListing: (providerId: String?, requestId: Long?, title: String) -> Unit,
+    onReportListing: (providerId: String?, requestId: String?, title: String) -> Unit,
     onOpenMapClick: () -> Unit = {},
     onOpenEstimatorClick: () -> Unit = {}
 ) {

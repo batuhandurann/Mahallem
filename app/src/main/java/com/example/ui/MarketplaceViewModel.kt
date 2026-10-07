@@ -3,10 +3,8 @@ package com.example.ui
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
-import com.example.data.local.AppDatabase
 import com.example.data.local.ChatMessageEntity
 import com.example.data.local.ConversationEntity
-import com.example.data.local.InitialData
 import com.example.data.local.JobRequestEntity
 import com.example.data.local.QuoteEntity
 import com.example.data.local.ServiceProviderEntity
@@ -17,7 +15,6 @@ import com.example.data.model.SectorType
 import com.example.data.model.UrgencyMode
 import com.example.data.repository.MarketplaceRepository
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -26,6 +23,7 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.CancellationException
 
 sealed class ScreenDestination {
     object Home : ScreenDestination()
@@ -41,13 +39,17 @@ sealed class ScreenDestination {
 
 class MarketplaceViewModel(application: Application) : AndroidViewModel(application) {
 
-    private val repository: MarketplaceRepository
+    private val repository = MarketplaceRepository()
+    val currentUid: String get() = repository.uid
 
-    init {
-        val database = AppDatabase.getDatabase(application)
-        repository = MarketplaceRepository(database.appDao())
-        viewModelScope.launch {
-            repository.checkAndSeedInitialData()
+    private fun action(block: suspend () -> Unit) = viewModelScope.launch {
+        try { block() }
+        catch (e: kotlinx.coroutines.TimeoutCancellationException) {
+            _toastMessage.value = "İşlem süresi doldu. Verileri yeniden açarak sonucu kontrol edin."
+        }
+        catch (e: CancellationException) { throw e }
+        catch (e: Exception) {
+            _toastMessage.value = e.message ?: "İşlem tamamlanamadı. Bağlantınızı kontrol edin."
         }
     }
 
@@ -84,6 +86,8 @@ class MarketplaceViewModel(application: Application) : AndroidViewModel(applicat
 
     private val _toastMessage = MutableStateFlow<String?>(null)
     val toastMessage: StateFlow<String?> = _toastMessage.asStateFlow()
+
+    init { viewModelScope.launch { repository.errors.collect { _toastMessage.value = it } } }
 
     // --- Autocomplete search suggestions (Like Letgo / Google / Sahibinden) ---
     val searchSuggestions: StateFlow<List<String>> = _searchQuery.combine(_selectedSector) { query, sector ->
@@ -214,19 +218,23 @@ class MarketplaceViewModel(application: Application) : AndroidViewModel(applicat
         _selectedDistrict.value = district
     }
 
+    fun showUnavailablePayment() {
+        _toastMessage.value = "Ödeme ve makbuz altyapısı henüz kullanılamıyor."
+    }
+
     fun clearToast() {
         _toastMessage.value = null
     }
 
     fun toggleFavorite(provider: ServiceProviderEntity) {
-        viewModelScope.launch {
+        action {
             repository.toggleFavorite(provider.id, provider.isFavorite)
         }
     }
 
     // --- Report / Spam Prevention ---
-    fun reportListing(providerId: String?, requestId: Long?) {
-        viewModelScope.launch {
+    fun reportListing(providerId: String?, requestId: String?) {
+        action {
             if (providerId != null) {
                 repository.reportProvider(providerId)
             }
@@ -239,9 +247,9 @@ class MarketplaceViewModel(application: Application) : AndroidViewModel(applicat
 
     // --- Chat & Messaging Actions ---
     fun openChatWithProvider(provider: ServiceProviderEntity) {
-        viewModelScope.launch {
+        action {
             val convId = repository.startOrGetConversation(
-                participantId = provider.id,
+                participantId = provider.ownerUid,
                 participantName = provider.name,
                 participantTitle = provider.title,
                 relatedItemTitle = provider.title
@@ -251,9 +259,9 @@ class MarketplaceViewModel(application: Application) : AndroidViewModel(applicat
     }
 
     fun openChatForJobRequest(request: JobRequestEntity) {
-        viewModelScope.launch {
+        action {
             val convId = repository.startOrGetConversation(
-                participantId = "req-user-${request.id}",
+                participantId = request.ownerUid,
                 participantName = request.customerName,
                 participantTitle = "İlan Sahibi",
                 relatedItemTitle = request.title
@@ -264,7 +272,7 @@ class MarketplaceViewModel(application: Application) : AndroidViewModel(applicat
 
     fun sendChatMessage(conversationId: String, text: String, isOffer: Boolean = false, offerPrice: String = "") {
         if (text.isBlank() && offerPrice.isBlank()) return
-        viewModelScope.launch {
+        action {
             repository.sendChatMessage(
                 conversationId = conversationId,
                 senderName = "Ben",
@@ -274,63 +282,15 @@ class MarketplaceViewModel(application: Application) : AndroidViewModel(applicat
                 offerPrice = offerPrice
             )
 
-            // Simulate instant reply after 1.5 seconds like Letgo / Armut
-            delay(1500)
-            val autoReply = when {
-                isOffer -> "Teklifiniz için teşekkürler! $offerPrice makul görünüyor, detayları konuşalım."
-                text.contains("müsait", ignoreCase = true) -> "Evet, belirtilen gün ve saatte müsaitim. Konumu netleştirebilir miyiz?"
-                text.contains("indirim", ignoreCase = true) || text.contains("fiyat", ignoreCase = true) -> "İşin büyüklüğüne göre ufak bir ikram yapabilirim."
-                else -> "Mesajınızı aldım! Size en kısa sürede dönüş sağlayacağım."
-            }
-
-            val conv = repository.getAllConversations()
-            repository.sendChatMessage(
-                conversationId = conversationId,
-                senderName = "Hizmet Sağlayıcı",
-                text = autoReply,
-                isFromMe = false
-            )
         }
     }
 
     fun sendVoiceNote(conversationId: String, durationSeconds: Int) {
-        viewModelScope.launch {
-            repository.sendChatMessage(
-                conversationId = conversationId,
-                senderName = "Ben",
-                text = "🎙️ Sesli Not",
-                isFromMe = true,
-                isVoiceNote = true,
-                voiceDurationSeconds = durationSeconds
-            )
-            delay(1500)
-            repository.sendChatMessage(
-                conversationId = conversationId,
-                senderName = "Hizmet Sağlayıcı",
-                text = "Sesli mesajınızı dinledim, gayet net anlaşıldı 👍",
-                isFromMe = false
-            )
-        }
+        _toastMessage.value = "Sesli mesaj yükleme henüz kullanılamıyor. Metin mesajı gönderebilirsiniz."
     }
 
     fun sendPhotoMessage(conversationId: String, desc: String) {
-        viewModelScope.launch {
-            repository.sendChatMessage(
-                conversationId = conversationId,
-                senderName = "Ben",
-                text = desc,
-                isFromMe = true,
-                hasPhotoAttachment = true,
-                photoDescription = desc
-            )
-            delay(1500)
-            repository.sendChatMessage(
-                conversationId = conversationId,
-                senderName = "Hizmet Sağlayıcı",
-                text = "Fotoğrafları inceledim. Gerekli alet ve malzemeleri hazırlıyorum.",
-                isFromMe = false
-            )
-        }
+        _toastMessage.value = "Fotoğraf yükleme henüz kullanılamıyor. Metin mesajı gönderebilirsiniz."
     }
 
     // --- Escrow Havuz Ödeme ve Dijital İş Fişi ---
@@ -341,7 +301,7 @@ class MarketplaceViewModel(application: Application) : AndroidViewModel(applicat
         district: String,
         onReceiptGenerated: (com.example.data.local.DigitalReceiptEntity) -> Unit
     ) {
-        viewModelScope.launch {
+        action {
             val code = repository.fundEscrowPayment(
                 requestId = quote.requestId,
                 quoteId = quote.id,
@@ -371,8 +331,8 @@ class MarketplaceViewModel(application: Application) : AndroidViewModel(applicat
         }
     }
 
-    fun releaseEscrowPayment(requestId: Long, quoteId: Long, receiptCode: String) {
-        viewModelScope.launch {
+    fun releaseEscrowPayment(requestId: String, quoteId: String, receiptCode: String) {
+        action {
             repository.releaseEscrowPayment(requestId, quoteId, receiptCode)
             _toastMessage.value = "İş başarıyla tamamlandı ve ödeme ustaya aktarıldı! Teşekkür ederiz 🤝"
         }
@@ -396,7 +356,7 @@ class MarketplaceViewModel(application: Application) : AndroidViewModel(applicat
         brandsOrCharacters: String,
         equipments: String
     ) {
-        viewModelScope.launch {
+        action {
             val id = "p-custom-${System.currentTimeMillis()}"
             val entity = ServiceProviderEntity(
                 id = id,
@@ -455,7 +415,7 @@ class MarketplaceViewModel(application: Application) : AndroidViewModel(applicat
         extraServices: String,
         budget: String
     ) {
-        viewModelScope.launch {
+        action {
             val entity = JobRequestEntity(
                 title = title,
                 sector = sector.name,
@@ -483,67 +443,35 @@ class MarketplaceViewModel(application: Application) : AndroidViewModel(applicat
                 extraServicesRequested = extraServices,
                 budgetEstimate = budget
             )
-            val newId = repository.createJobRequest(entity)
-            simulateProviderResponse(newId, category, urgency)
+            repository.createJobRequest(entity)
             _toastMessage.value = "Talebiniz yayınlandı! Bölgedeki uygun esnaf ve sanatçılara iletildi 🎉"
             popToHome()
             navigateTo(ScreenDestination.MyRequests)
         }
     }
 
-    private suspend fun simulateProviderResponse(requestId: Long, category: Category, urgency: UrgencyMode) {
-        val all = InitialData.getSeedProviders().filter { it.categoryId == category.id }
-        val responder = all.firstOrNull() ?: InitialData.getSeedProviders().first()
-
-        val priceStr = when (category.id) {
-            "boyaci" -> "11.500 ₺ (Malzeme hariç, astar dahil)"
-            "palyaco" -> "2.400 ₺ (Yüz boyama + sosis balon dahil)"
-            "maskot" -> "3.200 ₺ (Spiderman & Mini Disco)"
-            "tesisatci" -> "1.100 ₺ (Noktasal tespit + parça garantisi)"
-            "cilingir" -> "650 ₺ (Hasarsız kapı açma)"
-            "ev_temizligi" -> "1.600 ₺ (Tüm gün detaylı temizlik)"
-            "matematik_ders" -> "900 ₺ / Saat (Birebir soru çözümü)"
-            else -> "1.750 ₺"
-        }
-
-        val arrivalStr = if (urgency == UrgencyMode.EMERGENCY) "30 dakika içinde kapınızda" else "Belirttiğiniz tarihte müsaitiz"
-
-        val quote = QuoteEntity(
-            requestId = requestId,
-            providerId = responder.id,
-            providerName = responder.name,
-            providerTitle = responder.title,
-            providerRating = responder.rating,
-            price = priceStr,
-            durationOrArrival = arrivalStr,
-            notes = "Talebinizi inceledim. Detaylar ve istekleriniz doğrultusunda en kaliteli hizmeti garantili olarak vermeye hazırım. İletişime geçebilirsiniz.",
-            status = "PENDING"
-        )
-        repository.sendQuote(quote)
-    }
-
-    fun acceptQuote(requestId: Long, quoteId: Long, providerName: String) {
-        viewModelScope.launch {
+    fun acceptQuote(requestId: String, quoteId: String, providerName: String) {
+        action {
             repository.acceptQuote(requestId, quoteId)
-            _toastMessage.value = "$providerName teklifini onayladınız! İletişim bilgileri paylaşıldı 🤝"
+            _toastMessage.value = "$providerName teklifini onayladınız. Detayları mesajlaşarak konuşabilirsiniz."
         }
     }
 
-    fun rejectQuote(quoteId: Long) {
-        viewModelScope.launch {
+    fun rejectQuote(quoteId: String) {
+        action {
             repository.rejectQuote(quoteId)
             _toastMessage.value = "Teklif reddedildi."
         }
     }
 
     fun submitProviderQuote(
-        requestId: Long,
+        requestId: String,
         provider: ServiceProviderEntity,
         price: String,
         arrival: String,
         notes: String
     ) {
-        viewModelScope.launch {
+        action {
             val quote = QuoteEntity(
                 requestId = requestId,
                 providerId = provider.id,
@@ -562,7 +490,7 @@ class MarketplaceViewModel(application: Application) : AndroidViewModel(applicat
 
     // --- Provider Calendar & Availability Management ---
     fun toggleProviderOpenForOffers(providerId: String, currentStatus: Boolean) {
-        viewModelScope.launch {
+        action {
             repository.toggleOpenForOffers(providerId, !currentStatus)
             _toastMessage.value = if (!currentStatus)
                 "Teklif alımı ve takvim rezervasyonlara açıldı ✅"
@@ -572,7 +500,7 @@ class MarketplaceViewModel(application: Application) : AndroidViewModel(applicat
     }
 
     fun toggleBookedDate(provider: ServiceProviderEntity, dateIso: String) {
-        viewModelScope.launch {
+        action {
             val list = try {
                 val cleaned = provider.bookedDatesJson.replace("[", "").replace("]", "").replace("\"", "")
                 if (cleaned.isBlank()) mutableListOf() else cleaned.split(",").map { it.trim() }.toMutableList()

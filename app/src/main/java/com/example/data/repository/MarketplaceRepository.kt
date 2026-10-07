@@ -1,41 +1,57 @@
 package com.example.data.repository
 
-import com.example.data.local.AppDao
-import com.example.data.local.ChatMessageEntity
-import com.example.data.local.ConversationEntity
-import com.example.data.local.InitialData
-import com.example.data.local.JobRequestEntity
-import com.example.data.local.QuoteEntity
-import com.example.data.local.ServiceProviderEntity
-import com.example.data.model.FeedFlowType
+import com.example.data.local.*
 import com.example.data.model.SectorType
 import com.example.data.model.UrgencyMode
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.map
+import com.example.data.remote.FirebaseServices
+import com.google.android.gms.tasks.Task
+import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.firestore.*
+import com.squareup.moshi.Moshi
+import kotlinx.coroutines.channels.awaitClose
+import kotlinx.coroutines.flow.*
+import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.coroutines.withTimeout
+import kotlin.coroutines.resume
+import kotlin.coroutines.resumeWithException
 
-class MarketplaceRepository(private val dao: AppDao) {
-
-    suspend fun checkAndSeedInitialData() {
-        if (dao.getProviderCount() == 0) {
-            dao.insertProviders(InitialData.getSeedProviders())
-            for (req in InitialData.getSeedRequests()) {
-                val reqId = dao.insertRequest(req)
-                val matchingQuote = InitialData.getSeedQuotes().find { it.requestId == req.id }
-                if (matchingQuote != null) {
-                    dao.insertQuote(matchingQuote.copy(requestId = reqId))
-                }
-            }
-
-            for (conv in InitialData.getSeedConversations()) {
-                dao.insertConversation(conv)
-            }
-
-            for (msg in InitialData.getSeedMessages()) {
-                dao.insertMessage(msg)
+/** One authenticated account per repository. Room/demo data is never a fallback. */
+class MarketplaceRepository(
+    private val db: FirebaseFirestore = FirebaseServices.firestore,
+    private val auth: FirebaseAuth = FirebaseServices.auth,
+    val uid: String = requireNotNull(auth.currentUser).uid
+) {
+    private val moshi = Moshi.Builder().build()
+    private val mutableErrors = MutableSharedFlow<String>(extraBufferCapacity = 8)
+    val errors: SharedFlow<String> = mutableErrors.asSharedFlow()
+    private fun requireAccount() {
+        check(auth.currentUser?.uid == uid) { "Oturum değişti. Yeniden giriş yapın." }
+    }
+    private fun <T> encode(value: T, type: Class<T>): Map<String, Any?> {
+        @Suppress("UNCHECKED_CAST")
+        return moshi.adapter(type).toJsonValue(value) as Map<String, Any?>
+    }
+    private fun <T> decode(document: DocumentSnapshot, type: Class<T>): T =
+        requireNotNull(moshi.adapter(type).fromJsonValue(document.get("data")))
+    private fun envelope(data: Map<String, Any?>, vararg identity: Pair<String, Any>) =
+        mapOf("data" to data, "createdAt" to FieldValue.serverTimestamp(),
+            "updatedAt" to FieldValue.serverTimestamp()) + identity.toMap()
+    private fun <T> observe(query: Query, transform: (DocumentSnapshot) -> T): Flow<List<T>> = callbackFlow {
+        requireAccount()
+        val listener = query.addSnapshotListener { snapshot, error ->
+            if (auth.currentUser?.uid != uid) { trySend(emptyList()); close() }
+            else if (error != null) {
+                mutableErrors.tryEmit("Veriler yüklenemedi. Bağlantınızı ve erişim izinlerinizi kontrol edin.")
+                trySend(emptyList())
+            } else try {
+                trySend(snapshot?.documents.orEmpty().map(transform))
+            } catch (exception: Exception) {
+                mutableErrors.tryEmit("Buluttaki veri biçimi okunamadı. Lütfen destek ile iletişime geçin.")
+                trySend(emptyList())
             }
         }
+        awaitClose { listener.remove() }
     }
-
     fun getFilteredProviders(
         sector: SectorType,
         urgency: UrgencyMode,
@@ -43,7 +59,7 @@ class MarketplaceRepository(private val dao: AppDao) {
         searchQuery: String,
         selectedDistrict: String?
     ): Flow<List<ServiceProviderEntity>> {
-        return dao.getAllProviders().map { list ->
+        return getAllProviders().map { list ->
             list.filter { p ->
                 val matchesSector = when (sector) {
                     SectorType.ALL -> true
@@ -81,7 +97,7 @@ class MarketplaceRepository(private val dao: AppDao) {
         searchQuery: String,
         selectedDistrict: String?
     ): Flow<List<JobRequestEntity>> {
-        return dao.getAllRequests().map { list ->
+        return getAllRequests().map { list ->
             list.filter { req ->
                 val matchesSector = when (sector) {
                     SectorType.ALL -> true
@@ -111,181 +127,160 @@ class MarketplaceRepository(private val dao: AppDao) {
         }
     }
 
-    fun getProviderById(id: String): Flow<ServiceProviderEntity?> = dao.getProviderById(id)
-
-    suspend fun toggleFavorite(id: String, currentFav: Boolean) {
-        dao.setFavorite(id, !currentFav)
+    fun getAllProviders(): Flow<List<ServiceProviderEntity>> = combine(
+        observe(db.collection("providers")) { decode(it, ServiceProviderEntity::class.java) },
+        observe(db.collection("users").document(uid).collection("favorites")) { it.id }
+    ) { providers, favorites -> providers.map { it.copy(isFavorite = it.id in favorites) } }
+    fun getAllRequests(): Flow<List<JobRequestEntity>> = observe(db.collection("requests")) {
+        decode(it, JobRequestEntity::class.java).copy(createdAt = it.getTimestamp("createdAt")?.toDate()?.time ?: 0)
     }
-
-    suspend fun toggleOpenForOffers(id: String, isOpen: Boolean) {
-        dao.setOpenForOffers(id, isOpen)
-    }
-
-    suspend fun updateBookedDates(id: String, bookedDatesJson: String) {
-        dao.updateBookedDates(id, bookedDatesJson)
-    }
-
-    suspend fun reportProvider(id: String) {
-        dao.reportProvider(id)
-    }
-
-    suspend fun reportJobRequest(id: Long) {
-        dao.reportJobRequest(id)
-    }
-
-    // --- Flow A: Esnaf Hizmet İlanı Yayınlama ---
+    fun getProviderById(id: String) = getAllProviders().map { list -> list.find { it.id == id } }
+    fun getRequestById(id: String) = getAllRequests().map { list -> list.find { it.id == id } }
     suspend fun publishProviderListing(provider: ServiceProviderEntity) {
-        dao.insertProvider(provider)
+        requireAccount()
+        val ref = db.collection("providers").document()
+        val public = provider.copy(id = ref.id, ownerUid = uid, phone = "", rating = 0.0, reviewCount = 0,
+            verifiedSafeBadge = false, mykCertified = false, childSafeCertified = false, phoneVerified = false, isFavorite = false)
+        db.batch().apply {
+            set(ref, envelope(encode(public, ServiceProviderEntity::class.java), "ownerUid" to uid))
+            set(db.collection("providerContacts").document(ref.id), mapOf("ownerUid" to uid,
+                "phone" to provider.phone, "updatedAt" to FieldValue.serverTimestamp()))
+        }.commit().awaitRemote()
     }
-
-    // --- Flow B: Hizmet Arayan İhtiyaç İlanı (Armut) ---
-    fun getAllRequests(): Flow<List<JobRequestEntity>> = dao.getAllRequests()
-
-    fun getRequestById(id: Long): Flow<JobRequestEntity?> = dao.getRequestById(id)
-
-    suspend fun createJobRequest(request: JobRequestEntity): Long {
-        return dao.insertRequest(request)
+    suspend fun createJobRequest(request: JobRequestEntity): String {
+        requireAccount()
+        val ref = db.collection("requests").document()
+        val public = request.copy(id = ref.id, ownerUid = uid, address = "", customerPhone = "",
+            phoneVerified = false, status = "PENDING", escrowStatus = "NONE", escrowAmount = "")
+        db.batch().apply {
+            set(ref, envelope(encode(public, JobRequestEntity::class.java), "ownerUid" to uid,
+                "acceptedQuoteId" to "", "acceptedProviderUid" to ""))
+            set(db.collection("requestContacts").document(ref.id), mapOf("ownerUid" to uid,
+                "address" to request.address, "phone" to request.customerPhone, "updatedAt" to FieldValue.serverTimestamp()))
+        }.commit().awaitRemote()
+        return ref.id
     }
-
-    suspend fun deleteJobRequest(id: Long) {
-        dao.deleteRequest(id)
+    suspend fun toggleFavorite(id: String, currentFav: Boolean) {
+        requireAccount()
+        val ref = db.collection("users").document(uid).collection("favorites").document(id)
+        if (currentFav) ref.delete().awaitRemote()
+        else ref.set(mapOf("createdAt" to FieldValue.serverTimestamp())).awaitRemote()
     }
-
-    // --- Quotes ---
-    fun getQuotesForRequest(requestId: Long): Flow<List<QuoteEntity>> =
-        dao.getQuotesForRequest(requestId)
-
-    fun getAllQuotes(): Flow<List<QuoteEntity>> = dao.getAllQuotes()
-
-    suspend fun sendQuote(quote: QuoteEntity): Long {
-        val quoteId = dao.insertQuote(quote)
-        dao.updateRequestStatus(quote.requestId, "QUOTED")
-        return quoteId
+    private suspend fun updateProvider(id: String, field: String, value: Any) {
+        requireAccount()
+        db.collection("providers").document(id).update(mapOf("data.$field" to value,
+            "updatedAt" to FieldValue.serverTimestamp())).awaitRemote()
     }
-
-    suspend fun acceptQuote(requestId: Long, quoteId: Long) {
-        dao.updateQuoteStatus(quoteId, "ACCEPTED")
-        dao.updateRequestStatus(requestId, "ACCEPTED")
+    suspend fun toggleOpenForOffers(id: String, isOpen: Boolean) = updateProvider(id, "isOpenForOffers", isOpen)
+    suspend fun updateBookedDates(id: String, bookedDatesJson: String) = updateProvider(id, "bookedDatesJson", bookedDatesJson)
+    private suspend fun report(id: String, kind: String) {
+        requireAccount()
+        db.collection("reports").add(mapOf("reporterUid" to uid, "listingId" to id,
+            "kind" to kind, "createdAt" to FieldValue.serverTimestamp())).awaitRemote()
     }
-
-    suspend fun rejectQuote(quoteId: Long) {
-        dao.updateQuoteStatus(quoteId, "REJECTED")
+    suspend fun reportProvider(id: String) = report(id, "provider")
+    suspend fun reportJobRequest(id: String) = report(id, "request")
+    fun getAllQuotes(): Flow<List<QuoteEntity>> = observe(db.collection("quotes").where(
+        Filter.or(Filter.equalTo("customerUid", uid), Filter.equalTo("providerUid", uid))
+    )) { decode(it, QuoteEntity::class.java).copy(status = it.getString("status") ?: "PENDING") }
+    fun getQuotesForRequest(requestId: String) = getAllQuotes().map { list -> list.filter { it.requestId == requestId } }
+    suspend fun sendQuote(quote: QuoteEntity): String {
+        requireAccount()
+        val request = db.collection("requests").document(quote.requestId).get(Source.SERVER).awaitRemote()
+        val customerUid = requireNotNull(request.getString("ownerUid"))
+        check(customerUid != uid) { "Kendi ilanınıza teklif veremezsiniz." }
+        val ref = db.collection("quotes").document("${quote.requestId}_$uid")
+        val data = quote.copy(id = ref.id, providerUid = uid, customerUid = customerUid,
+            status = "PENDING", escrowFunded = false, receiptCode = "", warrantyDuration = "")
+        ref.set(envelope(encode(data, QuoteEntity::class.java), "providerUid" to uid,
+            "customerUid" to customerUid, "requestId" to quote.requestId, "status" to "PENDING")).awaitRemote()
+        return ref.id
     }
-
-    // --- In-App Chat & Messaging ---
-    fun getAllConversations(): Flow<List<ConversationEntity>> = dao.getAllConversations()
-
-    fun getConversationById(id: String): Flow<ConversationEntity?> = dao.getConversationById(id)
-
-    fun getMessagesForConversation(convId: String): Flow<List<ChatMessageEntity>> =
-        dao.getMessagesForConversation(convId)
-
-    suspend fun startOrGetConversation(
-        participantId: String,
-        participantName: String,
-        participantTitle: String,
-        relatedItemTitle: String
-    ): String {
-        val convId = "conv-$participantId"
-        val existing = dao.getAllConversations()
-        val conv = ConversationEntity(
-            id = convId,
-            participantId = participantId,
-            participantName = participantName,
-            participantTitle = participantTitle,
-            lastMessage = "Sohbet başlatıldı",
-            lastTimestamp = System.currentTimeMillis(),
-            unreadCount = 0,
-            relatedItemTitle = relatedItemTitle
-        )
-        dao.insertConversation(conv)
-        return convId
+    suspend fun acceptQuote(requestId: String, quoteId: String) {
+        requireAccount()
+        val reqRef = db.collection("requests").document(requestId)
+        val quoteRef = db.collection("quotes").document(quoteId)
+        db.runTransaction { tx ->
+            requireAccount()
+            val request = tx.get(reqRef)
+            val quote = tx.get(quoteRef)
+            check(request.getString("ownerUid") == uid && quote.getString("customerUid") == uid)
+            check(quote.getString("requestId") == requestId && quote.getString("status") == "PENDING")
+            check(request.getString("acceptedQuoteId") == "") { "Bu ilan için zaten teklif kabul edildi." }
+            tx.update(quoteRef, mapOf("status" to "ACCEPTED", "updatedAt" to FieldValue.serverTimestamp()))
+            tx.update(reqRef, mapOf("data.status" to "ACCEPTED", "acceptedQuoteId" to quoteId,
+                "acceptedProviderUid" to requireNotNull(quote.getString("providerUid")), "updatedAt" to FieldValue.serverTimestamp()))
+        }.awaitRemote()
     }
-
-    suspend fun sendChatMessage(
-        conversationId: String,
-        senderName: String,
-        text: String,
-        isFromMe: Boolean,
-        isOffer: Boolean = false,
-        offerPrice: String = "",
-        isVoiceNote: Boolean = false,
-        voiceDurationSeconds: Int = 0,
-        hasPhotoAttachment: Boolean = false,
-        photoDescription: String = ""
-    ) {
-        val msg = ChatMessageEntity(
-            conversationId = conversationId,
-            senderId = if (isFromMe) "user" else "provider",
-            senderName = senderName,
-            text = text,
-            timestamp = System.currentTimeMillis(),
-            isFromMe = isFromMe,
-            isOfferMessage = isOffer,
-            offerPrice = offerPrice,
-            isVoiceNote = isVoiceNote,
-            voiceDurationSeconds = voiceDurationSeconds,
-            hasPhotoAttachment = hasPhotoAttachment,
-            photoDescription = photoDescription
-        )
-        dao.insertMessage(msg)
-        dao.updateConversationLastMessage(
-            id = conversationId,
-            lastMsg = when {
-                isOffer -> "Fiyat Teklifi: $offerPrice"
-                isVoiceNote -> "🎙️ Sesli Mesaj ($voiceDurationSeconds sn)"
-                hasPhotoAttachment -> "📷 Fotoğraf: $photoDescription"
-                else -> text
-            },
-            timestamp = System.currentTimeMillis()
-        )
+    suspend fun rejectQuote(quoteId: String) {
+        requireAccount()
+        db.collection("quotes").document(quoteId).update(mapOf("status" to "REJECTED",
+            "updatedAt" to FieldValue.serverTimestamp())).awaitRemote()
     }
-
-    // --- Escrow Havuz Ödeme & Dijital İş Fişi ---
-    suspend fun fundEscrowPayment(
-        requestId: Long,
-        quoteId: Long,
-        amount: String,
-        jobTitle: String,
-        customerName: String,
-        providerName: String,
-        providerTitle: String,
-        district: String
-    ): String {
-        val receiptCode = "MHL-2026-" + (1000..9999).random()
-        dao.updateQuoteStatus(quoteId, "ACCEPTED")
-        dao.updateRequestStatus(requestId, "ACCEPTED")
-        dao.updateRequestEscrow(requestId, "LOCKED", amount)
-        dao.updateQuoteEscrow(quoteId, funded = true, receiptCode = receiptCode)
-
-        val receipt = com.example.data.local.DigitalReceiptEntity(
-            receiptCode = receiptCode,
-            requestId = requestId,
-            quoteId = quoteId,
-            jobTitle = jobTitle,
-            customerName = customerName,
-            providerName = providerName,
-            providerTitle = providerTitle,
-            totalAmount = amount,
-            escrowStatus = "LOCKED",
-            warrantyInfo = "2 Yıl İşçilik & Malzeme Mahallemde Güvencesi",
-            createdAtDate = "05.10.2026",
-            district = district
-        )
-        dao.insertReceipt(receipt)
-        return receiptCode
+    fun getAllConversations(): Flow<List<ConversationEntity>> = observe(
+        db.collection("conversations").whereArrayContains("participantUids", uid)
+    ) { doc ->
+        val participants = doc.get("participantUids") as List<*>
+        val other = participants.filterIsInstance<String>().single { it != uid }
+        val names = doc.get("names") as Map<*, *>
+        ConversationEntity(doc.id, other, names[other] as? String ?: "Mahalle Sakini", "",
+            doc.getString("lastMessage") ?: "", doc.getTimestamp("updatedAt")?.toDate()?.time ?: 0,
+            relatedItemTitle = doc.getString("relatedItemTitle") ?: "")
     }
-
-    suspend fun releaseEscrowPayment(requestId: Long, quoteId: Long, receiptCode: String) {
-        dao.updateRequestEscrow(requestId, "RELEASED", "")
-        dao.updateRequestStatus(requestId, "COMPLETED")
-        val existingReceipt = dao.getReceiptByCode(receiptCode)
-        // If receipt exists, insert updated version
+    fun getConversationById(id: String) = getAllConversations().map { list -> list.find { it.id == id } }
+    suspend fun startOrGetConversation(participantId: String, participantName: String,
+        participantTitle: String, relatedItemTitle: String): String {
+        requireAccount()
+        require(participantId.isNotBlank() && participantId != uid) { "Sohbet için başka bir kullanıcı seçin." }
+        val participants = listOf(uid, participantId).sorted()
+        val id = participants.joinToString("") { "${it.length}:$it" }
+        val ref = db.collection("conversations").document(id)
+        db.runTransaction { tx ->
+            requireAccount()
+            if (!tx.get(ref).exists()) tx.set(ref, mapOf("participantUids" to participants,
+                "names" to mapOf(uid to (auth.currentUser?.displayName ?: "Mahalle Sakini"), participantId to participantName),
+                "relatedItemTitle" to relatedItemTitle, "lastMessage" to "",
+                "createdAt" to FieldValue.serverTimestamp(), "updatedAt" to FieldValue.serverTimestamp()))
+        }.awaitRemote()
+        return id
     }
-
-    fun getReceiptByCode(code: String): Flow<com.example.data.local.DigitalReceiptEntity?> =
-        dao.getReceiptByCode(code)
-
-    fun getReceiptForRequest(requestId: Long): Flow<com.example.data.local.DigitalReceiptEntity?> =
-        dao.getReceiptForRequest(requestId)
+    fun getMessagesForConversation(convId: String): Flow<List<ChatMessageEntity>> = observe(
+        db.collection("conversations").document(convId).collection("messages").orderBy("createdAt")
+    ) { doc -> decode(doc, ChatMessageEntity::class.java).copy(isFromMe = doc.getString("senderUid") == uid,
+        timestamp = doc.getTimestamp("createdAt")?.toDate()?.time ?: 0) }
+    suspend fun sendChatMessage(conversationId: String, senderName: String, text: String,
+        isFromMe: Boolean, isOffer: Boolean = false, offerPrice: String = "",
+        isVoiceNote: Boolean = false, voiceDurationSeconds: Int = 0,
+        hasPhotoAttachment: Boolean = false, photoDescription: String = "") {
+        requireAccount()
+        require(isFromMe && !isVoiceNote && !hasPhotoAttachment)
+        require(text.isNotBlank() && text.length <= 4000) { "Mesaj 1–4000 karakter olmalı." }
+        val conv = db.collection("conversations").document(conversationId)
+        val ref = conv.collection("messages").document()
+        val data = ChatMessageEntity(id = ref.id, conversationId = conversationId, senderId = uid,
+            senderName = auth.currentUser?.displayName ?: "Mahalle Sakini", text = text.trim(),
+            isFromMe = false, isOfferMessage = isOffer, offerPrice = offerPrice)
+        db.batch().apply {
+            set(ref, envelope(encode(data, ChatMessageEntity::class.java), "senderUid" to uid))
+            update(conv, mapOf("lastMessage" to text.trim(), "updatedAt" to FieldValue.serverTimestamp()))
+        }.commit().awaitRemote()
+    }
+    // Only a verified payment backend may acknowledge funds or generate receipts.
+    suspend fun fundEscrowPayment(requestId: String, quoteId: String, amount: String,
+        jobTitle: String, customerName: String, providerName: String, providerTitle: String, district: String): String =
+        error("Ödeme altyapısı henüz bağlı değil. Para bloke edilmedi.")
+    suspend fun releaseEscrowPayment(requestId: String, quoteId: String, receiptCode: String): Unit =
+        error("Ödeme altyapısı henüz bağlı değil. Para transferi yapılamaz.")
+}
+private suspend fun <T> Task<T>.awaitRemote(): T = withTimeout(30_000) {
+    suspendCancellableCoroutine { continuation ->
+        addOnCompleteListener { task ->
+            if (!continuation.isActive) return@addOnCompleteListener
+            when {
+                task.isCanceled -> continuation.cancel()
+                task.isSuccessful -> continuation.resume(task.result)
+                else -> continuation.resumeWithException(task.exception ?: IllegalStateException("İşlem başarısız."))
+            }
+        }
+    }
 }

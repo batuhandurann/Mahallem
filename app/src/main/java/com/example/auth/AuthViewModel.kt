@@ -36,7 +36,7 @@ data class AuthUiState(
     val message: String? = null
 )
 
-class AuthViewModel(private val auth: FirebaseAuth = FirebaseAuth.getInstance()) : ViewModel() {
+class AuthViewModel(private val auth: FirebaseAuth = com.example.data.remote.FirebaseServices.auth) : ViewModel() {
     private val mutableState = MutableStateFlow(AuthUiState())
     val state: StateFlow<AuthUiState> = mutableState.asStateFlow()
 

@@ -17,3 +17,8 @@
 local.properties
 .env
 debug.keystore
+
+node_modules/
+*-debug.log
+app/build/
+.firebase/

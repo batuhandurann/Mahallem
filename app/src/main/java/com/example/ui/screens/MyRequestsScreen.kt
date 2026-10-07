@@ -31,10 +31,10 @@ fun MyRequestsScreen(
     requests: List<JobRequestEntity>,
     quotes: List<QuoteEntity>,
     onBackClick: () -> Unit,
-    onAcceptQuote: (requestId: Long, quoteId: Long, providerName: String) -> Unit,
+    onAcceptQuote: (requestId: String, quoteId: String, providerName: String) -> Unit,
     onAcceptWithEscrow: (quote: QuoteEntity, request: JobRequestEntity) -> Unit = { _, _ -> },
     onViewReceipt: (QuoteEntity) -> Unit = {},
-    onRejectQuote: (quoteId: Long) -> Unit,
+    onRejectQuote: (quoteId: String) -> Unit,
     onNewRequestClick: () -> Unit
 ) {
     BackHandler { onBackClick() }
@@ -115,10 +115,10 @@ fun MyRequestsScreen(
 private fun RequestItemCard(
     request: JobRequestEntity,
     quotes: List<QuoteEntity>,
-    onAcceptQuote: (Long, String) -> Unit,
+    onAcceptQuote: (String, String) -> Unit,
     onAcceptWithEscrow: (QuoteEntity) -> Unit,
     onViewReceipt: (QuoteEntity) -> Unit,
-    onRejectQuote: (Long) -> Unit
+    onRejectQuote: (String) -> Unit
 ) {
     val isRenovation = request.sector == "HOME_REPAIR"
     val isEmergency = request.urgencyMode == "EMERGENCY"

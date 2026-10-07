@@ -1,0 +1,104 @@
+name: Android Quality
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: android-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  build-test-lint:
+    name: build-test-lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: android-actions/setup-android@v3
+      - run: sdkmanager 'platforms;android-36.1' 'build-tools;36.0.0'
+      - uses: gradle/actions/wrapper-validation@v4
+      - uses: gradle/actions/setup-gradle@v4
+      - run: ./gradlew :app:assembleDebug :app:testDebugUnitTest :app:lintDebug :app:assembleDebugAndroidTest
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: android-reports-and-apk
+          path: |
+            app/build/reports/
+            app/build/outputs/apk/debug/
+  auth-rules:
+    name: auth-rules
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - run: npm run test:rules
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: firebase-emulator-logs
+          path: '*-debug.log'
+  android-emulator:
+    name: android-emulator
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - uses: android-actions/setup-android@v3
+      - run: sdkmanager 'platforms;android-36.1' 'build-tools;36.0.0'
+      - uses: gradle/actions/setup-gradle@v4
+      - run: npm ci
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          arch: x86_64
+          target: google_apis
+          disable-animations: true
+          script: npx firebase emulators:exec --project demo-mahallem --only auth,firestore './gradlew -PfirebaseEmulators=true :app:connectedDebugAndroidTest'
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: android-instrumentation-reports
+          path: |
+            app/build/reports/androidTests/
+            app/build/outputs/androidTest-results/
+            *-debug.log
+  required-checks:
+    name: required-checks
+    if: always()
+    needs: [build-test-lint, auth-rules, android-emulator]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require every gate to succeed
+        env:
+          BUILD: ${{ needs.build-test-lint.result }}
+          RULES: ${{ needs.auth-rules.result }}
+          EMULATOR: ${{ needs.android-emulator.result }}
+        run: test "$BUILD" = success && test "$RULES" = success && test "$EMULATOR" = success

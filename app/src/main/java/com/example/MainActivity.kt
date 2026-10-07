@@ -66,7 +66,7 @@ fun MarketplaceApp(
 
     val snackbarHostState = remember { SnackbarHostState() }
 
-    var reportingTarget by remember { mutableStateOf<Triple<String?, Long?, String>?>(null) }
+    var reportingTarget by remember { mutableStateOf<Triple<String?, String?, String>?>(null) }
     var escrowTargetQuote by remember { mutableStateOf<Pair<QuoteEntity, JobRequestEntity>?>(null) }
     var activeReceipt by remember { mutableStateOf<DigitalReceiptEntity?>(null) }
     var showCostEstimator by remember { mutableStateOf(false) }
@@ -96,7 +96,7 @@ fun MarketplaceApp(
                         viewModel.navigateTo(target)
                     },
                     unreadMessagesCount = conversations.sumOf { it.unreadCount },
-                    activeRequestsCount = requests.size
+                    activeRequestsCount = requests.count { it.ownerUid == viewModel.currentUid }
                 )
             }
         }
@@ -163,7 +163,7 @@ fun MarketplaceApp(
                         onMessagesClick = {
                             viewModel.navigateTo(ScreenDestination.ConversationsList)
                         },
-                        activeRequestsCount = requests.size,
+                        activeRequestsCount = requests.count { it.ownerUid == viewModel.currentUid },
                         unreadMessagesCount = conversations.sumOf { it.unreadCount },
                         isProviderMode = isProviderMode,
                         onToggleProviderMode = { viewModel.toggleProviderMode() },
@@ -284,7 +284,7 @@ fun MarketplaceApp(
 
                 is ScreenDestination.MyRequests -> {
                     MyRequestsScreen(
-                        requests = requests,
+                        requests = requests.filter { it.ownerUid == viewModel.currentUid },
                         quotes = quotes,
                         onBackClick = { viewModel.navigateBack() },
                         onAcceptQuote = { reqId, quoteId, pName ->
@@ -293,23 +293,7 @@ fun MarketplaceApp(
                         onAcceptWithEscrow = { quote, request ->
                             escrowTargetQuote = Pair(quote, request)
                         },
-                        onViewReceipt = { quote ->
-                            val dummyReceipt = DigitalReceiptEntity(
-                                receiptCode = if (quote.receiptCode.isNotBlank()) quote.receiptCode else "MHL-2026-8812",
-                                requestId = quote.requestId,
-                                quoteId = quote.id,
-                                jobTitle = "3+1 Daire Boya ve Badana Hizmeti",
-                                customerName = "Cemil Kaya",
-                                providerName = quote.providerName,
-                                providerTitle = quote.providerTitle,
-                                totalAmount = quote.price,
-                                escrowStatus = "LOCKED",
-                                warrantyInfo = "2 Yıl İşçilik & Malzeme Mahallemde Güvencesi",
-                                createdAtDate = "05.10.2026",
-                                district = "Kadıköy / Moda"
-                            )
-                            activeReceipt = dummyReceipt
-                        },
+                        onViewReceipt = { viewModel.showUnavailablePayment() },
                         onRejectQuote = { quoteId ->
                             viewModel.rejectQuote(quoteId)
                         },
@@ -362,8 +346,8 @@ fun MarketplaceApp(
 
                 is ScreenDestination.ProviderDashboard -> {
                     ProviderDashboardScreen(
-                        providers = providers,
-                        requests = requests,
+                        providers = providers.filter { it.ownerUid == viewModel.currentUid },
+                        requests = requests.filter { it.ownerUid != viewModel.currentUid && it.status == "PENDING" },
                         onBackClick = { viewModel.navigateBack() },
                         onToggleOffers = { pId, status ->
                             viewModel.toggleProviderOpenForOffers(pId, status)

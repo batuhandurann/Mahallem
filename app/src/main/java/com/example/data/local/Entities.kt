@@ -1,11 +1,10 @@
 package com.example.data.local
 
-import androidx.room.Entity
-import androidx.room.PrimaryKey
+import com.squareup.moshi.JsonClass
 
-@Entity(tableName = "service_providers")
+@JsonClass(generateAdapter = true)
 data class ServiceProviderEntity(
-    @PrimaryKey val id: String,
+    val id: String,
     val name: String,
     val title: String,
     val sector: String, // HOME_REPAIR, CLEANING, EVENT_ENTERTAINMENT, MOVING_ASSEMBLY, TUTORING_CONSULTING, PERSONAL_CARE
@@ -34,12 +33,13 @@ data class ServiceProviderEntity(
     val videoShowcasesJson: String = "",
     val isFavorite: Boolean = false,
     val latitude: Double = 40.990,
-    val longitude: Double = 29.025
+    val longitude: Double = 29.025,
+    val ownerUid: String = ""
 )
 
-@Entity(tableName = "job_requests")
+@JsonClass(generateAdapter = true)
 data class JobRequestEntity(
-    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val id: String = "",
     val title: String,
     val sector: String,
     val categoryId: String,
@@ -72,13 +72,14 @@ data class JobRequestEntity(
     val budgetEstimate: String = "",
     val createdAt: Long = System.currentTimeMillis(),
     val latitude: Double = 40.985,
-    val longitude: Double = 29.030
+    val longitude: Double = 29.030,
+    val ownerUid: String = ""
 )
 
-@Entity(tableName = "quotes")
+@JsonClass(generateAdapter = true)
 data class QuoteEntity(
-    @PrimaryKey(autoGenerate = true) val id: Long = 0,
-    val requestId: Long,
+    val id: String = "",
+    val requestId: String,
     val providerId: String,
     val providerName: String,
     val providerTitle: String,
@@ -90,12 +91,14 @@ data class QuoteEntity(
     val escrowFunded: Boolean = false,
     val receiptCode: String = "",
     val warrantyDuration: String = "2 Yıl İşçilik & Malzeme Garantisi",
-    val createdAt: Long = System.currentTimeMillis()
+    val createdAt: Long = System.currentTimeMillis(),
+    val providerUid: String = "",
+    val customerUid: String = ""
 )
 
-@Entity(tableName = "chat_messages")
+@JsonClass(generateAdapter = true)
 data class ChatMessageEntity(
-    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val id: String = "",
     val conversationId: String,
     val senderId: String,
     val senderName: String,
@@ -110,9 +113,9 @@ data class ChatMessageEntity(
     val photoDescription: String = ""
 )
 
-@Entity(tableName = "conversations")
+@JsonClass(generateAdapter = true)
 data class ConversationEntity(
-    @PrimaryKey val id: String,
+    val id: String,
     val participantId: String,
     val participantName: String,
     val participantTitle: String,
@@ -122,11 +125,11 @@ data class ConversationEntity(
     val relatedItemTitle: String = ""
 )
 
-@Entity(tableName = "digital_receipts")
+@JsonClass(generateAdapter = true)
 data class DigitalReceiptEntity(
-    @PrimaryKey val receiptCode: String,
-    val requestId: Long,
-    val quoteId: Long,
+    val receiptCode: String,
+    val requestId: String,
+    val quoteId: String,
     val jobTitle: String,
     val customerName: String,
     val providerName: String,
