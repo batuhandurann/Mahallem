@@ -84,6 +84,8 @@ assert.match(
   /jobRequests\/\$\(request\.resource\.data\.requestId\)/
 );
 
+assert.match(storage, /\('admin' in request\.auth\.token\)/);
+assert.match(storage, /'deletionStatus' in firestore\.get\(/);
 assert.match(storage, /validGrant/);
 assert.match(storage, /data\.validated == true/);
 assert.match(storage, /filenameGrantId\(fileName\)/);
