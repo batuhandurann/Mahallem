@@ -83,8 +83,8 @@ kontrollerini fiziksel cihazda yapın. Emulator sonucu gerçek cihaz sonucu değ
 
 `Android Quality` tüm branch push ve pull request'lerinde build, unit test, lint,
 Auth/Rules ve Android emulator testlerini çalıştırır. `required-checks` diğer
-kontrollerden biri başarısız veya iptal olursa başarısız olur. Hızlı ardışık
-commitlerde eski çalışma iptal edilir; son commit kontrolü esas alınır. Raporlar
+kontrollerden biri başarısız veya iptal olursa başarısız olur. Her commit kendi
+kontrolünü çalıştırır. Raporlar
 ve APK Actions artifact'lerine yüklenir.
 
 Workflow dosyası tek başına main dalını korumaz. GitHub Settings → Rules → Rulesets:
