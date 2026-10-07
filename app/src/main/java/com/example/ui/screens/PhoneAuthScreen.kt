@@ -1,6 +1,6 @@
 package com.example.ui.screens
 
-import android.app.Activity
+import androidx.activity.compose.LocalActivity
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
@@ -12,7 +12,6 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.example.auth.PhoneAuthRepository
 import com.example.auth.UserProfileRepository
@@ -23,7 +22,7 @@ import kotlinx.coroutines.tasks.await
 fun PhoneAuthScreen(
     onAuthenticated: () -> Unit
 ) {
-    val activity = LocalContext.current as Activity
+    val activity = LocalActivity.current
     val phoneAuth = remember { PhoneAuthRepository() }
     val profileRepository = remember { UserProfileRepository() }
     val scope = rememberCoroutineScope()
@@ -82,10 +81,15 @@ fun PhoneAuthScreen(
             onClick = {
                 error = null
                 if (verificationId == null) {
+                    val hostActivity = activity
+                    if (hostActivity == null) {
+                        error = "Doğrulama ekranı başlatılamadı."
+                        return@Button
+                    }
                     loading = true
                     runCatching {
                         phoneAuth.startVerification(
-                            activity = activity,
+                            activity = hostActivity,
                             phoneNumber = phone,
                             onCodeSent = { id -> verificationId = id; loading = false },
                             onAutoVerified = { credential ->
