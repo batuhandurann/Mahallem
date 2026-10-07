@@ -50,19 +50,55 @@ import com.example.ui.theme.MyApplicationTheme
 import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
+    companion object {
+        const val EXTRA_CONVERSATION_ID = "mahallem.conversationId"
+        const val EXTRA_OPEN_MY_REQUESTS = "mahallem.openMyRequests"
+    }
+
+    private val pendingConversationId = kotlinx.coroutines.flow.MutableStateFlow<String?>(null)
+    private val pendingOpenMyRequests = kotlinx.coroutines.flow.MutableStateFlow(false)
+
+    private fun captureNavigationIntent(intent: Intent?) {
+        val conversationId = intent?.getStringExtra(EXTRA_CONVERSATION_ID)
+        pendingConversationId.value = conversationId?.takeIf { it.matches(Regex("^[a-f0-9]{64}$")) }
+        pendingOpenMyRequests.value = intent?.getBooleanExtra(EXTRA_OPEN_MY_REQUESTS, false) == true
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        captureNavigationIntent(intent)
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        captureNavigationIntent(intent)
         setContent {
+            val requestedConversationId by pendingConversationId.collectAsStateWithLifecycle()
+            val requestedMyRequests by pendingOpenMyRequests.collectAsStateWithLifecycle()
             MyApplicationTheme {
-                MarketplaceApp()
+                MarketplaceApp(
+                    notificationConversationId = requestedConversationId,
+                    notificationOpenMyRequests = requestedMyRequests,
+                    onNotificationNavigationConsumed = {
+                        pendingConversationId.value = null
+                        pendingOpenMyRequests.value = false
+                        intent?.removeExtra(EXTRA_CONVERSATION_ID)
+                        intent?.removeExtra(EXTRA_OPEN_MY_REQUESTS)
+                    }
+                )
             }
         }
     }
 }
 
 @Composable
-fun MarketplaceApp() {
+fun MarketplaceApp(
+    notificationConversationId: String? = null,
+    notificationOpenMyRequests: Boolean = false,
+    onNotificationNavigationConsumed: () -> Unit = {}
+) {
     if (AppEnvironment.mode == AppEnvironment.Mode.LOCAL) {
         MarketplaceContent()
         return
@@ -166,14 +202,21 @@ fun MarketplaceApp() {
                     notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
                 }
             }
-            MarketplaceContent()
+            MarketplaceContent(
+                notificationConversationId = notificationConversationId,
+                notificationOpenMyRequests = notificationOpenMyRequests,
+                onNotificationNavigationConsumed = onNotificationNavigationConsumed
+            )
         }
     }
 }
 
 @Composable
 private fun MarketplaceContent(
-    viewModel: MarketplaceViewModel = viewModel()
+    viewModel: MarketplaceViewModel = viewModel(),
+    notificationConversationId: String? = null,
+    notificationOpenMyRequests: Boolean = false,
+    onNotificationNavigationConsumed: () -> Unit = {}
 ) {
     val currentScreen by viewModel.currentScreen.collectAsStateWithLifecycle()
     val isProviderMode by viewModel.isProviderMode.collectAsStateWithLifecycle()
@@ -195,6 +238,20 @@ private fun MarketplaceContent(
     val lifecycleOwner = LocalLifecycleOwner.current
 
     val snackbarHostState = remember { SnackbarHostState() }
+
+    LaunchedEffect(notificationConversationId, notificationOpenMyRequests, conversations) {
+        when {
+            notificationConversationId != null &&
+                conversations.any { it.id == notificationConversationId } -> {
+                viewModel.navigateTo(ScreenDestination.Chat(notificationConversationId))
+                onNotificationNavigationConsumed()
+            }
+            notificationOpenMyRequests -> {
+                viewModel.navigateTo(ScreenDestination.MyRequests)
+                onNotificationNavigationConsumed()
+            }
+        }
+    }
 
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->

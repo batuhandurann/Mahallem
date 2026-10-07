@@ -25,6 +25,14 @@ class MahallemApplication : Application() {
                 description = "Yeni mesaj ve hizmet güncellemeleri"
             }
             getSystemService(NotificationManager::class.java).createNotificationChannel(channel)
+            val offersChannel = NotificationChannel(
+                "mahallem_offers",
+                "Mahallem Teklifleri",
+                NotificationManager.IMPORTANCE_DEFAULT
+            ).apply {
+                description = "Yeni teklif ve iş akışı bildirimleri"
+            }
+            getSystemService(NotificationManager::class.java).createNotificationChannel(offersChannel)
         }
         if (FirebaseApp.getApps(this).isEmpty()) return
 

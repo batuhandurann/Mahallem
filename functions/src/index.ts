@@ -1486,6 +1486,14 @@ export const createQuote = onCall(
         throw new HttpsError("permission-denied", "Geçerli bir müşteri talebi bulunamadı.");
       }
 
+      const [providerBlock, customerBlock] = await Promise.all([
+        tx.get(db.collection("users").doc(uid).collection("blockedUsers").doc(customerId)),
+        tx.get(db.collection("users").doc(customerId).collection("blockedUsers").doc(uid)),
+      ]);
+      if (providerBlock.exists || customerBlock.exists) {
+        throw new HttpsError("permission-denied", "Bu kullanıcıyla teklif alışverişi engellendi.");
+      }
+
       if (quoteSnap.exists) {
         throw new HttpsError("already-exists", "Bu teklif kimliği zaten kullanılmış.");
       }
@@ -2876,6 +2884,76 @@ export const validateUploadedImage = onObjectFinalized(
     await grantRef.set({ validated: true, validatedAt: FieldValue.serverTimestamp() }, { merge: true });
   }
 );
+export const notifyNewQuote = onDocumentCreated(
+  { document: "quotes/{quoteId}", region: "europe-west1" },
+  async (event) => {
+    const quote = event.data?.data();
+    if (!quote) return;
+
+    const customerId = String(quote.customerId ?? "");
+    const providerOwnerId = String(quote.providerOwnerId ?? "");
+    if (!customerId || !providerOwnerId) return;
+
+    const [profileSnap, tokenSnap, customerBlockSnap, providerBlockSnap] = await Promise.all([
+      db.collection("users").doc(customerId).get(),
+      db.collection("users").doc(customerId).collection("devices").get(),
+      db.collection("users").doc(customerId).collection("blockedUsers").doc(providerOwnerId).get(),
+      db.collection("users").doc(providerOwnerId).collection("blockedUsers").doc(customerId).get(),
+    ]);
+
+    if (
+      !profileSnap.exists
+      || ["REQUESTED", "PURGING"].includes(String(profileSnap.data()?.deletionStatus ?? ""))
+      || customerBlockSnap.exists
+      || providerBlockSnap.exists
+    ) return;
+
+    const preferences = profileSnap.data()?.notificationPreferences;
+    const offersEnabled = preferences == null || preferences.offers !== false;
+    if (!offersEnabled) return;
+
+    const registrations = tokenSnap.docs
+      .map((doc) => ({ ref: doc.ref, token: String(doc.data()?.token ?? "") }))
+      .filter((entry) => entry.token.length > 0);
+    if (registrations.length === 0) return;
+
+    const payload = {
+      notification: {
+        title: "Yeni hizmet teklifi",
+        body: "Talebiniz için yeni bir teklif geldi.",
+      },
+      data: {
+        destination: "MY_REQUESTS",
+        requestId: String(quote.requestId ?? ""),
+        quoteId: event.params.quoteId,
+      },
+    };
+
+    const response = await getMessaging().sendEachForMulticast({
+      tokens: registrations.map((entry) => entry.token),
+      ...payload,
+    });
+
+    const invalidCodes = new Set([
+      "messaging/registration-token-not-registered",
+      "messaging/invalid-registration-token",
+    ]);
+    const staleRefs = response.responses
+      .map((result, index) => ({ result, entry: registrations[index] }))
+      .filter(({ result }) => !result.success && invalidCodes.has(String(result.error?.code ?? "")))
+      .map(({ entry }) => entry.ref);
+
+    if (staleRefs.length > 0) {
+      const batch = db.batch();
+      for (const ref of staleRefs) {
+        batch.delete(ref);
+        batch.delete(db.collection("deviceTokenOwners").doc(ref.id));
+      }
+      await batch.commit();
+    }
+  }
+);
+
 export const notifyNewMessage = onDocumentCreated(
   { document: "messages/{messageId}", region: "europe-west1" },
   async (event) => {
