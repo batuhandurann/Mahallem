@@ -1856,14 +1856,23 @@ export const createReview = onCall(
       const newSum = safeSum + rating;
       const newRating = Math.round((newSum / newCount) * 10) / 10;
 
+      const reviewerHash = createHash("sha256")
+        .update(request.auth!.uid)
+        .digest("hex")
+        .slice(0, 20);
+
       tx.create(reviewRef, {
-        requestId,
         providerId,
-        providerOwnerId: String(quote.providerOwnerId ?? ""),
-        reviewerHash: createHash("sha256").update(request.auth!.uid).digest("hex").slice(0, 20),
         rating,
         comment,
         verifiedTransaction: true,
+        createdAt: FieldValue.serverTimestamp(),
+      });
+      tx.create(db.collection("reviewAudits").doc(reviewId), {
+        requestId,
+        providerId,
+        providerOwnerId: String(quote.providerOwnerId ?? ""),
+        reviewerHash,
         createdAt: FieldValue.serverTimestamp(),
       });
       tx.update(providerRef, {

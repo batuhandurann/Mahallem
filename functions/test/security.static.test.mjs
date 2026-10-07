@@ -51,6 +51,7 @@ assert.match(source, /cancelJobRequest/);
 assert.match(source, /confirmJobCompletion/);
 assert.match(source, /createReview/);
 assert.match(source, /verifiedTransaction:\s*true/);
+assert.match(source, /reviewAudits/);
 assert.match(source, /openDispute/);
 assert.match(source, /resolveDispute/);
 assert.match(source, /getPaymentForQuote/);
@@ -93,6 +94,7 @@ assert.match(
   /match \/publicJobRequests\/\{requestId\} \{[\s\S]*?allow list: if accountActive\(\) && request\.query\.limit <= 50;/
 );
 assert.match(rules, /match \/reviews\/\{reviewId\}/);
+assert.match(rules, /match \/reviewAudits\/\{reviewId\}/);
 assert.match(rules, /match \/disputes\/\{disputeId\}/);
 assert.match(rules, /match \/blockedUsers\/\{blockedUid\}/);
 assert.match(rules, /match \/favorites\/\{providerId\}/);
@@ -129,3 +131,12 @@ assert.match(
 assert.match(source, /body:\s*"Yeni bir mesajınız var\."\s*,/);
 
 console.log("Security static regression tests passed.");
+
+assert.match(
+  rules,
+  /match \/quotes\/\{quoteId\} \{[\s\S]*?allow create, update, delete: if isAdmin\(\);/
+);
+assert.match(
+  rules,
+  /match \/jobRequests\/\{requestId\} \{[\s\S]*?allow create, update, delete: if isAdmin\(\);/
+);

@@ -39,3 +39,7 @@ Do not open a public issue for a suspected security vulnerability. Report it pri
 - Disputes freeze the job into DISPUTED and require an authenticated admin resolution path to resume, complete or cancel it.
 - Public discovery publishes only open PENDING requests and approximate coordinates; accepted, disputed, completed and cancelled jobs are removed from the public mirror.
 - Favorites are account-scoped backend records rather than shared/local-only production state.
+
+
+- Client-side direct quote/request mutation is denied by Firestore Rules; state changes must pass through authenticated/App Check Cloud Functions.
+- Public review documents contain only display-safe provider/rating/comment/verification fields. Internal transaction linkage is kept in admin-only review audit records.
