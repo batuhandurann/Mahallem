@@ -55,6 +55,7 @@ jobs:
         uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6
         with:
           gradle-version: "9.3.1"
+      # Exercise release-only R8/resource shrinking without exposing the production signing key.
       - name: Build unsigned release APK and AAB
         run: gradle clean assembleRelease bundleRelease --no-daemon --stacktrace -PallowMissingGoogleServices=true -PciUnsignedRelease=true
       - name: Verify release artifacts
