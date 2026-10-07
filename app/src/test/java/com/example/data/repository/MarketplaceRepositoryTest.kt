@@ -12,6 +12,7 @@ import com.example.data.model.UrgencyMode
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -211,6 +212,7 @@ class MarketplaceRepositoryTest {
         override fun getAllQuotes(): Flow<List<QuoteEntity>> = flowOf(emptyList())
         override suspend fun insertQuote(quote: QuoteEntity): Long { insertedQuotes += quote; return 1L }
         override suspend fun updateQuoteStatus(id: Long, status: String) = Unit
+        override suspend fun deleteQuote(id: Long) = Unit
         override suspend fun updateQuoteEscrow(id: Long, funded: Boolean, receiptCode: String) = Unit
         override suspend fun updateRequestEscrow(id: Long, escrowStatus: String, escrowAmount: String) = Unit
 
