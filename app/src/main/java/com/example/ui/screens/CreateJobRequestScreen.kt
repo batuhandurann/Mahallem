@@ -97,6 +97,13 @@ fun CreateJobRequestScreen(
     var selectedCostume by remember { mutableStateOf("Palyaço & Yüz Boyama") }
     var extraServices by remember { mutableStateOf("Yüz Boyama + Sosis Balon") }
     var formError by remember { mutableStateOf<String?>(null) }
+    val formScrollState = rememberScrollState()
+
+    LaunchedEffect(formError) {
+        if (formError != null) {
+            formScrollState.animateScrollTo(formScrollState.maxValue)
+        }
+    }
 
     val isPhysicalService = selectedSector == SectorType.HOME_REPAIR ||
             selectedSector == SectorType.CLEANING ||
@@ -214,7 +221,7 @@ fun CreateJobRequestScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
-                .verticalScroll(rememberScrollState())
+                .verticalScroll(formScrollState)
                 .padding(16.dp)
         ) {
             // Sector Picker
