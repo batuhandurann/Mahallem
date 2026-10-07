@@ -99,6 +99,18 @@ googleServices {
   }
 }
 
+// Clean CI validates release compilation/R8 without production Firebase config.
+// Crashlytics mapping upload requires a real google-services.json/app id, so disable
+// only the network upload task for the explicitly unsigned CI release path.
+if (ciUnsignedRelease) {
+  tasks.matching {
+    it.name == "uploadCrashlyticsMappingFileRelease" ||
+      it.name == "uploadCrashlyticsSymbolFileRelease"
+  }.configureEach {
+    enabled = false
+  }
+}
+
 // Some unused dependencies are commented out below instead of being removed.
 // This makes it easy to add them back in the future if needed.
 dependencies {
