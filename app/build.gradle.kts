@@ -9,6 +9,8 @@ plugins {
   alias(libs.plugins.crashlytics)
 }
 
+val ciUnsignedRelease = providers.gradleProperty("ciUnsignedRelease").orNull == "true"
+
 android {
   namespace = "com.example"
   compileSdk { version = release(36) { minorApiLevel = 1 } }
@@ -40,7 +42,11 @@ android {
       isMinifyEnabled = true
       isShrinkResources = true
       proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
-      signingConfig = signingConfigs.getByName("release")
+      // CI verifies the full release/R8 pipeline without access to the production keystore.
+      // Real release builds keep the configured upload signing key.
+      if (!ciUnsignedRelease) {
+        signingConfig = signingConfigs.getByName("release")
+      }
     }
     create("staging") {
       initWith(getByName("debug"))
