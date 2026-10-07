@@ -77,11 +77,11 @@ service firebase.storage {
     }
 
     function filenameGrantId(fileName) {
-      return fileName.replace('\\\\.jpg$', '');
+      return fileName.replace('\\.jpg$', '');
     }
 
     function validImageFileName(fileName) {
-      return fileName.matches('^[A-Za-z0-9_-]{1,80}\\\\.jpg$');
+      return fileName.matches('^[A-Za-z0-9_-]{1,80}\\.jpg$');
     }
 
     match /users/{uid}/images/{fileName} {
