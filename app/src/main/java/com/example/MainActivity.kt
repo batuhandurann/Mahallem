@@ -47,6 +47,7 @@ import com.example.ui.components.ReportListingDialog
 import com.example.ui.screens.*
 import com.google.firebase.auth.FirebaseAuth
 import com.example.ui.theme.MyApplicationTheme
+import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {

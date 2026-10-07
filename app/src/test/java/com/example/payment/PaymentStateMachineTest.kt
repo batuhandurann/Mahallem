@@ -6,7 +6,7 @@ import org.junit.Test
 
 class PaymentStateMachineTest {
     @Test fun paidCanMoveToHeld() = assertTrue(PaymentStateMachine.canTransition(PaymentStatus.PAID, PaymentStatus.HELD))
-    @Test fun heldCanMoveToReleased() = assertTrue(PaymentStateMachine.canTransition(PaymentStatus.HELD, PaymentStatus.RELEASED))
+    @Test fun heldCannotSkipReleaseRequest() = assertFalse(PaymentStateMachine.canTransition(PaymentStatus.HELD, PaymentStatus.RELEASED))
     @Test fun releasedCannotMoveBackToPaid() = assertFalse(PaymentStateMachine.canTransition(PaymentStatus.RELEASED, PaymentStatus.PAID))
     @Test fun failedCannotBecomeRefunded() = assertFalse(PaymentStateMachine.canTransition(PaymentStatus.FAILED, PaymentStatus.REFUNDED))
     @Test fun disputeCanBecomeRefundRequested() = assertTrue(PaymentStateMachine.canTransition(PaymentStatus.DISPUTED, PaymentStatus.REFUND_REQUESTED))
@@ -17,6 +17,14 @@ class PaymentStateMachineTest {
 
     @Test fun heldCanRequestRelease() = assertTrue(
         PaymentStateMachine.canTransition(PaymentStatus.HELD, PaymentStatus.RELEASE_REQUESTED)
+    )
+
+    @Test fun heldCanStillOpenDispute() = assertTrue(
+        PaymentStateMachine.canTransition(PaymentStatus.HELD, PaymentStatus.DISPUTED)
+    )
+
+    @Test fun heldCanStillRequestRefund() = assertTrue(
+        PaymentStateMachine.canTransition(PaymentStatus.HELD, PaymentStatus.REFUND_REQUESTED)
     )
 
     @Test fun releaseRequestedCanBecomeReleased() = assertTrue(

@@ -478,6 +478,7 @@ export const saveProviderListing = onCall(
 
     const ref = db.collection("providers").doc(providerId);
     const rateRef = db.collection("rateLimits").doc("provider-write-day:" + request.auth.uid);
+    const now = Date.now();
 
     await db.runTransaction(async (tx) => {
       const [existing, rateSnap] = await Promise.all([tx.get(ref), tx.get(rateRef)]);

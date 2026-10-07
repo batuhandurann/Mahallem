@@ -5,7 +5,7 @@ import {
   assertSucceeds,
   assertFails,
 } from "@firebase/rules-unit-testing";
-import { doc, setDoc, getDoc, getDocs, collection, query, limit, deleteDoc, updateDoc, whereEqualTo } from "firebase/firestore";
+import { doc, setDoc, getDoc, getDocs, collection, query, limit, deleteDoc, updateDoc, where } from "firebase/firestore";
 
 const rules = readFileSync(new URL("../../firestore.rules", import.meta.url), "utf8");
 
@@ -363,7 +363,7 @@ async function run() {
   await assertFails(getDoc(doc(deletingDb, "payments/payment-visible")));
 
   await assertFails(getDocs(query(collection(aliceDb, "providers"), limit(50))));
-  await assertSucceeds(getDocs(query(collection(aliceDb, "jobRequests"), whereEqualTo("ownerId", "alice"), limit(50))));
+  await assertSucceeds(getDocs(query(collection(aliceDb, "jobRequests"), where("ownerId", "==", "alice"), limit(50))));
   await assertFails(getDocs(query(collection(aliceDb, "jobRequests"), limit(50))));
   await assertSucceeds(getDocs(query(collection(aliceDb, "publicProviders"), limit(50))));
   await assertSucceeds(getDocs(query(collection(aliceDb, "publicJobRequests"), limit(50))));
