@@ -69,10 +69,16 @@ assert.match(source, /status === "PURGING"/);
 assert.match(source, /Account purge failed; account remains locked in PURGING for retry/);
 assert.doesNotMatch(source, /Account purge failed; returning account to REQUESTED/);
 
-assert.match(rules, /match \/publicProviders\/\{providerId\}/);
-assert.match(rules, /match \/publicJobRequests\/\{requestId\}/);
-assert.match(rules, /request\.query\.limit <= 50/);
-assert.doesNotMatch(rules, /request\.query\.limit <= 100/);
+assert.match(
+  rules,
+  /match \/publicProviders\/\{providerId\} \{[\s\S]*?allow list: if accountActive\(\) && request\.query\.limit <= 50;/
+);
+assert.match(
+  rules,
+  /match \/publicJobRequests\/\{requestId\} \{[\s\S]*?allow list: if accountActive\(\) && request\.query\.limit <= 50;/
+);
+assert.match(rules, /\('admin' in request\.auth\.token\)/);
+assert.match(rules, /'deletionStatus' in get\(/);
 assert.match(
   rules,
   /jobRequests\/\$\(request\.resource\.data\.requestId\)/
@@ -82,6 +88,66 @@ assert.match(storage, /validGrant/);
 assert.match(storage, /data\.validated == true/);
 assert.match(storage, /filenameGrantId\(fileName\)/);
 assert.match(storage, /fileName\.matches/);
+assert.ok(storage.includes("fileName.replace('\\\\.jpg
+assert.match(storage, /data\.participantIds/);
+assert.doesNotMatch(storage, /documents\/.*\/conversations\//);
+assert.doesNotMatch(storage, /documents\/.*\/jobRequests\//);
+assert.doesNotMatch(
+  storage,
+  /match \/users\/\{uid\}\/images\/\{grantId\}\.jpg/
+);
+assert.doesNotMatch(storage, /allow read: if signedIn\(\);/);
+assert.match(storage, /Legacy provider-media namespace/);
+
+assert.match(source, /body:\s*"Yeni bir mesajınız var\."\s*,/);
+
+console.log("Security static regression tests passed.");
+, '')"));
+assert.ok(storage.includes("fileName.matches('^[A-Za-z0-9_-]{1,80}\\\\.jpg
+assert.match(storage, /data\.participantIds/);
+assert.doesNotMatch(storage, /documents\/.*\/conversations\//);
+assert.doesNotMatch(storage, /documents\/.*\/jobRequests\//);
+assert.doesNotMatch(
+  storage,
+  /match \/users\/\{uid\}\/images\/\{grantId\}\.jpg/
+);
+assert.doesNotMatch(storage, /allow read: if signedIn\(\);/);
+assert.match(storage, /Legacy provider-media namespace/);
+
+assert.match(source, /body:\s*"Yeni bir mesajınız var\."\s*,/);
+
+console.log("Security static regression tests passed.");
+)"));
+assert.ok(!storage.includes("fileName.replace('\\\\\\\\.jpg
+assert.match(storage, /data\.participantIds/);
+assert.doesNotMatch(storage, /documents\/.*\/conversations\//);
+assert.doesNotMatch(storage, /documents\/.*\/jobRequests\//);
+assert.doesNotMatch(
+  storage,
+  /match \/users\/\{uid\}\/images\/\{grantId\}\.jpg/
+);
+assert.doesNotMatch(storage, /allow read: if signedIn\(\);/);
+assert.match(storage, /Legacy provider-media namespace/);
+
+assert.match(source, /body:\s*"Yeni bir mesajınız var\."\s*,/);
+
+console.log("Security static regression tests passed.");
+, '')"));
+assert.ok(!storage.includes("fileName.matches('^[A-Za-z0-9_-]{1,80}\\\\\\\\.jpg
+assert.match(storage, /data\.participantIds/);
+assert.doesNotMatch(storage, /documents\/.*\/conversations\//);
+assert.doesNotMatch(storage, /documents\/.*\/jobRequests\//);
+assert.doesNotMatch(
+  storage,
+  /match \/users\/\{uid\}\/images\/\{grantId\}\.jpg/
+);
+assert.doesNotMatch(storage, /allow read: if signedIn\(\);/);
+assert.match(storage, /Legacy provider-media namespace/);
+
+assert.match(source, /body:\s*"Yeni bir mesajınız var\."\s*,/);
+
+console.log("Security static regression tests passed.");
+)"));
 assert.match(storage, /data\.participantIds/);
 assert.doesNotMatch(storage, /documents\/.*\/conversations\//);
 assert.doesNotMatch(storage, /documents\/.*\/jobRequests\//);
