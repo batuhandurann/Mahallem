@@ -87,7 +87,7 @@ assert.doesNotMatch(storage, /documents\/.*\/conversations\//);
 assert.doesNotMatch(storage, /documents\/.*\/jobRequests\//);
 assert.doesNotMatch(
   storage,
-  /match \\/users\/\{uid\}\\/images\/\{grantId\}\.jpg/
+  /match \/users\/\{uid\}\/images\/\{grantId\}\.jpg/
 );
 assert.doesNotMatch(storage, /allow read: if signedIn\(\);/);
 assert.match(storage, /Legacy provider-media namespace/);
