@@ -25,8 +25,23 @@ test('real Auth emulator: register/login/logout, invalid password, token UID enf
 });
 
 import { readFileSync } from 'node:fs';
-import { collection, getDocs, query, where, or, writeBatch, runTransaction } from 'firebase/firestore';
+import { collection, getDocs, query, where, or, runTransaction } from 'firebase/firestore';
 const fixture=JSON.parse(readFileSync(new URL('./fixtures.json',import.meta.url)));
+async function chargedCreate(client, operation, path, payload, extraWrites) {
+  const uid = client.auth.currentUser.uid;
+  return runTransaction(client.db, async tx => {
+    const budget = doc(client.db, `users/${uid}/writeBudgets/${operation}`);
+    const previous = await tx.get(budget);
+    const data = previous.data();
+    const reset = !previous.exists() || Date.now() - data.windowStartedAt.toMillis() >= 3_600_000;
+    const target = doc(client.db,path);
+    tx.set(budget,{count:reset ? 1 : data.count + 1,windowStartedAt:reset ? serverTimestamp() : data.windowStartedAt,
+      updatedAt:serverTimestamp(),target});
+    tx.set(target,payload);
+    extraWrites?.(tx);
+  });
+}
+
 test('named database with real Auth UIDs: request -> owned provider -> quote -> chat -> atomic acceptance', {timeout:60000}, async()=>{
   const suffix=Date.now();
   function client(label){
@@ -40,20 +55,22 @@ test('named database with real Auth UIDs: request -> owned provider -> quote -> 
     await Promise.all([a,b,e].map((c,i)=>createUserWithEmailAndPassword(c.auth,`named-${suffix}-${i}@example.com`,'SecurePass123!')));
     const au=a.auth.currentUser.uid,bu=b.auth.currentUser.uid;
     const r=`request-${suffix}`,p=`provider-${suffix}`,q=`${r}_${bu}`,conv=`conv-${suffix}`;
-    const batch=writeBatch(a.db);
-    batch.set(doc(a.db,`requests/${r}`),{ownerUid:au,visibility:'published',acceptedQuoteId:'',acceptedProviderUid:'',data:{...fixture.request,id:r,ownerUid:au},...stamp()});
-    batch.set(doc(a.db,`requestContacts/${r}`),{ownerUid:au,phone:'555',address:'Private street',updatedAt:serverTimestamp()});
-    await batch.commit();
+    await chargedCreate(a,'listing',`requests/${r}`,{ownerUid:au,visibility:'published',acceptedQuoteId:'',acceptedProviderUid:'',data:{...fixture.request,id:r,ownerUid:au},...stamp()},tx =>
+      tx.set(doc(a.db,`requestContacts/${r}`),{ownerUid:au,phone:'555',address:'Private street',updatedAt:serverTimestamp()}));
     await assert.rejects(getDoc(doc(b.db,`requestContacts/${r}`)),x=>x.code==='permission-denied');
-    await setDoc(doc(b.db,`providers/${p}`),{ownerUid:bu,visibility:'published',data:{...fixture.provider,id:p,ownerUid:bu},...stamp()});
-    await setDoc(doc(b.db,`quotes/${q}`),{providerUid:bu,customerUid:au,requestId:r,status:'PENDING',data:{...fixture.quote,id:q,requestId:r,providerId:p,providerUid:bu,customerUid:au},...stamp()});
+    await chargedCreate(b,'listing',`providers/${p}`,{ownerUid:bu,visibility:'published',data:{...fixture.provider,id:p,ownerUid:bu},...stamp()});
+    await chargedCreate(b,'quote',`quotes/${q}`,{providerUid:bu,customerUid:au,requestId:r,status:'PENDING',data:{...fixture.quote,id:q,requestId:r,providerId:p,providerUid:bu,customerUid:au},...stamp()});
     assert.equal((await getDocs(query(collection(a.db,'quotes'),or(where('customerUid','==',au),where('providerUid','==',au))))).docs.filter(x=>x.id===q).length,1);
     await assert.rejects(getDoc(doc(e.db,`quotes/${q}`)),x=>x.code==='permission-denied');
-    await setDoc(doc(b.db,`conversations/${conv}`),{participantUids:[au,bu],names:{[au]:'Customer',[bu]:'Provider'},relatedItemTitle:'Boya',lastMessage:'',...stamp()});
-    const msg=writeBatch(b.db);
-    msg.set(doc(b.db,`conversations/${conv}/messages/m`),{senderUid:bu,data:{...fixture.message,id:'m',conversationId:conv,senderId:bu},...stamp()});
-    msg.update(doc(b.db,`conversations/${conv}`),{lastMessage:'Merhaba',updatedAt:serverTimestamp()});
-    await msg.commit();
+    await chargedCreate(b,'conversation',`conversations/${conv}`,{participantUids:[au,bu],names:{[au]:'Customer',[bu]:'Provider'},relatedItemTitle:'Boya',lastMessage:'',...stamp()});
+    await chargedCreate(b,'message',`conversations/${conv}/messages/m`,{senderUid:bu,data:{...fixture.message,id:'m',conversationId:conv,senderId:bu},...stamp()},tx =>
+      tx.update(doc(b.db,`conversations/${conv}`),{lastMessage:'Merhaba',updatedAt:serverTimestamp()}));
+    for (const [client,operation,count] of [[a,'listing',1],[b,'listing',1],[b,'quote',1],[b,'conversation',1],[b,'message',1]]) {
+      const budget = (await getDoc(doc(client.db,`users/${client.auth.currentUser.uid}/writeBudgets/${operation}`))).data();
+      assert.equal(budget.count,count);
+      assert.ok(budget.target.path);
+    }
+    await assert.rejects(getDoc(doc(e.db,`users/${bu}/writeBudgets/message`)),x=>x.code==='permission-denied');
     assert.equal((await getDoc(doc(a.db,`conversations/${conv}/messages/m`))).data().senderUid,bu);
     assert.equal((await getDocs(query(collection(a.db,'conversations'),where('participantUids','array-contains',au)))).docs.filter(x=>x.id===conv).length,1);
     await assert.rejects(getDoc(doc(e.db,`conversations/${conv}/messages/m`)),x=>x.code==='permission-denied');

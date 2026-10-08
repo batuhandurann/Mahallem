@@ -1,6 +1,8 @@
 package com.batuhanduran.burada.moderation
 
 import com.batuhanduran.burada.data.remote.FirebaseServices
+import com.batuhanduran.burada.data.remote.AtomicWriteBudget
+import com.batuhanduran.burada.data.remote.WriteOperation
 import com.google.android.gms.tasks.Task
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FieldValue
@@ -19,6 +21,7 @@ class ModerationRepository(
     private val auth: FirebaseAuth = FirebaseServices.auth,
     val uid: String = requireNotNull(auth.currentUser).uid
 ) {
+    private val writeBudget = AtomicWriteBudget(db, uid)
     private fun requireAccount() {
         check(auth.currentUser?.uid == uid) { "Oturum değişti. Yeniden giriş yapın." }
     }
@@ -63,7 +66,7 @@ class ModerationRepository(
         requireAccount()
         val report = draft.validated(uid)
         val ref = db.collection("reports").document()
-        ref.set(mapOf(
+        val fields = mapOf(
             "reporterUid" to uid,
             "targetType" to report.targetType.code,
             "targetId" to report.targetId,
@@ -72,7 +75,13 @@ class ModerationRepository(
             "details" to report.details,
             "status" to "pending",
             "createdAt" to FieldValue.serverTimestamp()
-        )).awaitModeration()
+        )
+        db.runTransaction { tx ->
+            requireAccount()
+            val budget = writeBudget.plan(tx, WriteOperation.REPORT, ref)
+            budget.applyTo(tx)
+            tx.set(ref, fields)
+        }.awaitModeration()
         requireAccount()
         return ref.id
     }
