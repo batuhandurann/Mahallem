@@ -114,7 +114,9 @@ test("production validator moves private bytes and invalidates an actual bearer 
   assert.equal((await fetch(tokenUrl)).status, 200, "Fixture must prove the old token works before validation");
   await validateUploadedImage.run({ data: { bucket: bucket.name, name: path,
     size: String(bytes.length), contentType: "image/jpeg" } });
-  assert.equal((await fetch(tokenUrl)).status, 404, "Known bearer token must stop downloading the source object");
+  assert.equal((await bucket.file(path).exists())[0], false, "Token-bearing source object must be physically deleted");
+  const revokedResponse = await fetch(tokenUrl);
+  assert.ok([403, 404].includes(revokedResponse.status), "Known bearer token must be denied; 403 can hide object existence");
   const [metadata] = await bucket.file(privatePath).getMetadata();
   assert.ok(!metadata.metadata?.firebaseStorageDownloadTokens);
   assert.equal((await grant.get()).data().validated, true);
