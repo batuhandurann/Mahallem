@@ -262,6 +262,10 @@ private fun RequestItemCard(
     }
 }
 
+/** A rejected, withdrawn or accepted offer must never expose payment/acceptance controls. */
+internal fun mayActOnQuote(status: String, requestAlreadyAccepted: Boolean): Boolean =
+    status == "PENDING" && !requestAlreadyAccepted
+
 @Composable
 private fun QuoteCardView(
     quote: QuoteEntity,
@@ -368,7 +372,14 @@ private fun QuoteCardView(
                         Text("📄 Dijital İş Fişi & Garantiyi İncele", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
                     }
                 }
-            } else if (!isRequestAccepted) {
+            } else if (quote.status == "REJECTED" || quote.status == "WITHDRAWN") {
+                Text(
+                    text = if (quote.status == "WITHDRAWN") "Hizmet veren teklifini geri çekti" else "Teklif reddedildi",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = Slate600,
+                    modifier = Modifier.testTag("quote_terminal_status_${quote.id}")
+                )
+            } else if (mayActOnQuote(quote.status, isRequestAccepted)) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.End,
