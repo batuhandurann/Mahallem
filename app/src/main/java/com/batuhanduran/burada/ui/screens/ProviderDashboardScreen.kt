@@ -68,8 +68,31 @@ fun ProviderDashboardScreen(
         }
     ) { innerPadding ->
         if (currentProv == null) {
-            Box(modifier = Modifier.fillMaxSize().padding(innerPadding), contentAlignment = Alignment.Center) {
-                CircularProgressIndicator()
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(innerPadding)
+                    .padding(24.dp)
+                    .testTag("provider_dashboard_empty"),
+                contentAlignment = Alignment.Center
+            ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(
+                        text = "Henüz hizmet veren ilanınız yok",
+                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = "Hizmet ilanı yayınladıktan sonra teklif ve müsaitlik yönetimini buradan yapabilirsiniz.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = Slate600
+                    )
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Button(
+                        onClick = onBackClick,
+                        modifier = Modifier.testTag("btn_provider_dashboard_return_home")
+                    ) { Text("Ana sayfaya dön") }
+                }
             }
             return@Scaffold
         }
