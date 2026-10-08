@@ -15,6 +15,13 @@ class ProductionAuditTests(unittest.TestCase):
     def test_complete_matching_evidence_passes(self):
         self.assertEqual([], audit_module.audit(self.config, self.evidence))
 
+    def test_push_registration_apis_cannot_be_removed(self):
+        targets = self.evidence["androidApiKey"]["restrictions"]["apiTargets"]
+        for missing in ("firebaseinstallations.googleapis.com", "fcmregistrations.googleapis.com"):
+            with self.subTest(missing=missing):
+                self.evidence["androidApiKey"]["restrictions"]["apiTargets"] = [target for target in targets if target["service"] != missing]
+                self.assertIn("Android API allowlist is missing one or more required Firebase APIs", audit_module.audit(self.config, self.evidence))
+
     def test_another_key_cannot_pass(self):
         self.evidence["androidApiKeyString"]["keyString"] = "another-key"
         self.assertTrue(audit_module.audit(self.config, self.evidence))

@@ -13,7 +13,8 @@ import sys
 
 PACKAGE = "com.batuhanduran.burada"
 SERVICES = {"firestore.googleapis.com", "firebasestorage.googleapis.com", "identitytoolkit.googleapis.com"}
-REQUIRED_APIS = {"identitytoolkit.googleapis.com", "securetoken.googleapis.com", "firebaseappcheck.googleapis.com", "firestore.googleapis.com"}
+REQUIRED_APIS = {"identitytoolkit.googleapis.com", "securetoken.googleapis.com", "firebaseappcheck.googleapis.com", "firestore.googleapis.com",
+                 "firebaseinstallations.googleapis.com", "fcmregistrations.googleapis.com"}
 
 
 def audit(config, cloud=None):
@@ -66,7 +67,7 @@ def audit(config, cloud=None):
         errors.append("Android API allowlist is missing one or more required Firebase APIs")
     if "*" in names or any(not target.get("service") for target in targets):
         errors.append("Android API allowlist contains an unrestricted target")
-    # Other APIs can be needed for Storage/FCM; review additions rather than silently removing them.
+    # Review other used Firebase APIs (for example Storage) rather than silently removing them.
     return errors
 
 

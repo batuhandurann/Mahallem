@@ -54,7 +54,7 @@ jobs:
           languages: ${{ matrix.language }}
       - name: Build Android for Java/Kotlin analysis
         if: matrix.language == 'java-kotlin'
-        run: ./gradlew -PfirebaseEmulators=true :app:assembleDebug --no-daemon --stacktrace
+        run: ./gradlew -PfirebaseEmulators=true clean :app:assembleDebug --no-daemon --no-build-cache --no-configuration-cache --rerun-tasks --stacktrace
       - name: Analyze CodeQL
         uses: github/codeql-action/analyze@2892aa5e19bbd11bc0cff5427e3b750a04d9e3c2
 

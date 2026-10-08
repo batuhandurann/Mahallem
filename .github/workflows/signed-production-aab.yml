@@ -1,4 +1,4 @@
-name: Production Signed AAB
+name: Production Signed APK and AAB
 
 on:
   workflow_dispatch:
@@ -8,11 +8,21 @@ permissions:
 
 jobs:
   signed-production-aab:
+    if: ${{ github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' }}
     name: signed-production-aab
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     environment: production
     steps:
+      - name: Require reviewed main before accessing production signing inputs
+        shell: bash
+        env:
+          RELEASE_REF: ${{ github.ref }}
+          RELEASE_EVENT: ${{ github.event_name }}
+        run: |
+          set -euo pipefail
+          test "$RELEASE_EVENT" = 'workflow_dispatch'
+          test "$RELEASE_REF" = 'refs/heads/main'
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
@@ -30,6 +40,8 @@ jobs:
       - run: sdkmanager 'platforms;android-36.1' 'build-tools;36.0.0'
       - uses: gradle/actions/wrapper-validation@3f5f9adaf7d9fecd50b5935e54106014257a94e6
       - uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6
+        with:
+          cache-disabled: true
       - name: Materialize protected production config and upload signing key
         shell: bash
         env:
@@ -37,47 +49,44 @@ jobs:
           KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
           STORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS || 'upload' }}
         run: |
           set -euo pipefail
           : "${FIREBASE_CONFIG_B64:?Missing protected GOOGLE_SERVICES_JSON_BASE64}"
           : "${KEYSTORE_B64:?Missing protected ANDROID_KEYSTORE_BASE64}"
           : "${STORE_PASSWORD:?Missing protected ANDROID_KEYSTORE_PASSWORD}"
           : "${KEY_PASSWORD:?Missing protected ANDROID_KEY_PASSWORD}"
+          umask 077
           printf '%s' "$KEYSTORE_B64" | base64 --decode > "$RUNNER_TEMP/release-upload.jks"
           chmod 600 "$RUNNER_TEMP/release-upload.jks"
           printf '%s' "$FIREBASE_CONFIG_B64" | base64 --decode > app/google-services.json
-          python3 - <<'PY'
-          import json
-          with open("app/google-services.json", encoding="utf-8") as f:
-              cfg = json.load(f)
-          pid = cfg.get("project_info", {}).get("project_id", "")
-          assert pid and not pid.startswith("demo-"), "Production build requires real Firebase project"
-          pkgs = {
-              item.get("client_info", {}).get("android_client_info", {}).get("package_name")
-              for item in cfg.get("client", [])
-          }
-          assert "com.batuhanduran.burada" in pkgs, "Wrong Android Firebase registration"
-          PY
-      - name: Clean release AAB build (real Firebase config, real signing, no CI bypass)
+          python3 scripts/verify_signed_release.py --validate-config-only
+          keytool -exportcert -keystore "$RUNNER_TEMP/release-upload.jks" -storepass:env STORE_PASSWORD -alias "$KEY_ALIAS" > "$RUNNER_TEMP/release-upload-cert.der"
+      - name: Clean signed APK and AAB (real Firebase config, no CI bypass)
         env:
           KEYSTORE_PATH: ${{ runner.temp }}/release-upload.jks
           STORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
-        run: ./gradlew --no-daemon clean :app:bundleRelease
-      - name: Verify signed AAB and record checksum
-        shell: bash
-        run: |
-          set -euo pipefail
-          artifact=app/build/outputs/bundle/release/app-release.aab
-          test -s "$artifact"
-          jarsigner -verify -strict "$artifact"
-          sha256sum "$artifact" | tee app/build/outputs/bundle/release/app-release.aab.sha256
-      - name: Upload signed AAB evidence (manual, no Play deployment)
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS || 'upload' }}
+        run: ./gradlew --no-daemon --no-configuration-cache --no-build-cache clean :app:assembleRelease :app:bundleRelease
+      - name: Verify both artifact signatures against the protected upload key
+        env:
+          KEYSTORE_PATH: ${{ runner.temp }}/release-upload.jks
+          STORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS || 'upload' }}
+        run: python3 scripts/verify_signed_release.py
+      - name: Upload signed release evidence (manual, no Play deployment)
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: signed-production-aab
           path: |
             app/build/outputs/bundle/release/app-release.aab
-            app/build/outputs/bundle/release/app-release.aab.sha256
+            app/build/outputs/apk/release/app-release.apk
+            app/build/outputs/release-evidence.json
           if-no-files-found: error
           retention-days: 7
+      - name: Delete temporary signing material and Firebase config
+        if: always()
+        shell: bash
+        run: |
+          rm -f "$RUNNER_TEMP/release-upload.jks" "$RUNNER_TEMP/release-upload-cert.der" app/google-services.json
