@@ -133,7 +133,8 @@ fun ConversationsListScreen(
                                         overflow = TextOverflow.Ellipsis
                                     )
                                     Text(
-                                        text = "14:32",
+                                        text = formatConversationTimestamp(conv.lastTimestamp),
+                                        modifier = Modifier.testTag("conversation_time_${conv.id}"),
                                         style = MaterialTheme.typography.labelSmall,
                                         color = Slate500
                                     )
