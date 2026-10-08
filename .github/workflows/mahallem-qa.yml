@@ -196,4 +196,12 @@ jobs:
       - name: Install Firebase CLI
         run: npm install --global firebase-tools@15.32.1 --ignore-scripts
       - name: Test Firebase security rules in emulator
-        run: npm run rules:test
+        shell: bash
+        run: npm run rules:test 2>&1 | tee ../firebase-rules-test-results.log
+      - name: Upload Auth, Firestore, Storage and private media test evidence
+        if: ${{ always() }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: firebase-security-${{ github.sha }}
+          path: firebase-rules-test-results.log
+          if-no-files-found: warn

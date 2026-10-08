@@ -37,3 +37,12 @@ Mevcut staging/physical-smoke workflow ve testlerini incele; iki hesapla tüm au
 - NOT RUN: yeni commit'in Android CI, signed production, fiziksel cihaz ve gerçek staging doğrulamaları. CI sonuçları geldikten sonra bu kayıt güncellenecek.
 - Main ruleset #24702630 aktif, sekiz check zorunlu, strict=true, bypass yok. QA hedef dalına aynı korumanın uygulandığı henüz kanıtlanmadı; başarısız merge denemesi yapılmadı (merge yasak).
 - Sonraki iş: production feed helper bağlantısı ve güvenli sohbet medya erişim iptali için üretim kodu/negatif testler.
+
+### Feed ve medya yaması
+- HomeScreen artık PR #35'teki production `isSelectedFeedEmpty()` helper'ını çağırır. Kopya mantık yerine helper'ı sınayan 7 unit test ve gerçek HomeScreen'i render eden 4 Compose testi eklendi; bu testler yeni CI'da çalıştırılmalı.
+- Chat Storage doğrudan okumaları kapalıdır. Yeni `readChatAttachment` callable'ı App Check, Auth disabled/verified, aktif profil, güncel sohbet üyeliği, iki yönlü blok, validated grant/path ve okuma kotasını kontrol eder; dosya I/O sonrası yetkiyi tekrar kontrol eder. Byte yanıtı verir, download URL üretmez. Android repository bu fonksiyonu kullanabilir; mevcut upload yolları korunur.
+- Image validator yeni chat dosyalarının kalıcı download token'larını kaldırır. Üretimde önceden oluşmuş token'lar için sahip tarafından migration/envanter doğrulaması gereklidir; bu oturumda canlı dosyalara dokunulmadı.
+- Auth emülatörü kayıt/aynı e-posta/yanlış şifre/çıkış/tekrar giriş testleri; üretim callable handler'ıyla 11 gerçek Auth/Firestore/Storage medya testi eklendi. Silinen üyelik, disabled/deleting/purging hesaplar, bloklar, grant iptali, path ve kota negatif testleri var. Test projesi `demo-mahallem-rules-test`, canlı servis fallback'i yok.
+- PASS (yerel): TypeScript build + mevcut 5 backend test entry; 12 Python test. NOT RUN: yeni emülatör testleri yerelde JDK 21 bulunmadığından CI'ya bağlı; yeni Android unit/Compose testleri Android SDK olmadığından CI'ya bağlı.
+- Production preflight FAIL: QA hâlâ `com.example` namespace ve `com.aistudio.mahallemde.kxqrvz` applicationId kullanıyor; hukuki metin placeholder, onaylı yayın version/URL/config yok. PR #10'un farklı applicationId/veritabanı mimarisi bu QA dalına körlemesine taşınmadı.
+- Sonraki iş: PR #36'nın son SHA QA/Security sonuçları ve APK/AAB/test artifactlerini doğrula; ardından P0/P1 durumlarını commit/run bağlarıyla kaydet.

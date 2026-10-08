@@ -145,6 +145,13 @@ class FunctionsRepository(
     suspend fun reportContent(targetType: String, targetId: String, reason: String): Map<*, *> =
         call("reportContent", mapOf("targetType" to targetType, "targetId" to targetId, "reason" to reason))
 
+    suspend fun readChatAttachment(path: String): ByteArray {
+        val result = call("readChatAttachment", mapOf("path" to path))
+        val encoded = result["base64"] as? String ?: error("Sunucudan geçersiz medya yanıtı.")
+        require(encoded.length <= 7 * 1024 * 1024) { "Medya yanıtı çok büyük." }
+        return android.util.Base64.decode(encoded, android.util.Base64.DEFAULT)
+    }
+
     suspend fun setUserBlocked(targetUid: String, blocked: Boolean): Map<*, *> =
         call("setUserBlock", mapOf("targetUid" to targetUid, "blocked" to blocked))
 

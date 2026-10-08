@@ -913,6 +913,77 @@ export const issueImageUploadGrant = onCall(
   }
 );
 
+/** Private bytes only; no bearer download URL that survives membership removal. */
+export const readChatAttachment = onCall(
+  { enforceAppCheck: true },
+  async (request) => {
+    if (!request.auth) throw new HttpsError("unauthenticated", "Kimlik doğrulaması gerekli.");
+    const uid = request.auth.uid;
+    const data = callableData(request.data);
+    const path = requireString(data, "path", 320, 1);
+    const match = /^chatAttachments\/([a-f0-9]{64})\/([A-Za-z0-9_-]{1,80})\/([A-Za-z0-9_-]{1,80})\.jpg$/.exec(path);
+    if (!match) throw new HttpsError("invalid-argument", "Geçersiz sohbet medya yolu.");
+    const [, conversationId, senderUid, grantId] = match;
+
+    const authorize = async () => {
+      await assertAccountActive(uid);
+      await db.runTransaction(async (tx) => {
+        const [conversationSnap, grantSnap] = await Promise.all([
+          tx.get(db.collection("conversations").doc(conversationId!)),
+          tx.get(db.collection("users").doc(senderUid!).collection("uploadGrants").doc(grantId!)),
+        ]);
+        const participants = conversationSnap.data()?.participantIds;
+        const grant = grantSnap.data();
+        if (!conversationSnap.exists || !Array.isArray(participants)
+          || !participants.includes(uid) || !participants.includes(senderUid)
+          || !grantSnap.exists || grant?.ownerUid !== senderUid || grant?.kind !== "CHAT"
+          || grant?.conversationId !== conversationId || grant?.validated !== true) {
+          throw new HttpsError("permission-denied", "Bu sohbet medyasına erişemezsiniz.");
+        }
+        for (const otherUid of participants) {
+          if (typeof otherUid !== "string" || !ID_PATTERN.test(otherUid)) {
+            throw new HttpsError("permission-denied", "Geçersiz sohbet üyeliği.");
+          }
+          if (otherUid === uid) continue;
+          const [outgoingBlock, incomingBlock] = await Promise.all([
+            tx.get(db.collection("users").doc(uid).collection("blockedUsers").doc(otherUid)),
+            tx.get(db.collection("users").doc(otherUid).collection("blockedUsers").doc(uid)),
+          ]);
+          if (outgoingBlock.exists || incomingBlock.exists) {
+            throw new HttpsError("permission-denied", "Bu kullanıcıyla medya paylaşımı engellendi.");
+          }
+        }
+      });
+    };
+
+    await authorize();
+    const rateRef = db.collection("rateLimits").doc("chat-media-read:" + uid);
+    const now = Date.now();
+    await db.runTransaction(async (tx) => {
+      const snap = await tx.get(rateRef);
+      const rate = snap.data() ?? {};
+      const start = Number(rate.windowStartMs ?? 0);
+      const active = Number.isSafeInteger(start) && now >= start && now - start < 60_000;
+      const count = Number(rate.count ?? 0);
+      if (active && count >= 30) throw new HttpsError("resource-exhausted", "Medya okuma kotasına ulaşıldı.");
+      tx.set(rateRef, { windowStartMs: active ? start : now, count: active ? count + 1 : 1 });
+    });
+
+    const file = getStorage().bucket().file(path);
+    const [metadata] = await file.getMetadata();
+    const size = Number(metadata.size);
+    if (!Number.isSafeInteger(size) || size <= 0 || size > 5 * 1024 * 1024
+      || !["image/jpeg", "image/png", "image/webp"].includes(String(metadata.contentType))) {
+      throw new HttpsError("failed-precondition", "Medya dosyası geçersiz.");
+    }
+    const [bytes] = await file.download({ start: 0, end: 5 * 1024 * 1024 });
+    if (bytes.length !== size) throw new HttpsError("failed-precondition", "Medya boyutu değişti.");
+    // Recheck after I/O so an intervening revocation is not hidden by a snapshot.
+    await authorize();
+    return { base64: bytes.toString("base64"), contentType: metadata.contentType };
+  }
+);
+
 export const registerDeviceToken = onCall(
   { enforceAppCheck: true },
   async (request) => {
@@ -2447,6 +2518,7 @@ async function anonymizeAccount(uid: string): Promise<void> {
     "availability-hour:" + uid,
     "conversation-read:" + uid,
     "conversation-read-hour:" + uid,
+    "chat-media-read:" + uid,
     "block-day:" + uid,
     "favorite-hour:" + uid,
   ];
@@ -2955,6 +3027,11 @@ export const validateUploadedImage = onObjectFinalized(
       return;
     }
 
+    // Remove Firebase bearer tokens before making chat media readable. Clients
+    // use readChatAttachment; revoked users cannot reuse a persistent URL.
+    if (parts[0] === "chatAttachments") {
+      await file.setMetadata({ metadata: { firebaseStorageDownloadTokens: null }, cacheControl: "private, no-store" });
+    }
     await grantRef.set({ validated: true, validatedAt: FieldValue.serverTimestamp() }, { merge: true });
   }
 );
