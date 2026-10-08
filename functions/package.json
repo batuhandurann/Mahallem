@@ -8,7 +8,7 @@
     "build": "tsc",
     "check": "tsc --noEmit",
     "test": "npm run build && node --test test/paytr.test.mjs test/function-exports.test.mjs test/money.test.mjs test/security.static.test.mjs",
-    "rules:test": "firebase emulators:exec --only firestore,storage --project mahallem-rules-test \"node test/firestore.rules.test.mjs && node test/storage.rules.test.mjs\""
+    "rules:test": "firebase emulators:exec --only firestore,storage --project mahallem-rules-test \"node test/firestore.rules.test.mjs && node test/storage.rules.test.mjs && node test/account-isolation.rules.test.mjs\""
   },
   "dependencies": {
     "firebase-admin": "14.5.0",
