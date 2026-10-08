@@ -378,19 +378,7 @@ fun MarketplaceApp(
                 EscrowPaymentDialog(
                     quote = quote,
                     jobTitle = req.title,
-                    onDismiss = { escrowTargetQuote = null },
-                    onConfirmPayment = { q ->
-                        viewModel.fundEscrowPayment(
-                            quote = q,
-                            jobTitle = req.title,
-                            customerName = req.customerName,
-                            district = req.district,
-                            onReceiptGenerated = { receipt ->
-                                activeReceipt = receipt
-                            }
-                        )
-                        escrowTargetQuote = null
-                    }
+                    onDismiss = { escrowTargetQuote = null }
                 )
             }
 
