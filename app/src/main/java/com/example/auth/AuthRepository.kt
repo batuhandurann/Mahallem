@@ -16,15 +16,19 @@ class AuthRepository(
     suspend fun signInWithEmail(email: String, password: String): FirebaseUser {
         require(email.isNotBlank()) { "E-posta gerekli" }
         require(password.isNotBlank()) { "Şifre gerekli" }
-        return auth.signInWithEmailAndPassword(email.trim(), password).await().user
-            ?: error("Kullanıcı oturumu oluşturulamadı")
+        return SessionOperations.authenticate {
+            auth.signInWithEmailAndPassword(email.trim(), password).await().user
+                ?: error("Kullanıcı oturumu oluşturulamadı")
+        }
     }
 
     suspend fun registerWithEmail(email: String, password: String): FirebaseUser {
         require(email.isNotBlank()) { "E-posta gerekli" }
         require(password.length >= 8) { "Şifre en az 8 karakter olmalı" }
-        return auth.createUserWithEmailAndPassword(email.trim(), password).await().user
-            ?: error("Kullanıcı oluşturulamadı")
+        return SessionOperations.authenticate {
+            auth.createUserWithEmailAndPassword(email.trim(), password).await().user
+                ?: error("Kullanıcı oluşturulamadı")
+        }
     }
 
     suspend fun sendPasswordReset(email: String) {
@@ -32,17 +36,17 @@ class AuthRepository(
     }
 
     suspend fun signOutAndRemoveDevice() {
-        runCatching { PushTokenRepository(auth = auth).unregisterCurrentDevice() }
-        AppDatabase.clearLocalData()
-        auth.signOut()
+        SessionOperations.signOut(
+            unregister = { PushTokenRepository(auth = auth).unregisterCurrentDevice() },
+            endSession = { auth.signOut() }
+        )
     }
 
-    fun clearLocalData() {
+    suspend fun clearLocalData() {
         AppDatabase.clearLocalData()
     }
 
-    fun signOut() {
-        AppDatabase.clearLocalData()
-        auth.signOut()
+    suspend fun signOut() {
+        SessionOperations.signOut(endSession = { auth.signOut() })
     }
 }
