@@ -97,3 +97,23 @@ test('real Auth emulator: duplicate account, invalid email, password reset and r
     await deleteApp(app);
   }
 });
+
+test('Auth login fails closed during network failure without persisting a session', {timeout: 20000}, async () => {
+  // Port 1 is intentionally unreachable. This is still a real Firebase Auth SDK call,
+  // not a mocked success path; it must never fall back to a stored user.
+  const app = initializeApp(
+    {projectId: 'demo-mahallem', apiKey: 'fake-emulator-key', appId: 'test'},
+    `offline-auth-${Date.now()}-${Math.random().toString(36).slice(2)}`
+  );
+  const auth = getAuth(app);
+  connectAuthEmulator(auth, 'http://127.0.0.1:1', {disableWarnings: true});
+  try {
+    await assert.rejects(
+      signInWithEmailAndPassword(auth, 'offline@example.com', 'SecurePass123!'),
+      error => error.code === 'auth/network-request-failed'
+    );
+    assert.equal(auth.currentUser, null, 'Failed offline login must not restore any user');
+  } finally {
+    await deleteApp(app);
+  }
+});
