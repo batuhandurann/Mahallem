@@ -4,6 +4,8 @@ import com.batuhanduran.burada.data.local.*
 import com.batuhanduran.burada.data.model.SectorType
 import com.batuhanduran.burada.data.model.UrgencyMode
 import com.batuhanduran.burada.data.remote.FirebaseServices
+import com.batuhanduran.burada.data.remote.AtomicWriteBudget
+import com.batuhanduran.burada.data.remote.WriteOperation
 import com.google.android.gms.tasks.Task
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.*
@@ -22,6 +24,7 @@ class MarketplaceRepository(
     val uid: String = requireNotNull(auth.currentUser).uid
 ) {
     private val moshi = Moshi.Builder().build()
+    private val writeBudget = AtomicWriteBudget(db, uid)
     private val mutableErrors = MutableSharedFlow<String>(extraBufferCapacity = 8)
     val errors: SharedFlow<String> = mutableErrors.asSharedFlow()
     private fun requireAccount() {
@@ -156,11 +159,14 @@ class MarketplaceRepository(
         val ref = db.collection("providers").document()
         val public = provider.copy(id = ref.id, ownerUid = uid, phone = "", rating = 0.0, reviewCount = 0,
             verifiedSafeBadge = false, mykCertified = false, childSafeCertified = false, phoneVerified = false, isFavorite = false)
-        db.batch().apply {
-            set(ref, envelope(encode(public, ServiceProviderEntity::class.java), "ownerUid" to uid, "visibility" to "published"))
-            set(db.collection("providerContacts").document(ref.id), mapOf("ownerUid" to uid,
+        db.runTransaction { tx ->
+            requireAccount()
+            val budget = writeBudget.plan(tx, WriteOperation.LISTING, ref)
+            budget.applyTo(tx)
+            tx.set(ref, envelope(encode(public, ServiceProviderEntity::class.java), "ownerUid" to uid, "visibility" to "published"))
+            tx.set(db.collection("providerContacts").document(ref.id), mapOf("ownerUid" to uid,
                 "phone" to provider.phone, "updatedAt" to FieldValue.serverTimestamp()))
-        }.commit().awaitRemote()
+        }.awaitRemote()
     }
     suspend fun createJobRequest(request: JobRequestEntity): String {
         requireAccount()
@@ -171,12 +177,15 @@ class MarketplaceRepository(
         val ref = db.collection("requests").document()
         val public = request.copy(id = ref.id, title = request.title.trim(), ownerUid = uid, address = "", customerPhone = "",
             phoneVerified = false, status = "PENDING", escrowStatus = "NONE", escrowAmount = "")
-        db.batch().apply {
-            set(ref, envelope(encode(public, JobRequestEntity::class.java), "ownerUid" to uid,
+        db.runTransaction { tx ->
+            requireAccount()
+            val budget = writeBudget.plan(tx, WriteOperation.LISTING, ref)
+            budget.applyTo(tx)
+            tx.set(ref, envelope(encode(public, JobRequestEntity::class.java), "ownerUid" to uid,
                 "acceptedQuoteId" to "", "acceptedProviderUid" to "", "visibility" to "published"))
-            set(db.collection("requestContacts").document(ref.id), mapOf("ownerUid" to uid,
+            tx.set(db.collection("requestContacts").document(ref.id), mapOf("ownerUid" to uid,
                 "address" to request.address, "phone" to request.customerPhone, "updatedAt" to FieldValue.serverTimestamp()))
-        }.commit().awaitRemote()
+        }.awaitRemote()
         return ref.id
     }
     suspend fun toggleFavorite(id: String, currentFav: Boolean) {
@@ -204,8 +213,13 @@ class MarketplaceRepository(
         val ref = db.collection("quotes").document("${quote.requestId}_$uid")
         val data = quote.copy(id = ref.id, providerUid = uid, customerUid = customerUid,
             status = "PENDING", escrowFunded = false, receiptCode = "", warrantyDuration = "")
-        ref.set(envelope(encode(data, QuoteEntity::class.java), "providerUid" to uid,
-            "customerUid" to customerUid, "requestId" to quote.requestId, "status" to "PENDING")).awaitRemote()
+        db.runTransaction { tx ->
+            requireAccount()
+            val budget = writeBudget.plan(tx, WriteOperation.QUOTE, ref)
+            budget.applyTo(tx)
+            tx.set(ref, envelope(encode(data, QuoteEntity::class.java), "providerUid" to uid,
+                "customerUid" to customerUid, "requestId" to quote.requestId, "status" to "PENDING"))
+        }.awaitRemote()
         return ref.id
     }
     suspend fun acceptQuote(requestId: String, quoteId: String) {
@@ -256,10 +270,14 @@ class MarketplaceRepository(
         val ref = db.collection("conversations").document(id)
         db.runTransaction { tx ->
             requireAccount()
-            if (!tx.get(ref).exists()) tx.set(ref, mapOf("participantUids" to participants,
-                "names" to mapOf(uid to (auth.currentUser?.displayName ?: "Mahalle Sakini"), participantId to participantName),
-                "relatedItemTitle" to relatedItemTitle, "lastMessage" to "",
-                "createdAt" to FieldValue.serverTimestamp(), "updatedAt" to FieldValue.serverTimestamp()))
+            if (!tx.get(ref).exists()) {
+                val budget = writeBudget.plan(tx, WriteOperation.CONVERSATION, ref)
+                budget.applyTo(tx)
+                tx.set(ref, mapOf("participantUids" to participants,
+                    "names" to mapOf(uid to (auth.currentUser?.displayName ?: "Mahalle Sakini"), participantId to participantName),
+                    "relatedItemTitle" to relatedItemTitle, "lastMessage" to "",
+                    "createdAt" to FieldValue.serverTimestamp(), "updatedAt" to FieldValue.serverTimestamp()))
+            }
         }.awaitRemote()
         return id
     }
@@ -281,10 +299,13 @@ class MarketplaceRepository(
             senderName = auth.currentUser?.displayName ?: "Mahalle Sakini", text = text.trim(),
             isFromMe = false, isOfferMessage = isOffer, offerPrice = offerPrice,
             hasPhotoAttachment = hasPhotoAttachment, photoDescription = photoDescription, photoMediaId = photoMediaId)
-        db.batch().apply {
-            set(ref, envelope(encode(data, ChatMessageEntity::class.java), "senderUid" to uid))
-            update(conv, mapOf("lastMessage" to text.trim(), "updatedAt" to FieldValue.serverTimestamp()))
-        }.commit().awaitRemote()
+        db.runTransaction { tx ->
+            requireAccount()
+            val budget = writeBudget.plan(tx, WriteOperation.MESSAGE, ref)
+            budget.applyTo(tx)
+            tx.set(ref, envelope(encode(data, ChatMessageEntity::class.java), "senderUid" to uid))
+            tx.update(conv, mapOf("lastMessage" to text.trim(), "updatedAt" to FieldValue.serverTimestamp()))
+        }.awaitRemote()
     }
     // Only a verified payment backend may acknowledge funds or generate receipts.
     suspend fun fundEscrowPayment(requestId: String, quoteId: String, amount: String,
