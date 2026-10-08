@@ -30,7 +30,9 @@ test("paths prevent traversal and malformed identities; only permanent token err
 });
 
 test("push revokes disabled, deleted and pending-deletion recipients", () => {
-  assert.equal(recipientPushAllowed({ disabled: false }, undefined), true);
+  assert.equal(recipientPushAllowed({ disabled: false }, undefined), false);
+  assert.equal(recipientPushAllowed({ disabled: false }, null), false);
+  assert.equal(recipientPushAllowed({ disabled: false }, {}), true);
   assert.equal(recipientPushAllowed({ disabled: false }, { deletionStatus: "ACTIVE" }), true);
   assert.equal(recipientPushAllowed({ disabled: false }, { deletionStatus: "REQUESTED" }), false);
   assert.equal(recipientPushAllowed({ disabled: false }, { deletionStatus: "PURGING" }), false);
