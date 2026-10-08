@@ -1,0 +1,59 @@
+name: Chat Media Authorization Regression
+
+on:
+  push:
+    branches: ["agent/security-chat-grant-block-*"]
+  pull_request:
+    branches: ["qa/mahallem-test-suite"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  chat-grant-policy:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: functions
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - name: Set up Node 22
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: "22"
+      - name: Install backend dependencies
+        run: npm install --ignore-scripts
+      - name: Compile and test fail-closed policy
+        run: npm run build && node --test test/chat-grant-policy.test.mjs
+
+  revoked-chat-media:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: functions
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - name: Set up Java 21 for Firebase emulator
+        uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6
+        with:
+          distribution: temurin
+          java-version: "21"
+      - name: Set up Node 22
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: "22"
+      - name: Install backend dependencies
+        run: npm install --ignore-scripts
+      - name: Install pinned Firebase CLI
+        run: npm install --global firebase-tools@15.32.1 --ignore-scripts
+      - name: Negative authorization test (release blocker until fixed)
+        run: firebase emulators:exec --only firestore,storage --project mahallem-chat-revocation-test "node --test test/chat-storage-revocation.test.mjs"
