@@ -2298,6 +2298,18 @@ async function anonymizeAccount(uid: string): Promise<void> {
     );
 
     await processQueryInPages(
+      db.collection("payments").where("refundRequestedBy", "==", uid),
+      async (docs) => {
+        for (const doc of docs) {
+          writer.set(doc.ref, {
+            refundRequestedBy: anonymizedId,
+            accountDeletedAt: FieldValue.serverTimestamp(),
+          }, { merge: true });
+        }
+      }
+    );
+
+    await processQueryInPages(
       db.collection("contentReports").where("reporterUid", "==", uid),
       async (reports) => {
         for (const report of reports) {
@@ -2343,6 +2355,18 @@ async function anonymizeAccount(uid: string): Promise<void> {
           writer.set(dispute.ref, {
             participantIds,
             openedBy: dispute.data().openedBy === uid ? anonymizedId : dispute.data().openedBy,
+            accountDeletedAt: FieldValue.serverTimestamp(),
+          }, { merge: true });
+        }
+      }
+    );
+
+    await processQueryInPages(
+      db.collection("disputes").where("resolvedBy", "==", uid),
+      async (disputes) => {
+        for (const dispute of disputes) {
+          writer.set(dispute.ref, {
+            resolvedBy: anonymizedId,
             accountDeletedAt: FieldValue.serverTimestamp(),
           }, { merge: true });
         }
@@ -2648,7 +2672,7 @@ export const purgeDeletedAccounts = onSchedule(
         await anonymizeAccount(doc.id);
       } catch (error) {
         logger.error("Account purge failed; account remains locked in PURGING for retry", {
-          uid: doc.id,
+          accountHash: deletedAccountId(doc.id),
           error,
         });
         await ref.set({
@@ -2917,7 +2941,10 @@ export const validateUploadedImage = onObjectFinalized(
           || (contentType === "image/png" && png)
           || (contentType === "image/webp" && webp);
       } catch (error) {
-        logger.error("Image validation failed", { name, error });
+        logger.error("Image validation failed", {
+          objectHash: createHash("sha256").update(name).digest("hex").slice(0, 24),
+          error,
+        });
         valid = false;
       }
     }

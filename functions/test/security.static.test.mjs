@@ -74,6 +74,13 @@ assert.match(source, /collection\("contentReports"\)\.where\("targetId", "==", u
 assert.match(source, /targetId: anonymizedId/);
 assert.match(source, /collection\("reviewAudits"\)\.where\("providerOwnerId", "==", uid\)/);
 assert.match(source, /providerOwnerId: anonymizedId/);
+assert.match(source, /collection\("payments"\)\.where\("refundRequestedBy", "==", uid\)/);
+assert.match(source, /refundRequestedBy: anonymizedId/);
+assert.match(source, /collection\("disputes"\)\.where\("resolvedBy", "==", uid\)/);
+assert.match(source, /resolvedBy: anonymizedId/);
+assert.doesNotMatch(source, /uid: doc\.id/);
+assert.doesNotMatch(source, /Image validation failed", \{ name, error \}/);
+assert.match(source, /objectHash: createHash\("sha256"\)\.update\(name\)/);
 assert.match(source, /report-day:/);
 
 assert.match(source, /hourlyRateLimitRef/);
