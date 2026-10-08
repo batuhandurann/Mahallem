@@ -4,17 +4,26 @@ set -euo pipefail
 package="com.batuhanduran.burada"
 activity="$package/.MainActivity"
 adb wait-for-device
+echo "ADB smoke: ensure the tested debug APK is installed before cold launching."
+test -s app/build/outputs/apk/debug/app-debug.apk
+adb install -r app/build/outputs/apk/debug/app-debug.apk
 adb logcat -c
 
 launch_and_require_pid() {
-  adb shell am start -W -n "$activity" > /dev/null
-  local pid
-  pid="$(adb shell pidof "$package" | tr -d '\r' | awk '{print $1}')"
-  if [[ -z "$pid" ]]; then
-    echo "::error::Android process did not remain alive after launch"
-    exit 1
-  fi
-  printf '%s' "$pid"
+  adb shell am start -W -n "$activity" >&2
+  local pid=""
+  for attempt in 1 2 3 4 5 6 7 8 9 10; do
+    # pidof returns nonzero until the app has started; do not abort prematurely.
+    pid="$(adb shell pidof "$package" 2>/dev/null | tr -d '\r' | awk '{print $1}' || true)"
+    if [[ -n "$pid" ]]; then
+      printf '%s' "$pid"
+      return 0
+    fi
+    sleep 1
+  done
+  echo "::error::Android process did not remain alive after launch" >&2
+  adb shell dumpsys activity activities | tail -n 45 >&2 || true
+  return 1
 }
 
 original_rotation="$(adb shell settings get system accelerometer_rotation | tr -d '\r')"
