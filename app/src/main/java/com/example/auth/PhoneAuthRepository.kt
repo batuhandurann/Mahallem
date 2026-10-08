@@ -1,6 +1,7 @@
 package com.example.auth
 
 import android.app.Activity
+import android.content.Context
 import com.google.firebase.FirebaseException
 import com.example.data.local.AppDatabase
 import com.google.firebase.auth.FirebaseAuth
@@ -66,8 +67,8 @@ class PhoneAuthRepository(
         throw error
     }
 
-    fun signOut() {
-        AppDatabase.clearLocalData()
+    suspend fun signOut(context: Context) {
+        AppDatabase.clearLocalData(context)
         auth.signOut()
     }
 
