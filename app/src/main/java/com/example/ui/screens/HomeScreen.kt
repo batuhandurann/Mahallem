@@ -213,7 +213,11 @@ fun HomeScreen(
                 }
             }
 
-            if (providers.isEmpty() && jobRequests.isEmpty()) {
+            if (when (feedFlowType) {
+                FeedFlowType.ALL -> providers.isEmpty() && jobRequests.isEmpty()
+                FeedFlowType.PROVIDER_OFFERS -> providers.isEmpty()
+                FeedFlowType.SEEKER_REQUESTS -> jobRequests.isEmpty()
+            }) {
                 item {
                     EmptyProvidersState(
                         onResetFilters = {
