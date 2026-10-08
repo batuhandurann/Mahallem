@@ -1,7 +1,23 @@
 package com.example.validation
 
+import java.text.SimpleDateFormat
+import java.util.Date
 import java.util.GregorianCalendar
+import java.util.Locale
 import java.util.TimeZone
+
+/** Capture date and time from the same instant to avoid inconsistent pairs at midnight. */
+object RequestDateTimeDefaults {
+    fun at(
+        epochMillis: Long = System.currentTimeMillis(),
+        timeZone: TimeZone = TimeZone.getDefault()
+    ): Pair<String, String> {
+        val instant = Date(epochMillis)
+        val date = SimpleDateFormat("yyyy-MM-dd", Locale.US).apply { this.timeZone = timeZone }
+        val time = SimpleDateFormat("HH:mm", Locale.US).apply { this.timeZone = timeZone }
+        return date.format(instant) to time.format(instant)
+    }
+}
 
 data class RequestFormInput(
     val title: String,
