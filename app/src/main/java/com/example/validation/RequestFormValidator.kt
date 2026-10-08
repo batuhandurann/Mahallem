@@ -21,8 +21,8 @@ data class ValidationResult(
 )
 
 object RequestFormValidator {
-    private val dateRegex = Regex("""^\\d{4}-\\d{2}-\\d{2}$""")
-    private val timeRegex = Regex("""^([01]\\d|2[0-3]):[0-5]\\d$""")
+    private val dateRegex = Regex("""^\d{4}-\d{2}-\d{2}$""")
+    private val timeRegex = Regex("""^([01]\d|2[0-3]):[0-5]\d$""")
 
     private fun validDate(value: String): Boolean {
         if (!dateRegex.matches(value)) return false
