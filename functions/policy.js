@@ -37,7 +37,7 @@ function deadToken(code) {
   return ["messaging/registration-token-not-registered", "messaging/invalid-registration-token"].includes(code);
 }
 function recipientPushAllowed(authUser, profile) {
-  return Boolean(authUser && authUser.disabled !== true &&
-    !["REQUESTED", "PURGING"].includes(profile?.deletionStatus));
+  return Boolean(authUser && authUser.disabled !== true && profile &&
+    !["REQUESTED", "PURGING"].includes(profile.deletionStatus));
 }
 module.exports = { MAX_PHOTO_BYTES, segment, participants, recipientFor, pushPayload, photoBytes, deadToken, recipientPushAllowed };
