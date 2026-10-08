@@ -48,8 +48,8 @@ service cloud.firestore {
     }
 
     function validProvider(d) {
-      return d.keys().hasAll(["id", "name", "title", "sector", "categoryId", "rating", "reviewCount", "experienceYears", "district", "city", "hourlyOrBasePrice", "isEmergencyAvailable", "verifiedSafeBadge", "mykCertified", "childSafeCertified", "phoneVerified", "daysRemaining", "isReported", "paintBrandsJson", "charactersOfferedJson", "includedEquipmentsJson", "bookedDatesJson", "isOpenForOffers", "phone", "bio", "beforeAfterJson", "videoShowcasesJson", "isFavorite", "latitude", "longitude", "ownerUid"])
-        && d.keys().hasOnly(["id", "name", "title", "sector", "categoryId", "rating", "reviewCount", "experienceYears", "district", "city", "hourlyOrBasePrice", "isEmergencyAvailable", "verifiedSafeBadge", "mykCertified", "childSafeCertified", "phoneVerified", "daysRemaining", "isReported", "paintBrandsJson", "charactersOfferedJson", "includedEquipmentsJson", "bookedDatesJson", "isOpenForOffers", "phone", "bio", "beforeAfterJson", "videoShowcasesJson", "isFavorite", "latitude", "longitude", "ownerUid"])
+      return d.keys().hasAll(["id", "name", "title", "sector", "categoryId", "rating", "reviewCount", "experienceYears", "district", "city", "hourlyOrBasePrice", "isEmergencyAvailable", "verifiedSafeBadge", "mykCertified", "childSafeCertified", "phoneVerified", "daysRemaining", "isReported", "paintBrandsJson", "charactersOfferedJson", "includedEquipmentsJson", "bookedDatesJson", "isOpenForOffers", "phone", "bio", "beforeAfterJson", "videoShowcasesJson", "isFavorite", "ownerUid", "provinceId", "districtId", "neighborhoodId", "neighborhoodName", "publicGeoHash"])
+        && d.keys().hasOnly(["id", "name", "title", "sector", "categoryId", "rating", "reviewCount", "experienceYears", "district", "city", "hourlyOrBasePrice", "isEmergencyAvailable", "verifiedSafeBadge", "mykCertified", "childSafeCertified", "phoneVerified", "daysRemaining", "isReported", "paintBrandsJson", "charactersOfferedJson", "includedEquipmentsJson", "bookedDatesJson", "isOpenForOffers", "phone", "bio", "beforeAfterJson", "videoShowcasesJson", "isFavorite", "ownerUid", "provinceId", "districtId", "neighborhoodId", "neighborhoodName", "publicGeoHash"])
         && d.id is string && d.id.size() <= 5000
         && d.name is string && d.name.size() <= 5000
         && d.title is string && d.title.size() <= 5000
@@ -78,9 +78,12 @@ service cloud.firestore {
         && d.beforeAfterJson is string && d.beforeAfterJson.size() <= 5000
         && d.videoShowcasesJson is string && d.videoShowcasesJson.size() <= 5000
         && d.isFavorite is bool
-        && d.latitude is number && d.latitude >= -90 && d.latitude <= 90
-        && d.longitude is number && d.longitude >= -180 && d.longitude <= 180
         && d.ownerUid is string && d.ownerUid.size() <= 5000
+        && d.provinceId is string && d.provinceId.size() <= 5000
+        && d.districtId is string && d.districtId.size() <= 5000
+        && d.neighborhoodId is string && d.neighborhoodId.size() <= 5000
+        && d.neighborhoodName is string && d.neighborhoodName.size() <= 5000
+        && d.publicGeoHash is string && d.publicGeoHash.size() <= 5000
         && d.phone == ""
         && d.phoneVerified == false
         && d.verifiedSafeBadge == false
@@ -93,8 +96,8 @@ service cloud.firestore {
         && d.title.size() >= 2;
     }
     function validRequest(d) {
-      return d.keys().hasAll(["id", "title", "sector", "categoryId", "district", "urgencyMode", "eventOrJobDate", "eventTime", "address", "status", "customerName", "customerPhone", "phoneVerified", "daysRemaining", "isReported", "escrowStatus", "escrowAmount", "areaSquareMeters", "roomCount", "isFurnished", "materialsIncluded", "renovationNotes", "eventType", "durationHours", "targetAgeGroup", "selectedCostumeOrCharacter", "extraServicesRequested", "budgetEstimate", "createdAt", "latitude", "longitude", "ownerUid"])
-        && d.keys().hasOnly(["id", "title", "sector", "categoryId", "district", "urgencyMode", "eventOrJobDate", "eventTime", "address", "status", "customerName", "customerPhone", "phoneVerified", "daysRemaining", "isReported", "escrowStatus", "escrowAmount", "areaSquareMeters", "roomCount", "isFurnished", "materialsIncluded", "renovationNotes", "eventType", "durationHours", "targetAgeGroup", "selectedCostumeOrCharacter", "extraServicesRequested", "budgetEstimate", "createdAt", "latitude", "longitude", "ownerUid"])
+      return d.keys().hasAll(["id", "title", "sector", "categoryId", "district", "urgencyMode", "eventOrJobDate", "eventTime", "address", "status", "customerName", "customerPhone", "phoneVerified", "daysRemaining", "isReported", "escrowStatus", "escrowAmount", "areaSquareMeters", "roomCount", "isFurnished", "materialsIncluded", "renovationNotes", "eventType", "durationHours", "targetAgeGroup", "selectedCostumeOrCharacter", "extraServicesRequested", "budgetEstimate", "createdAt", "ownerUid", "provinceId", "districtId", "neighborhoodId", "neighborhoodName", "publicGeoHash"])
+        && d.keys().hasOnly(["id", "title", "sector", "categoryId", "district", "urgencyMode", "eventOrJobDate", "eventTime", "address", "status", "customerName", "customerPhone", "phoneVerified", "daysRemaining", "isReported", "escrowStatus", "escrowAmount", "areaSquareMeters", "roomCount", "isFurnished", "materialsIncluded", "renovationNotes", "eventType", "durationHours", "targetAgeGroup", "selectedCostumeOrCharacter", "extraServicesRequested", "budgetEstimate", "createdAt", "ownerUid", "provinceId", "districtId", "neighborhoodId", "neighborhoodName", "publicGeoHash"])
         && d.id is string && d.id.size() <= 5000
         && d.title is string && d.title.size() <= 5000
         && d.sector is string && d.sector.size() <= 5000
@@ -124,9 +127,12 @@ service cloud.firestore {
         && d.extraServicesRequested is string && d.extraServicesRequested.size() <= 5000
         && d.budgetEstimate is string && d.budgetEstimate.size() <= 5000
         && d.createdAt is number && d.createdAt >= 0
-        && d.latitude is number && d.latitude >= -90 && d.latitude <= 90
-        && d.longitude is number && d.longitude >= -180 && d.longitude <= 180
         && d.ownerUid is string && d.ownerUid.size() <= 5000
+        && d.provinceId is string && d.provinceId.size() <= 5000
+        && d.districtId is string && d.districtId.size() <= 5000
+        && d.neighborhoodId is string && d.neighborhoodId.size() <= 5000
+        && d.neighborhoodName is string && d.neighborhoodName.size() <= 5000
+        && d.publicGeoHash is string && d.publicGeoHash.size() <= 5000
         && d.address == ""
         && d.customerPhone == ""
         && d.phoneVerified == false
@@ -161,8 +167,8 @@ service cloud.firestore {
         && d.price.size() > 0;
     }
     function validMessage(d) {
-      return d.keys().hasAll(["id", "conversationId", "senderId", "senderName", "text", "timestamp", "isFromMe", "isOfferMessage", "offerPrice", "isVoiceNote", "voiceDurationSeconds", "hasPhotoAttachment", "photoDescription"])
-        && d.keys().hasOnly(["id", "conversationId", "senderId", "senderName", "text", "timestamp", "isFromMe", "isOfferMessage", "offerPrice", "isVoiceNote", "voiceDurationSeconds", "hasPhotoAttachment", "photoDescription"])
+      return d.keys().hasAll(["id", "conversationId", "senderId", "senderName", "text", "timestamp", "isFromMe", "isOfferMessage", "offerPrice", "isVoiceNote", "voiceDurationSeconds", "hasPhotoAttachment", "photoDescription", "photoMediaId"])
+        && d.keys().hasOnly(["id", "conversationId", "senderId", "senderName", "text", "timestamp", "isFromMe", "isOfferMessage", "offerPrice", "isVoiceNote", "voiceDurationSeconds", "hasPhotoAttachment", "photoDescription", "photoMediaId"])
         && d.id is string && d.id.size() <= 5000
         && d.conversationId is string && d.conversationId.size() <= 5000
         && d.senderId is string && d.senderId.size() <= 5000
@@ -176,12 +182,12 @@ service cloud.firestore {
         && d.voiceDurationSeconds is number && d.voiceDurationSeconds >= 0
         && d.hasPhotoAttachment is bool
         && d.photoDescription is string && d.photoDescription.size() <= 5000
+        && d.photoMediaId is string && d.photoMediaId.size() <= 5000
         && d.text.size() > 0
         && d.isFromMe == false
         && d.isVoiceNote == false
-        && d.hasPhotoAttachment == false
         && d.voiceDurationSeconds == 0
-        && d.photoDescription == "";
+        && d.photoMediaId.size() <= 256;
     }
 
     function signed() { return request.auth != null; }
@@ -191,6 +197,32 @@ service cloud.firestore {
     function requestDoc(id) { return get(/databases/$(database)/documents/requests/$(id)).data; }
     function requestAfter(id) { return getAfter(/databases/$(database)/documents/requests/$(id)).data; }
     function quoteAfter(id) { return getAfter(/databases/$(database)/documents/quotes/$(id)).data; }
+    function notBlocked(a, b) {
+      return !exists(/databases/$(database)/documents/users/$(a)/blocks/$(b))
+        && !exists(/databases/$(database)/documents/users/$(b)/blocks/$(a));
+    }
+    function chatWritable(d) { return member(d) && notBlocked(d.participantUids[0], d.participantUids[1]); }
+    function validGeo(d) {
+      let names = {'pilot_tr_35_buca_adatepe':'Adatepe','pilot_tr_35_buca_efeler':'Efeler',
+        'pilot_tr_35_buca_inonu':'İnönü','pilot_tr_35_buca_sirinkapi':'Şirinkapı','pilot_tr_35_buca_yigitler':'Yiğitler'};
+      return d.provinceId == 'tr_35' && d.districtId == 'tr_35_buca'
+        && d.neighborhoodId in names && d.neighborhoodName == names[d.neighborhoodId]
+        && (d.publicGeoHash == '' || d.publicGeoHash.matches('[0123456789bcdefghjkmnpqrstuvwxyz]{5}'));
+    }
+    match /users/{userId}/blocks/{blockedUid} {
+      allow read, delete: if isOwner(userId);
+      allow create, update: if isOwner(userId) && userId != blockedUid && blockedUid.size() <= 128
+        && request.resource.data.keys().hasOnly(['blockedUid','createdAt'])
+        && request.resource.data.blockedUid == blockedUid && request.resource.data.createdAt == request.time;
+    }
+    match /users/{userId}/devices/{deviceId} {
+      allow read, delete: if isOwner(userId);
+      allow create, update: if isOwner(userId) && deviceId.matches('[a-f0-9]{64}')
+        && request.resource.data.keys().hasOnly(['token','platform','updatedAt'])
+        && request.resource.data.token is string && request.resource.data.token.size() >= 20
+        && request.resource.data.token.size() <= 4096 && request.resource.data.platform == 'android'
+        && request.resource.data.updatedAt == request.time;
+    }
     function providerDoc(id) { return get(/databases/$(database)/documents/providers/$(id)).data; }
 
     match /users/{userId}/favorites/{id} {
@@ -199,10 +231,10 @@ service cloud.firestore {
         && request.resource.data.createdAt == request.time;
     }
     match /providers/{id} {
-      allow read: if signed();
-      allow create: if signed() && request.resource.data.keys().hasOnly(['ownerUid','data','createdAt','updatedAt'])
-        && request.resource.data.ownerUid == request.auth.uid && fresh(request.resource.data)
-        && validProvider(request.resource.data.data) && request.resource.data.data.ownerUid == request.auth.uid
+      allow read: if signed() && (resource.data.ownerUid == request.auth.uid || resource.data.visibility == 'published');
+      allow create: if signed() && request.resource.data.keys().hasOnly(['ownerUid','data','createdAt','updatedAt','visibility'])
+        && request.resource.data.ownerUid == request.auth.uid && request.resource.data.visibility == 'published' && fresh(request.resource.data)
+        && validProvider(request.resource.data.data) && validGeo(request.resource.data.data) && request.resource.data.data.ownerUid == request.auth.uid
         && request.resource.data.data.id == id;
       allow update: if signed() && resource.data.ownerUid == request.auth.uid
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['data','updatedAt'])
@@ -210,10 +242,10 @@ service cloud.firestore {
         && request.resource.data.data.diff(resource.data.data).affectedKeys().hasOnly(['isOpenForOffers','bookedDatesJson']);
     }
     match /requests/{id} {
-      allow read: if signed();
-      allow create: if signed() && request.resource.data.keys().hasOnly(['ownerUid','data','createdAt','updatedAt','acceptedQuoteId','acceptedProviderUid'])
-        && fresh(request.resource.data) && request.resource.data.ownerUid == request.auth.uid
-        && validRequest(request.resource.data.data) && request.resource.data.data.id == id
+      allow read: if signed() && (resource.data.ownerUid == request.auth.uid || resource.data.visibility == 'published');
+      allow create: if signed() && request.resource.data.keys().hasOnly(['ownerUid','data','createdAt','updatedAt','acceptedQuoteId','acceptedProviderUid','visibility'])
+        && fresh(request.resource.data) && request.resource.data.visibility == 'published' && request.resource.data.ownerUid == request.auth.uid
+        && validRequest(request.resource.data.data) && validGeo(request.resource.data.data) && request.resource.data.data.id == id
         && request.resource.data.data.ownerUid == request.auth.uid && request.resource.data.data.status == 'PENDING'
         && request.resource.data.acceptedQuoteId == '' && request.resource.data.acceptedProviderUid == '';
       allow update: if signed() && resource.data.ownerUid == request.auth.uid
@@ -254,6 +286,7 @@ service cloud.firestore {
         && request.resource.data.status == 'PENDING'
         && requestDoc(request.resource.data.requestId).ownerUid == request.resource.data.customerUid
         && requestDoc(request.resource.data.requestId).data.status == 'PENDING'
+        && notBlocked(request.resource.data.providerUid, request.resource.data.customerUid)
         && providerDoc(request.resource.data.data.providerId).ownerUid == request.auth.uid;
       allow update: if signed() && resource.data.customerUid == request.auth.uid && resource.data.status == 'PENDING'
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status','updatedAt'])
@@ -270,7 +303,7 @@ service cloud.firestore {
         && request.resource.data.participantUids[0] is string && request.resource.data.participantUids[1] is string
         && request.resource.data.participantUids[0] != request.resource.data.participantUids[1]
         && request.resource.data.participantUids[0].size() <= 128 && request.resource.data.participantUids[1].size() <= 128
-        && member(request.resource.data) && fresh(request.resource.data)
+        && chatWritable(request.resource.data) && fresh(request.resource.data)
         && request.resource.data.names is map && request.resource.data.names.keys().hasOnly(request.resource.data.participantUids)
         && request.resource.data.names.keys().hasAll(request.resource.data.participantUids)
         && request.resource.data.names[request.resource.data.participantUids[0]] is string
@@ -279,24 +312,37 @@ service cloud.firestore {
         && request.resource.data.names[request.resource.data.participantUids[1]].size() <= 80
         && request.resource.data.relatedItemTitle is string && request.resource.data.relatedItemTitle.size() <= 5000
         && request.resource.data.lastMessage == '';
-      allow update: if member(resource.data)
+      allow update: if chatWritable(resource.data)
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['lastMessage','updatedAt'])
         && request.resource.data.lastMessage is string && request.resource.data.lastMessage.size() <= 4000
         && request.resource.data.updatedAt == request.time;
+      match /media/{mediaId} {
+        allow read: if member(get(/databases/$(database)/documents/conversations/$(id)).data);
+        allow write: if false;
+      }
       match /messages/{messageId} {
         allow read: if member(get(/databases/$(database)/documents/conversations/$(id)).data);
-        allow create: if member(get(/databases/$(database)/documents/conversations/$(id)).data)
+        allow create: if chatWritable(get(/databases/$(database)/documents/conversations/$(id)).data)
           && request.resource.data.keys().hasOnly(['senderUid','data','createdAt','updatedAt'])
           && request.resource.data.senderUid == request.auth.uid && fresh(request.resource.data)
           && validMessage(request.resource.data.data) && request.resource.data.data.senderId == request.auth.uid
-          && request.resource.data.data.id == messageId && request.resource.data.data.conversationId == id;
+          && request.resource.data.data.id == messageId && request.resource.data.data.conversationId == id
+          && ((!request.resource.data.data.hasPhotoAttachment && request.resource.data.data.photoMediaId == '')
+            || (request.resource.data.data.hasPhotoAttachment && request.resource.data.data.photoMediaId != ''
+              && get(/databases/$(database)/documents/conversations/$(id)/media/$(request.resource.data.data.photoMediaId)).data.uploaderUid == request.auth.uid));
       }
     }
     match /reports/{id} {
-      allow create: if signed() && request.resource.data.keys().hasOnly(['reporterUid','listingId','kind','createdAt'])
+      allow read: if signed() && resource.data.reporterUid == request.auth.uid;
+      allow create: if signed() && request.resource.data.keys().hasOnly(['reporterUid','targetType','targetId','targetUid','reason','details','status','createdAt'])
         && request.resource.data.reporterUid == request.auth.uid && request.resource.data.createdAt == request.time
-        && request.resource.data.listingId is string && request.resource.data.listingId.size() <= 1500
-        && request.resource.data.kind in ['provider','request'];
+        && request.resource.data.targetType in ['listing','conversation','message','user']
+        && request.resource.data.targetId is string && request.resource.data.targetId.size() > 0 && request.resource.data.targetId.size() <= 256
+        && request.resource.data.targetUid is string && request.resource.data.targetUid.size() > 0 && request.resource.data.targetUid.size() <= 128
+        && request.resource.data.targetUid != request.auth.uid
+        && request.resource.data.reason in ['fraud','misleading','harassment','spam','unsafe_service','other']
+        && request.resource.data.details is string && request.resource.data.details.size() <= 2000
+        && request.resource.data.status == 'pending';
     }
     match /{document=**} { allow read, write: if false; }
   }

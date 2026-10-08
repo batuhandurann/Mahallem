@@ -7,8 +7,9 @@ Eski Room kayıtları gerçek UID taşımadığı için otomatik sunucuya gönde
 ## Koleksiyonlar
 
 - `users/{uid}`: sadece sahibinin okuyabildiği özel profil.
-- `providers/{id}`, `requests/{id}`: giriş yapmış kullanıcıların okuyabildiği
-  ilanlar. Sahip UID'si sabittir; açık adres/telefon genel akışta yoktur.
+- `providers/{id}`, `requests/{id}`: `visibility=published` ilanlar keşfette
+  giriş yapmış kullanıcılara görünür. Gizlenen ilanları yalnız sahipleri okuyabilir.
+  Sahip UID'si sabittir; açık adres/telefon genel akışta yoktur.
 - `providerContacts/{id}`: sadece ilan sahibinin telefon kaydı.
 - `requestContacts/{id}`: talep sahibi ve kabul edilmiş teklifin sağlayıcısı
   okuyabilir. Otomatik iletişim paylaşım ekranı henüz yoktur; metin sohbeti kullanılabilir.
@@ -17,20 +18,32 @@ Eski Room kayıtları gerçek UID taşımadığı için otomatik sunucuya gönde
   ilanı ve teklifi birlikte değiştirir. Bir ilana bir teklif kabul edilir.
 - `conversations/{id}/messages/{id}`: yalnız iki katılımcı. Gönderen UID'si
   oturuma eşittir. Mesajın bana ait olması okuyucunun UID'sinden hesaplanır.
-- `users/{uid}/favorites`: hesap bazında favoriler; `reports`: UID bağlı raporlar.
+- `users/{uid}/favorites`, `blocks`, `devices`: hesap bazında favori, engel ve cihaz kayıtları.
+- `reports`: UID bağlı raporlar. Yetkili moderatör callable backend ile inceler;
+  karar ve denetim kaydı transaction ile yazılır. İstemci moderatör rolü üretemez.
 
-Ödeme/escrow, ses ve fotoğraf yükleme bağlı backend olmadan başarı üretmez.
+Fotoğraflar App Check korumalı callable backend üzerinden JPEG olarak doğrulanır,
+EXIF/GPS temizlenir ve özel Storage alanına yüklenir. Okuma her istekte UID/engel
+kontrolünden geçer; genel indirme URL'si üretilmez. Metin sohbeti Firestore realtime
+listener kullanır. Push yalnız aktif hesabın UID'sine yönelik veri bildirimi işler.
+Ödeme/escrow ve ses bağlı backend olmadan başarı üretmez.
 İstemci puan, doğrulama/sertifika rozeti, makbuz veya ödeme durumu üretemez.
 Chat içindeki fiyat mesajı bir ödeme veya kabul edilmiş iş teklifi değildir.
 
 ## Canlı Firebase
 
 E-posta/şifre Auth sağlayıcısını açın. `app/google-services.json` application ID
-ile eşleşmelidir: `com.aistudio.mahallemde.kxqrvz`.
+ile eşleşmelidir: `com.batuhanduran.burada`. Mevcut JSON eski Android app kaydına
+aittir; Firebase Console üzerinde yeni Burada Android uygulamasını kaydedip doğru
+JSON dosyasını indirin. Elle package name değişikliği gerçek Firebase kaydı oluşturmaz.
+Ayrıntılar: [Android kimlik geçişi](BRANDING_FIREBASE_MIGRATION.md). Canlı debug ve
+release derlemeleri eşleşen yapılandırma olmadan durur. Emulator debug derlemesi
+programatik `demo-mahallem` yapılandırmasını kullanır.
 
 ```bash
 npm ci
-npx firebase deploy --only firestore --project mahallem-batuhandurann-261007
+npm ci --prefix functions
+npx firebase deploy --only firestore,storage,functions --project mahallem-batuhandurann-261007
 ```
 
 Bu komut yetkili Firebase oturumu gerektirir. GitHub commit'i canlı Firebase
@@ -43,9 +56,12 @@ Gerekenler: JDK 21, Node 22+, Android SDK `platforms;android-36.1` ve
 `build-tools;36.0.0`. Windows'ta `./gradlew` yerine `gradlew.bat` kullanın.
 
 ```bash
-./gradlew :app:assembleDebug :app:testDebugUnitTest :app:lintDebug :app:assembleDebugAndroidTest
+./gradlew -PfirebaseEmulators=true :app:assembleDebug :app:testDebugUnitTest :app:lintDebug :app:assembleDebugAndroidTest
 npm ci
+npm ci --prefix functions
+npm run test:backend
 npm run test:rules
+npm run test:media
 ```
 
 Rules birim testleri test SDK'sının desteklediği varsayılan emulator veritabanına
@@ -95,8 +111,14 @@ bu ayarın uygulandığını ayrıca doğrulayın.
 
 ## Kapsam sınırları
 
-Akışlar şu an koleksiyonları dinleyip yerelde filtreler. Büyük veri için sunucuda
-filtreleme, sayfalama ve yük testi gerekir. Moderasyon, spam/rate limit, App Check,
-ödeme sağlayıcısı, push bildirim ve kimlik doğrulama rozetleri tamamlanmış değildir.
+Mahalle modeli İzmir/Buca'da beş mahallelik pilot katalogla başlar. Hassas koordinat
+genel ilanda saklanmaz; yalnız yaklaşık geohash paylaşılır. Türkiye geneli katalog,
+harita altyapısı ve sunucu tarafı sayfalama/yük testi henüz tamamlanmadı.
+Production App Check sağlayıcısı release kodunda Play Integrity'dir; Firebase/Play
+Console kaydı, SHA-256, enforcement ve API kısıtları ayrıca uygulanmalıdır.
+[Yayın güvenlik kontrolleri](FIREBASE_SECURITY_RELEASE.md) erişim ve kanıt gereksinimlerini açıklar.
+Backend fotoğraf ve push kotaları içerir; mesaj/ilan/rapor yazma akışları için tam
+sunucu tarafı abuse koruması ve üretim yük doğrulaması henüz tamamlanmadı.
+Ödeme sağlayıcısı ve kimlik doğrulama rozetleri henüz bağlı değildir.
 Firestore emulator üretimdeki bütün index/transaction/App Check davranışlarını
 birebir taklit etmez; staging ve gerçek cihaz onayı yayın öncesi gereklidir.

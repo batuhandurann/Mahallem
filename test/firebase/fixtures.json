@@ -28,9 +28,12 @@
     "beforeAfterJson": "",
     "videoShowcasesJson": "",
     "isFavorite": false,
-    "latitude": 0,
-    "longitude": 0,
-    "ownerUid": "bob"
+    "ownerUid": "bob",
+    "provinceId": "tr_35",
+    "districtId": "tr_35_buca",
+    "neighborhoodId": "pilot_tr_35_buca_efeler",
+    "neighborhoodName": "Efeler",
+    "publicGeoHash": ""
   },
   "request": {
     "id": "r",
@@ -62,9 +65,12 @@
     "extraServicesRequested": "",
     "budgetEstimate": "",
     "createdAt": 0,
-    "latitude": 0,
-    "longitude": 0,
-    "ownerUid": "alice"
+    "ownerUid": "alice",
+    "provinceId": "tr_35",
+    "districtId": "tr_35_buca",
+    "neighborhoodId": "pilot_tr_35_buca_efeler",
+    "neighborhoodName": "Efeler",
+    "publicGeoHash": ""
   },
   "quote": {
     "id": "q",
@@ -97,6 +103,7 @@
     "isVoiceNote": false,
     "voiceDurationSeconds": 0,
     "hasPhotoAttachment": false,
-    "photoDescription": ""
+    "photoDescription": "",
+    "photoMediaId": ""
   }
 }

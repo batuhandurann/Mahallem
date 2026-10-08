@@ -1,4 +1,6 @@
 import com.google.gms.googleservices.GoogleServicesPlugin.MissingGoogleServicesStrategy
+import com.google.gms.googleservices.GoogleServicesTask
+import groovy.json.JsonSlurper
 
 plugins {
   alias(libs.plugins.android.application)
@@ -9,11 +11,11 @@ plugins {
 }
 
 android {
-  namespace = "com.example"
+  namespace = "com.batuhanduran.burada"
   compileSdk { version = release(36) { minorApiLevel = 1 } }
 
   defaultConfig {
-    applicationId = "com.aistudio.mahallemde.kxqrvz"
+    applicationId = "com.batuhanduran.burada"
     minSdk = 24
     targetSdk = 36
     versionCode = 1
@@ -84,7 +86,34 @@ secrets {
   ignoreList.add("FIREBASE_APPCHECK_DEBUG_TOKEN")
 }
 
-googleServices { missingGoogleServicesStrategy = MissingGoogleServicesStrategy.WARN }
+// Emulator builds use programmatic demo-only FirebaseOptions and do not read a real app config.
+// All live/debug and release builds must use the canonical Firebase Android registration.
+val firebaseEmulatorBuild = providers.gradleProperty("firebaseEmulators").orElse("false").get().toBooleanStrict()
+googleServices { missingGoogleServicesStrategy = MissingGoogleServicesStrategy.ERROR }
+val liveFirebaseConfig = layout.projectDirectory.file("google-services.json").asFile
+tasks.withType<GoogleServicesTask>().configureEach {
+  val isLocalEmulatorDebug = firebaseEmulatorBuild && name.contains("Debug")
+  enabled = !isLocalEmulatorDebug
+  if (!isLocalEmulatorDebug) {
+    doFirst {
+      val config = liveFirebaseConfig
+      check(config.isFile) { "Register com.batuhanduran.burada in Firebase and provide app/google-services.json" }
+      val parsed = JsonSlurper().parse(config) as Map<*, *>
+      val projectInfo = parsed["project_info"] as? Map<*, *>
+      val projectId = projectInfo?.get("project_id") as? String
+      check(!projectId.isNullOrBlank() && !projectId.startsWith("demo-")) {
+        "Live builds require a real Firebase project, never demo-*"
+      }
+      val clients = parsed["client"] as? List<*> ?: emptyList<Any>()
+      val hasCanonicalApp = clients.any { entry ->
+        val info = (entry as? Map<*, *>)?.get("client_info") as? Map<*, *>
+        val androidInfo = info?.get("android_client_info") as? Map<*, *>
+        androidInfo?.get("package_name") == "com.batuhanduran.burada"
+      }
+      check(hasCanonicalApp) { "google-services.json does not register com.batuhanduran.burada; download the correct Firebase app configuration" }
+    }
+  }
+}
 
 // Some unused dependencies are commented out below instead of being removed.
 // This makes it easy to add them back in the future if needed.
@@ -119,8 +148,11 @@ dependencies {
   // implementation(libs.androidx.credentials)
   // implementation(libs.androidx.credentials.play.services)
   // implementation(libs.googleid)
-  implementation(libs.firebase.appcheck.recaptcha)
-  implementation(libs.firebase.appcheck.debug)
+  implementation(libs.firebase.appcheck.playintegrity)
+  debugImplementation(libs.firebase.appcheck.debug)
+  implementation("com.google.firebase:firebase-messaging")
+  implementation("com.google.firebase:firebase-storage")
+  implementation("com.google.firebase:firebase-functions")
   implementation(libs.kotlinx.coroutines.android)
   implementation(libs.kotlinx.coroutines.core)
   implementation(libs.logging.interceptor)

@@ -6,8 +6,8 @@ const f = JSON.parse(readFileSync(new URL('./fixtures.json', import.meta.url)));
 let env;
 const db = uid => (uid ? env.authenticatedContext(uid, { email: `${uid}@example.com` }) : env.unauthenticatedContext()).firestore();
 const stamp = () => ({createdAt: serverTimestamp(), updatedAt: serverTimestamp()});
-const provider = (overrides = {}) => ({ ownerUid: 'bob', data: {...f.provider, ...overrides}, ...stamp() });
-const request = (overrides = {}) => ({ ownerUid: 'alice', acceptedQuoteId: '', acceptedProviderUid: '', data: {...f.request, ...overrides}, ...stamp() });
+const provider = (overrides = {}) => ({ ownerUid: 'bob', visibility: 'published', data: {...f.provider, ...overrides}, ...stamp() });
+const request = (overrides = {}) => ({ ownerUid: 'alice', visibility: 'published', acceptedQuoteId: '', acceptedProviderUid: '', data: {...f.request, ...overrides}, ...stamp() });
 const quote = (overrides = {}) => ({providerUid: 'bob', customerUid: 'alice', requestId: 'r', status: 'PENDING', data: {...f.quote}, ...stamp(), ...overrides});
 const conversation = () => ({participantUids: ['alice','bob'], names: {alice:'Alice',bob:'Bob'}, relatedItemTitle:'Boya', lastMessage:'', ...stamp()});
 const message = (overrides = {}) => ({senderUid:'alice', data:{...f.message, ...overrides}, ...stamp()});
@@ -35,8 +35,8 @@ test('private profile own create/read; strangers, anonymous, roles and UID mutat
   await assertSucceeds(updateDoc(ref,{displayName:'Alice Updated',updatedAt:serverTimestamp()}));
 });
 test('authenticated public feeds; unauthenticated denied',async()=>{
-  await assertSucceeds(getDocs(collection(db('alice'),'providers')));
-  await assertSucceeds(getDocs(collection(db('alice'),'requests')));
+  await assertSucceeds(getDocs(query(collection(db('alice'),'providers'),where('visibility','==','published'))));
+  await assertSucceeds(getDocs(query(collection(db('alice'),'requests'),where('visibility','==','published'))));
   await assertFails(getDocs(collection(db(null),'requests')));
 });
 test('request create UID derived; contacts private and no address/phone in feed',async()=>{
@@ -130,4 +130,50 @@ test('favorites isolated; unknown collections and payment writes denied',async()
   await assertFails(getDocs(collection(db('bob'),'users/alice/favorites')));
   await assertFails(setDoc(doc(db('alice'),'payments/fake'),{paid:true}));
   await assertFails(setDoc(doc(db('alice'),'random/x'),{}));
+});
+
+test('blocks bidirectional for new messages/conversations/offers; own block records private',async()=>{
+  await assertSucceeds(setDoc(doc(db('alice'),'users/alice/blocks/bob'),{blockedUid:'bob',createdAt:serverTimestamp()}));
+  await assertFails(getDoc(doc(db('bob'),'users/alice/blocks/bob')));
+  await assertFails(setDoc(doc(db('alice'),'users/alice/blocks/alice'),{blockedUid:'alice',createdAt:serverTimestamp()}));
+  await assertFails(setDoc(doc(db('alice'),'conversations/new'),conversation()));
+  await assertFails(setDoc(doc(db('bob'),'conversations/new'),conversation()));
+  await assertFails(setDoc(doc(db('alice'),'conversations/c/messages/x'),message({id:'x'})));
+  await assertFails(setDoc(doc(db('bob'),'quotes/x'),quote({data:{...f.quote,id:'x'}})));
+  await assertSucceeds(getDoc(doc(db('bob'),'conversations/c'))); // readable history as evidence
+  await assertSucceeds(deleteDoc(doc(db('alice'),'users/alice/blocks/bob')));
+  await assertSucceeds(setDoc(doc(db('alice'),'conversations/c/messages/x'),message({id:'x'})));
+});
+test('device tokens and structured reports owner scoped; moderator fields cannot be client forged',async()=>{
+  const id='a'.repeat(64);
+  await assertSucceeds(setDoc(doc(db('alice'),`users/alice/devices/${id}`),{token:'device-token-for-testing-123',platform:'android',updatedAt:serverTimestamp()}));
+  await assertFails(getDoc(doc(db('bob'),`users/alice/devices/${id}`)));
+  await assertFails(setDoc(doc(db('alice'),'users/bob/devices/'+id),{token:'device-token-for-testing-123',platform:'android',updatedAt:serverTimestamp()}));
+  const report={reporterUid:'alice',targetType:'listing',targetId:'provider:p',targetUid:'bob',reason:'fraud',details:'Kontrol edin',status:'pending',createdAt:serverTimestamp()};
+  await assertSucceeds(setDoc(doc(db('alice'),'reports/r'),report));
+  await assertSucceeds(getDoc(doc(db('alice'),'reports/r')));
+  await assertFails(getDoc(doc(db('bob'),'reports/r')));
+  await assertFails(updateDoc(doc(db('alice'),'reports/r'),{status:'reviewed'}));
+  await assertFails(setDoc(doc(db('alice'),'reports/x'),{...report,status:'reviewed'}));
+  await assertFails(setDoc(doc(db('alice'),'moderationAudit/fake'),report));
+});
+test('geo catalog identity valid, precise coordinates and unknown neighborhoods denied',async()=>{
+  await assertFails(setDoc(doc(db('alice'),'requests/bad'),request({id:'bad',neighborhoodId:'unknown'})));
+  await assertFails(setDoc(doc(db('alice'),'requests/bad'),request({id:'bad',latitude:38.4,longitude:27.1})));
+  await assertFails(setDoc(doc(db('alice'),'requests/bad'),request({id:'bad',publicGeoHash:'exact12345'})));
+  await assertSucceeds(setDoc(doc(db('alice'),'requests/good'),request({id:'good',publicGeoHash:'swb97'})));
+});
+test('hidden listing omitted from public query and outsider direct read; owner can read own',async()=>{
+  await env.withSecurityRulesDisabled(c=>updateDoc(doc(c.firestore(),'providers/p'),{visibility:'hidden','data.isReported':true}));
+  await assertFails(getDoc(doc(db('alice'),'providers/p')));
+  await assertSucceeds(getDoc(doc(db('bob'),'providers/p')));
+  const feed=await assertSucceeds(getDocs(query(collection(db('alice'),'providers'),where('visibility','==','published'))));
+  if(feed.docs.some(x=>x.id==='p'))throw new Error('Hidden listing leaked');
+});
+test('only server can write photo metadata; photo attachment requires own authorized uploaded media',async()=>{
+  await assertFails(setDoc(doc(db('alice'),'conversations/c/media/photo'),{uploaderUid:'alice'}));
+  await assertFails(setDoc(doc(db('alice'),'conversations/c/messages/p'),message({id:'p',hasPhotoAttachment:true,photoMediaId:'missing'})));
+  await env.withSecurityRulesDisabled(c=>setDoc(doc(c.firestore(),'conversations/c/media/photo'),{uploaderUid:'alice',storagePath:'private',contentType:'image/jpeg',sizeBytes:3,createdAt:serverTimestamp()}));
+  await assertSucceeds(setDoc(doc(db('alice'),'conversations/c/messages/p'),message({id:'p',hasPhotoAttachment:true,photoMediaId:'photo'})));
+  await assertFails(getDoc(doc(db('eve'),'conversations/c/media/photo')));
 });
