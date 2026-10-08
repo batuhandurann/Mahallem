@@ -67,10 +67,11 @@ henüz kullanılmıyorsa SMS sağlayıcısını açmayın; açılırsa region po
 ülkelerle sınırlayın, SMS quota ve billing alarmı kurun. Identity Toolkit quota'ları,
 App Check geçersiz token oranı, Firestore read/write ve Storage trafiğine uyarı
 kurun. Bütçe alarmı harcamayı otomatik durdurmaz. İstemci cooldown'ı sunucu spam
-kontrolü değildir. Mesaj/ilan/teklif gibi istemcinin doğrudan yazdığı Firestore
-verileri için Rules içerik/UID doğrulaması yapılır; genel trafik rate limit'inin
-kanıtı olarak sunulmaz. Güçlü günlük UID/kaynak limitleri gerektiğinde yazma
-işlemini App Check doğrulayan transactional callable backend'e taşıyın.
+kontrolü değildir. İlan, teklif, yeni sohbet, mesaj ve rapor oluşturma işlemlerinde
+Rules tarafından doğrulanan [UID başına saatlik yazma kotaları](FIRESTORE_WRITE_BUDGETS.md)
+uygulanır. Kota ve içerik aynı transaction'da, tek hedef belgeye bağlı olarak
+yazılır. Bu kotalar genel okuma/yazma trafiği veya birden fazla hesap açılması
+için koruma kanıtı değildir; diğer işlem ve kaynak limitleri ayrıca izlenmelidir.
 
 [Firebase API key kısıtları](https://firebase.google.com/docs/projects/api-keys)
 
