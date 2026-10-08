@@ -78,7 +78,13 @@ class AuthMarketplaceInstrumentedTest {
                 providerName="Provider",providerTitle="Boyacı",providerRating=0.0,price="1000 ₺",
                 durationOrArrival="1 gün",notes="Android SDK teklifi"))
             val convId=providerRepo.startOrGetConversation(customerUid,"Customer","","Boya")
+            // Reopening an existing chat must not spend a new-conversation allowance.
+            assertEquals(convId, providerRepo.startOrGetConversation(customerUid,"Customer","","Boya"))
             providerRepo.sendChatMessage(convId,"Ignored","Merhaba Android",true)
+            val providerBudgets = db.collection("users").document(providerUid).collection("writeBudgets")
+            listOf("listing", "quote", "conversation", "message").forEach { operation ->
+                assertEquals(1L, await(providerBudgets.document(operation).get(Source.SERVER)).getLong("count"))
+            }
             val sent=withTimeout(30_000) { providerRepo.getMessagesForConversation(convId).first { it.isNotEmpty() } }.single()
             assertEquals(providerUid,sent.senderId); assertTrue(sent.isFromMe)
             auth.signOut()

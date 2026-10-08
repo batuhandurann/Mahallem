@@ -3,6 +3,31 @@
 Updated: 2026-10-08 (Europe/Istanbul). Read `AGENTS.md` and git status before work;
 fetch current remote state because other sessions may advance the repository.
 
+## Direct content write abuse follow-up (2026-10-08)
+
+- Started from current main `40e095f6c3f66592d780614f8870608548b4cd54`.
+  PR #38 merged as `85e86771394334372f91d8a3e26bcc50e8c960b8`; its main Android
+  and Security runs `37780454406` / `37780454359` passed. PR #45 also merged;
+  current main Android / Security runs `37818019646` / `37818019716` passed.
+- Added server-enforced one-hour creation allowances per UID: combined provider
+  and request listings 10, quotes 60, new conversations 30, messages across all
+  conversations 240 and reports 10. Counter and content commit in one transaction;
+  a document reference binds one increment to one fresh target. Server timestamps
+  prevent early resets, and counter deletion is denied. Do not enable counter TTL.
+- Android transactions preserve listing/contact and message/preview atomicity,
+  account guards and urgent schedule validation. Existing conversation reads do
+  not consume a creation allowance. Quota exhaustion has a Turkish user message.
+- Added 13 adversarial Rules cases, updated real-UID named-database integration,
+  three Android unit tests and one actual Android SDK instrumentation regression.
+  Local `npm run test:rules` passed 37/37 using demo Auth/Firestore emulators,
+  including the real-UID named `mahallem` integration; zero failures or skips.
+  Validate the latest commit's CI before claiming Android build/device success.
+  Local Gradle could not resolve the configured Foojay artifact and stopped before
+  compilation. The physical-device check still observes no attached phone.
+- Scope and release coordination are documented in `FIRESTORE_WRITE_BUDGETS.md`.
+  Other authorized metadata/status writes and global read traffic are not covered
+  by these content creation allowances. This is not live deployment evidence.
+
 ## Urgent listing follow-up (2026-10-08)
 
 - Continued from PR #37: its legacy QA run #719 passed unit/lint, emulator,
@@ -73,13 +98,13 @@ fetch current remote state because other sessions may advance the repository.
   attestation, Console enforcement/API restrictions and genuine FCM delivery,
   including blocked users and account switching. Prepared workflows are not
   successful production executions.
-- Full write-path abuse controls, production load/monitoring, nationwide data,
-  voice and payments remain outside the completed feature integrations.
+- Abuse controls for other write paths and global reads, production monitoring,
+  nationwide data, voice and payments remain outside the completed integrations.
 
 ## Next concrete task
 
-Preserve normal main protection and check PR #38's actual merge/check state.
-Supply the protected inputs described in
+Preserve normal main protection and verify the current content quota follow-up's
+actual checks/merge state. Supply the protected inputs described in
 `PRODUCTION_EXECUTION.md` / `FIREBASE_PRODUCTION_DEPLOY.md`, run the signed build,
 phone tests and authorized live audit/deployment, and record their real result
 IDs here. Do not repeat existing successful integration work.

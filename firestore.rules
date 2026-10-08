@@ -236,6 +236,77 @@ service cloud.firestore {
     }
     function providerDoc(id) { return get(/databases/$(database)/documents/providers/$(id)).data; }
 
+    // One fixed server-time window per UID and operation. The target reference
+    // binds every increment to exactly one new document in the same transaction.
+    // It prevents both standalone counter churn and sharing an increment across
+    // multiple creates in a malicious atomic batch.
+    function writeLimit(operation) {
+      return {'listing':10, 'quote':60, 'conversation':30, 'message':240, 'report':10}[operation];
+    }
+    function validWriteBudget(operation, d) {
+      return operation in ['listing','quote','conversation','message','report']
+        && d.keys().hasAll(['count','windowStartedAt','updatedAt','target'])
+        && d.keys().hasOnly(['count','windowStartedAt','updatedAt','target'])
+        && d.count is int && d.count >= 1 && d.count <= writeLimit(operation)
+        && d.windowStartedAt is timestamp && d.windowStartedAt <= request.time
+        && d.updatedAt == request.time && d.target is path;
+    }
+    function validBudgetTarget(operation, target, userId) {
+      let d = getAfter(target).data;
+      return !exists(target) && d.createdAt == request.time
+        && (
+          (operation == 'listing'
+            && (target == /databases/$(database)/documents/providers/$(target[4])
+              || target == /databases/$(database)/documents/requests/$(target[4]))
+            && d.ownerUid == userId)
+          || (operation == 'quote'
+            && target == /databases/$(database)/documents/quotes/$(target[4])
+            && d.providerUid == userId)
+          || (operation == 'conversation'
+            && target == /databases/$(database)/documents/conversations/$(target[4])
+            && userId in d.participantUids)
+          || (operation == 'message'
+            && target == /databases/$(database)/documents/conversations/$(target[4])/messages/$(target[6])
+            && d.senderUid == userId)
+          || (operation == 'report'
+            && target == /databases/$(database)/documents/reports/$(target[4])
+            && d.reporterUid == userId)
+        );
+    }
+    function hasWriteBudget(operation, target) {
+      let d = getAfter(/databases/$(database)/documents/users/$(request.auth.uid)/writeBudgets/$(operation)).data;
+      return validWriteBudget(operation, d) && d.target == target;
+    }
+    function validConversationPreview(conversationId) {
+      let budget = getAfter(/databases/$(database)/documents/users/$(request.auth.uid)/writeBudgets/message).data;
+      let message = getAfter(budget.target).data;
+      return validWriteBudget('message', budget)
+        && budget.target == /databases/$(database)/documents/conversations/$(conversationId)/messages/$(message.data.id)
+        && !exists(budget.target) && message.createdAt == request.time
+        && message.senderUid == request.auth.uid
+        && request.resource.data.lastMessage == message.data.text;
+    }
+    match /users/{userId}/writeBudgets/{operation} {
+      allow read: if isOwner(userId);
+      allow create: if isOwner(userId) && validWriteBudget(operation, request.resource.data)
+        && request.resource.data.count == 1
+        && request.resource.data.windowStartedAt == request.time
+        && validBudgetTarget(operation, request.resource.data.target, userId);
+      allow update: if isOwner(userId) && validWriteBudget(operation, request.resource.data)
+        && resource.data.windowStartedAt is timestamp && resource.data.windowStartedAt <= request.time
+        && resource.data.count is int && resource.data.count >= 1 && resource.data.count <= writeLimit(operation)
+        && (
+          (request.time < resource.data.windowStartedAt + duration.value(3600, 's')
+            && request.resource.data.windowStartedAt == resource.data.windowStartedAt
+            && request.resource.data.count == resource.data.count + 1)
+          || (request.time >= resource.data.windowStartedAt + duration.value(3600, 's')
+            && request.resource.data.windowStartedAt == request.time
+            && request.resource.data.count == 1)
+        )
+        && validBudgetTarget(operation, request.resource.data.target, userId);
+      allow delete: if false;
+    }
+
     match /users/{userId}/favorites/{id} {
       allow read, delete: if isOwner(userId);
       allow create: if isOwner(userId) && request.resource.data.keys().hasOnly(['createdAt'])
@@ -246,7 +317,8 @@ service cloud.firestore {
       allow create: if signed() && request.resource.data.keys().hasOnly(['ownerUid','data','createdAt','updatedAt','visibility'])
         && request.resource.data.ownerUid == request.auth.uid && request.resource.data.visibility == 'published' && fresh(request.resource.data)
         && validProvider(request.resource.data.data) && validGeo(request.resource.data.data) && request.resource.data.data.ownerUid == request.auth.uid
-        && request.resource.data.data.id == id;
+        && request.resource.data.data.id == id
+        && hasWriteBudget('listing', /databases/$(database)/documents/providers/$(id));
       allow update: if signed() && resource.data.ownerUid == request.auth.uid
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['data','updatedAt'])
         && changed(request.resource.data) && validProvider(request.resource.data.data)
@@ -258,7 +330,8 @@ service cloud.firestore {
         && fresh(request.resource.data) && request.resource.data.visibility == 'published' && request.resource.data.ownerUid == request.auth.uid
         && validRequest(request.resource.data.data) && validGeo(request.resource.data.data) && request.resource.data.data.id == id
         && request.resource.data.data.ownerUid == request.auth.uid && request.resource.data.data.status == 'PENDING'
-        && request.resource.data.acceptedQuoteId == '' && request.resource.data.acceptedProviderUid == '';
+        && request.resource.data.acceptedQuoteId == '' && request.resource.data.acceptedProviderUid == ''
+        && hasWriteBudget('listing', /databases/$(database)/documents/requests/$(id));
       allow update: if signed() && resource.data.ownerUid == request.auth.uid
         && resource.data.data.status == 'PENDING' && resource.data.acceptedQuoteId == ''
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['data','updatedAt','acceptedQuoteId','acceptedProviderUid'])
@@ -298,7 +371,8 @@ service cloud.firestore {
         && requestDoc(request.resource.data.requestId).ownerUid == request.resource.data.customerUid
         && requestDoc(request.resource.data.requestId).data.status == 'PENDING'
         && notBlocked(request.resource.data.providerUid, request.resource.data.customerUid)
-        && providerDoc(request.resource.data.data.providerId).ownerUid == request.auth.uid;
+        && providerDoc(request.resource.data.data.providerId).ownerUid == request.auth.uid
+        && hasWriteBudget('quote', /databases/$(database)/documents/quotes/$(id));
       allow update: if signed() && resource.data.status == 'PENDING'
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status','updatedAt'])
         && changed(request.resource.data)
@@ -330,11 +404,13 @@ service cloud.firestore {
         && request.resource.data.names[request.resource.data.participantUids[0]].size() <= 80
         && request.resource.data.names[request.resource.data.participantUids[1]].size() <= 80
         && request.resource.data.relatedItemTitle is string && request.resource.data.relatedItemTitle.size() <= 5000
-        && request.resource.data.lastMessage == '';
+        && request.resource.data.lastMessage == ''
+        && hasWriteBudget('conversation', /databases/$(database)/documents/conversations/$(id));
       allow update: if chatWritable(resource.data)
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['lastMessage','updatedAt'])
         && request.resource.data.lastMessage is string && request.resource.data.lastMessage.size() <= 4000
-        && request.resource.data.updatedAt == request.time;
+        && request.resource.data.updatedAt == request.time
+        && validConversationPreview(id);
       match /media/{mediaId} {
         allow read: if member(get(/databases/$(database)/documents/conversations/$(id)).data);
         allow write: if false;
@@ -348,7 +424,8 @@ service cloud.firestore {
           && request.resource.data.data.id == messageId && request.resource.data.data.conversationId == id
           && ((!request.resource.data.data.hasPhotoAttachment && request.resource.data.data.photoMediaId == '')
             || (request.resource.data.data.hasPhotoAttachment && request.resource.data.data.photoMediaId != ''
-              && get(/databases/$(database)/documents/conversations/$(id)/media/$(request.resource.data.data.photoMediaId)).data.uploaderUid == request.auth.uid));
+              && get(/databases/$(database)/documents/conversations/$(id)/media/$(request.resource.data.data.photoMediaId)).data.uploaderUid == request.auth.uid))
+          && hasWriteBudget('message', /databases/$(database)/documents/conversations/$(id)/messages/$(messageId));
       }
     }
     match /reports/{id} {
@@ -361,7 +438,8 @@ service cloud.firestore {
         && request.resource.data.targetUid != request.auth.uid
         && request.resource.data.reason in ['fraud','misleading','harassment','spam','unsafe_service','other']
         && request.resource.data.details is string && request.resource.data.details.size() <= 2000
-        && request.resource.data.status == 'pending';
+        && request.resource.data.status == 'pending'
+        && hasWriteBudget('report', /databases/$(database)/documents/reports/$(id));
     }
     match /{document=**} { allow read, write: if false; }
   }
