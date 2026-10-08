@@ -78,6 +78,13 @@ async function authorizeConversation(request) {
   try { ids = participants(snapshot.data()); } catch { throw new HttpsError("permission-denied", "Sohbete erişilemiyor."); }
   const uid = request.auth.uid;
   if (!ids.includes(uid) || await blocked(ids[0], ids[1])) throw new HttpsError("permission-denied", "Sohbete erişilemiyor.");
+  // Do not trust a cached ID token after account disablement or deletion request.
+  // Server-side ACL checks are safe here because Storage client reads are denied.
+  const authUser = await getAuth().getUser(uid).catch(() => null);
+  if (!authUser || authUser.disabled) throw new HttpsError("permission-denied", "Hesap etkin değil.");
+  const profile = (await db.doc(`users/${uid}`).get()).data();
+  if (["REQUESTED", "PURGING"].includes(profile?.deletionStatus))
+    throw new HttpsError("permission-denied", "Hesap silinme sürecinde.");
   return { conversationId, uid };
 }
 
