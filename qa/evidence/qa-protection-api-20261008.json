@@ -1,0 +1,165 @@
+{
+  "observed_at": "2026-10-08T18:14:49.699Z",
+  "ruleset": {
+    "id": 24741291,
+    "name": "Mahallem QA Protection",
+    "target": "branch",
+    "source_type": "Repository",
+    "source": "batuhandurann/Mahallem",
+    "enforcement": "active",
+    "conditions": {
+      "ref_name": {
+        "exclude": [],
+        "include": [
+          "refs/heads/qa/mahallem-test-suite"
+        ]
+      }
+    },
+    "rules": [
+      {
+        "type": "deletion"
+      },
+      {
+        "type": "non_fast_forward"
+      },
+      {
+        "type": "pull_request",
+        "parameters": {
+          "required_approving_review_count": 0,
+          "dismiss_stale_reviews_on_push": true,
+          "required_reviewers": [],
+          "require_code_owner_review": false,
+          "require_last_push_approval": false,
+          "required_review_thread_resolution": true,
+          "require_extra_approval_for_unattributed_changes": true,
+          "allowed_merge_methods": [
+            "merge",
+            "squash",
+            "rebase"
+          ]
+        }
+      },
+      {
+        "type": "required_status_checks",
+        "parameters": {
+          "strict_required_status_checks_policy": true,
+          "do_not_enforce_on_create": false,
+          "required_status_checks": [
+            {
+              "context": "release-build",
+              "integration_id": 15368
+            },
+            {
+              "context": "ui-tests",
+              "integration_id": 15368
+            },
+            {
+              "context": "Secret scan",
+              "integration_id": 15368
+            },
+            {
+              "context": "CodeQL (java-kotlin)",
+              "integration_id": 15368
+            },
+            {
+              "context": "CodeQL (javascript)",
+              "integration_id": 15368
+            },
+            {
+              "context": "backend",
+              "integration_id": 15368
+            },
+            {
+              "context": "firebase-rules",
+              "integration_id": 15368
+            },
+            {
+              "context": "unit-and-static",
+              "integration_id": 15368
+            }
+          ]
+        }
+      }
+    ],
+    "node_id": "RRS_lACqUmVwb3NpdG9yec5T0RJTzgF5has",
+    "created_at": "2026-10-08T21:07:53.804+03:00",
+    "updated_at": "2026-10-08T21:07:53.915+03:00",
+    "bypass_actors": [],
+    "current_user_can_bypass": "never",
+    "_links": {
+      "self": {
+        "href": "https://api.github.com/repos/batuhandurann/Mahallem/rulesets/24741291"
+      },
+      "html": {
+        "href": "https://github.com/batuhandurann/Mahallem/rules/24741291"
+      }
+    }
+  },
+  "branches": [
+    {
+      "name": "main",
+      "commit": {
+        "sha": "40e095f6c3f66592d780614f8870608548b4cd54",
+        "url": "https://api.github.com/repos/batuhandurann/Mahallem/commits/40e095f6c3f66592d780614f8870608548b4cd54"
+      },
+      "protected": true
+    },
+    {
+      "name": "qa/mahallem-test-suite",
+      "commit": {
+        "sha": "c260137328fa775c8d3f140a9713cc870559fa39",
+        "url": "https://api.github.com/repos/batuhandurann/Mahallem/commits/c260137328fa775c8d3f140a9713cc870559fa39"
+      },
+      "protected": true
+    }
+  ],
+  "pr46": {
+    "number": 46,
+    "head_sha": "f5b531cc689798cc7271558acf957bc2fb419df2",
+    "draft": true,
+    "mergeable_state": "blocked",
+    "checks": [
+      {
+        "name": "cross-account-firestore",
+        "conclusion": "success",
+        "app_id": 15368,
+        "url": "https://github.com/batuhandurann/Mahallem/actions/runs/37818013466/job/113451802681"
+      },
+      {
+        "name": "ui-tests",
+        "conclusion": "success",
+        "app_id": 15368,
+        "url": "https://github.com/batuhandurann/Mahallem/actions/runs/37818013457/job/113451790555"
+      },
+      {
+        "name": "firebase-rules",
+        "conclusion": "success",
+        "app_id": 15368,
+        "url": "https://github.com/batuhandurann/Mahallem/actions/runs/37818013457/job/113451790503"
+      },
+      {
+        "name": "backend",
+        "conclusion": "success",
+        "app_id": 15368,
+        "url": "https://github.com/batuhandurann/Mahallem/actions/runs/37818013457/job/113451790386"
+      },
+      {
+        "name": "unit-and-static",
+        "conclusion": "success",
+        "app_id": 15368,
+        "url": "https://github.com/batuhandurann/Mahallem/actions/runs/37818013457/job/113451790144"
+      },
+      {
+        "name": "release-build",
+        "conclusion": "success",
+        "app_id": 15368,
+        "url": "https://github.com/batuhandurann/Mahallem/actions/runs/37818013457/job/113451789934"
+      }
+    ]
+  },
+  "limitations": [
+    "Draft is an additional blocker.",
+    "No failed-check merge attempt was performed.",
+    "Security trigger has not been integrated into the QA base branch."
+  ]
+}

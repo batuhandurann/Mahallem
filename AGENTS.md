@@ -19,6 +19,7 @@ Bu dosya repo genelinde geçerlidir. Kullanıcının güncel talimatları öncel
 - P0 entegrasyonu için PR hedefi `qa/mahallem-test-suite` ve durum Draft olmalı. `main` push, otomatik merge, deploy ve secret değişikliği yapma. Issue #11'de kapsamı ve sonucu kaydet.
 - Gradle çalıştırmadan önce `python3 scripts/verify-gradle-wrapper.py` ile pinleri kontrol et; build için `./gradlew` kullan. QA hedefli PR'da CodeQL ve Secret scan yoksa P0 tamamlandı deme.
 - QA ve canonical main kanıtlarını ayrı kaynak SHA'larıyla kaydet. `qa/RELEASE_READINESS_20261008.md` ve Issue #11'deki son sonuçları kontrol et; eski green workflow'u yeni birleşik ağacın veya canlı production'ın kanıtı sayma.
+- QA ruleset #24741291 aktiftir: sekiz GitHub Actions kontrolü, güncel taban ve bypass yok. Bekleyen kontrolleri geçirmek için korumayı zayıflatma; Draft engeli veya eksik check kanıtını başarısız CI ile yapılmış merge denemesi olarak sunma.
 
 ## Her görevin sonunda
 - `PROGRESS.md` içindeki kısa özeti güncelle: tamamlanan işler, kanıtlı testler, açık sorun/engeller ve tek sıradaki görev.
