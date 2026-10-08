@@ -3,6 +3,26 @@
 Updated: 2026-10-08 (Europe/Istanbul). Read `AGENTS.md` and git status before work;
 fetch current remote state because other sessions may advance the repository.
 
+## Logout/calendar follow-up (2026-10-08)
+
+- PR #45 merged normally into main `40e095f6c3f66592d780614f8870608548b4cd54`;
+  its final Android Quality #138 and Security #596 required checks passed.
+- Follow-up on that main: logout's push cleanup exception previously escaped the
+  UI coroutine despite its `finally` signing out. Added bounded best-effort
+  cleanup; cancellation still propagates and the original UID guard protects a
+  replacement account. Session data continues to clear before remote cleanup.
+- Calendar validation now uses UTC for date-only parsing. Device zones with
+  skipped days/midnights must not reject otherwise valid Gregorian dates that
+  Firestore accepts. Submission-time date/time still use the device's local zone.
+- Added unit regressions for successful/failed/hanging/cancelled cleanup,
+  replacement-account protection, and Pacific/Apia + America/Sao_Paulo dates.
+- Local Android tests are NOT verified: wrapper download is network-blocked and
+  offline Gradle lacks the foojay resolver plugin. Required GitHub CI must prove
+  this new application source before merge; previous test results do not apply.
+- Physical-device and production Firebase checks remain unavailable. Next:
+  complete the follow-up PR checks normally, then use protected real inputs for
+  the existing production/physical-device plan.
+
 ## Urgent listing follow-up (2026-10-08)
 
 - Continued from PR #37: its legacy QA run #719 passed unit/lint, emulator,

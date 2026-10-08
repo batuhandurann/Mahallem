@@ -78,9 +78,14 @@ fun BuradaApp(
                     sessionStore.clearSession()
                     val leavingUid = user.uid
                     logoutScope.launch {
-                        try { PushTokenLifecycle.release(appContext) }
-                        finally {
-                            if (com.batuhanduran.burada.data.remote.FirebaseServices.auth.currentUser?.uid == leavingUid) authViewModel.signOut()
+                        try {
+                            finishSessionLogout(
+                                leavingUid = leavingUid,
+                                currentUid = { com.batuhanduran.burada.data.remote.FirebaseServices.auth.currentUser?.uid },
+                                releasePush = { PushTokenLifecycle.release(appContext) },
+                                signOut = authViewModel::signOut
+                            )
+                        } finally {
                             signingOut = false
                         }
                     }
