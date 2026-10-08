@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { initializeApp, deleteApp } from 'firebase/app';
-import { getAuth, connectAuthEmulator, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, updateProfile, deleteUser } from 'firebase/auth';
+import { getAuth, connectAuthEmulator, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, updateProfile, deleteUser, sendPasswordResetEmail } from 'firebase/auth';
 import { getFirestore, connectFirestoreEmulator, doc, setDoc, getDoc, serverTimestamp, terminate } from 'firebase/firestore';
 test('real Auth emulator: register/login/logout, invalid password, token UID enforces private profile rules',async()=>{
   const app=initializeApp({projectId:'demo-mahallem',apiKey:'fake-emulator-key',appId:'test'},`auth-${Date.now()}`);
@@ -68,5 +68,32 @@ test('named database with real Auth UIDs: request -> owned provider -> quote -> 
     await assert.rejects(getDoc(doc(e.db,`requestContacts/${r}`)),x=>x.code==='permission-denied');
   } finally {
     for(const c of [a,b,e]){if(c.auth.currentUser)await deleteUser(c.auth.currentUser);await terminate(c.db);await deleteApp(c.app);}
+  }
+});
+
+
+test('real Auth emulator: duplicate account, invalid email, password reset and repeat login', async () => {
+  const suffix = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  const app = initializeApp({projectId:'demo-mahallem',apiKey:'fake-emulator-key',appId:'test'},`auth-regression-${suffix}`);
+  const auth = getAuth(app);
+  connectAuthEmulator(auth,'http://127.0.0.1:9099',{disableWarnings:true});
+  const email = `regression-${suffix}@example.com`;
+  const password = 'SecurePass123!';
+  try {
+    await assert.rejects(createUserWithEmailAndPassword(auth,'not-an-email',password),error => error.code === 'auth/invalid-email');
+    const first = await createUserWithEmailAndPassword(auth,email,password);
+    assert.ok(first.user.uid);
+    await assert.rejects(createUserWithEmailAndPassword(auth,email,password),error => error.code === 'auth/email-already-in-use');
+    await sendPasswordResetEmail(auth,email);
+    await signOut(auth);
+    assert.equal(auth.currentUser,null);
+    await assert.rejects(signInWithEmailAndPassword(auth,email,'WrongPassword123!'));
+    const returning = await signInWithEmailAndPassword(auth,email,password);
+    assert.equal(returning.user.uid,first.user.uid);
+    await signOut(auth);
+    assert.equal(auth.currentUser,null);
+  } finally {
+    if(auth.currentUser) await deleteUser(auth.currentUser);
+    await deleteApp(app);
   }
 });
