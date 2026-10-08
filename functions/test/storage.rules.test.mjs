@@ -204,6 +204,46 @@ async function run() {
     })
   );
 
+  // Authorization is evaluated using current membership, not only the grant's
+  // immutable upload-time participant snapshot. Removing Bob must revoke read.
+  await env.withSecurityRulesDisabled(async (ctx) => {
+    await setDoc(doc(ctx.firestore(), "conversations/chat-1"), {
+      participantIds: ["alice"],
+    });
+  });
+  await assertFails(getBytes(ref(bob.storage("gs://" + bucket), chatPath), 64));
+  await assertSucceeds(getBytes(ref(alice.storage("gs://" + bucket), chatPath), 64));
+
+  // Deleting the conversation must also fail closed.
+  await env.withSecurityRulesDisabled(async (ctx) => {
+    await setDoc(doc(ctx.firestore(), "conversations/chat-1"), {
+      participantIds: [],
+    });
+  });
+  await assertFails(getBytes(ref(bob.storage("gs://" + bucket), chatPath), 64));
+  await assertFails(getBytes(ref(alice.storage("gs://" + bucket), chatPath), 64));
+
+  // A restored active participant can read a still validated grant.
+  await env.withSecurityRulesDisabled(async (ctx) => {
+    await setDoc(doc(ctx.firestore(), "conversations/chat-1"), {
+      participantIds: ["alice", "bob"],
+    });
+  });
+  await assertSucceeds(getBytes(ref(bob.storage("gs://" + bucket), chatPath), 64));
+
+  // Previously validated uploads become unreadable once the grant is revoked.
+  await env.withSecurityRulesDisabled(async (ctx) => {
+    await setDoc(doc(ctx.firestore(), "users/alice/uploadGrants/grant-chat"), {
+      ownerUid: "alice",
+      kind: "CHAT",
+      conversationId: "chat-1",
+      participantIds: ["alice", "bob"],
+      expiresAt: new Date(Date.now() - 60_000),
+      validated: false,
+    });
+  });
+  await assertFails(getBytes(ref(bob.storage("gs://" + bucket), chatPath), 64));
+
   console.log("Storage rules tests passed.");
 }
 
