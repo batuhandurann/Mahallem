@@ -19,6 +19,7 @@ import com.google.firebase.crashlytics.FirebaseCrashlytics
 class MahallemApplication : Application() {
     override fun onCreate() {
         super.onCreate()
+        com.example.data.local.AppDatabase.initialize(this)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val channel = NotificationChannel("mahallem_messages", "Mahallem Mesajları", NotificationManager.IMPORTANCE_DEFAULT).apply {
                 description = "Yeni mesaj ve hizmet güncellemeleri"
