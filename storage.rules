@@ -58,6 +58,19 @@ service firebase.storage {
         ).data.participantIds;
     }
 
+    // Chat attachment READS need live membership, not only an upload-time snapshot.
+    // Exactly two distinct Firestore documents are read by a chat READ:
+    // the upload grant and the conversation. Checking the user's profile here
+    // would exceed Cloud Storage's two-document access limit.
+    function currentConversationParticipant(conversationId) {
+      return firestore.exists(
+          /databases/(default)/documents/conversations/$(conversationId)
+        )
+        && request.auth.uid in firestore.get(
+          /databases/(default)/documents/conversations/$(conversationId)
+        ).data.participantIds;
+    }
+
     function validActiveChatGrant(uid, conversationId, grantId) {
       return validChatGrant(uid, conversationId, grantId)
         && firestore.get(
@@ -131,12 +144,13 @@ service firebase.storage {
     }
 
     match /chatAttachments/{conversationId}/{senderUid}/{fileName} {
-      allow read: if accountActive(request.auth.uid)
+      allow read: if signedIn()
         && validImageFileName(fileName)
         && validChatGrant(senderUid, conversationId, filenameGrantId(fileName))
         && firestore.get(
           /databases/(default)/documents/users/$(senderUid)/uploadGrants/$(filenameGrantId(fileName))
-        ).data.validated == true;
+        ).data.validated == true
+        && currentConversationParticipant(conversationId);
 
       allow write: if accountActive(senderUid)
         && request.auth.uid == senderUid
