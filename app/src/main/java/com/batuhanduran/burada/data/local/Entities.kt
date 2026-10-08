@@ -93,7 +93,7 @@ data class QuoteEntity(
     val price: String,
     val durationOrArrival: String,
     val notes: String,
-    val status: String = "PENDING", // PENDING, ACCEPTED, REJECTED
+    val status: String = "PENDING", // PENDING, ACCEPTED, REJECTED, WITHDRAWN
     val escrowFunded: Boolean = false,
     val receiptCode: String = "",
     val warrantyDuration: String = "2 Yıl İşçilik & Malzeme Garantisi",
