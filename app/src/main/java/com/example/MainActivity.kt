@@ -139,7 +139,7 @@ fun MarketplaceApp(
             runCatching {
                 com.google.firebase.analytics.FirebaseAnalytics.getInstance(context).apply {
                     setAnalyticsCollectionEnabled(false)
-                    setUserId(null)
+                    resetAnalyticsData()
                 }
             }
         }
@@ -232,10 +232,8 @@ fun MarketplaceApp(
         } else {
             LaunchedEffect(currentUser?.uid, consent.analyticsConsent) {
                 runCatching {
-                    com.google.firebase.analytics.FirebaseAnalytics.getInstance(context).apply {
-                        setUserId(currentUser!!.uid)
-                        setAnalyticsCollectionEnabled(consent.analyticsConsent)
-                    }
+                    com.google.firebase.analytics.FirebaseAnalytics.getInstance(context)
+                        .setAnalyticsCollectionEnabled(consent.analyticsConsent)
                 }
             }
             LaunchedEffect(currentUser?.uid) {

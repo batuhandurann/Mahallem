@@ -24,6 +24,8 @@ assert.match(source, /if \(!userSnap\.exists\)/);
 assert.match(source, /bucket\.deleteFiles/);
 assert.match(source, /users.*devices/);
 assert.match(source, /String\(jobRequest\.status \?\? ""\) !== "PENDING"/);
+assert.match(source, /latitude: Math\.round\(latitude \* 100\) \/ 100/);
+assert.match(source, /longitude: Math\.round\(longitude \* 100\) \/ 100/);
 
 assert.match(source, /function requireRecentAuthentication/);
 assert.match(source, /Number\.isSafeInteger\(authTime\)/);
