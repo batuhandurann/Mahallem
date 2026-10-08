@@ -150,5 +150,31 @@ fun MarketplaceBottomNavBar(
             ),
             modifier = Modifier.testTag("nav_item_messages")
         )
+
+        // Tab 5: Hesap ve gizlilik
+        val isAccount = currentScreen is ScreenDestination.AccountSettings
+        NavigationBarItem(
+            selected = isAccount,
+            onClick = { onTabSelected(ScreenDestination.AccountSettings) },
+            icon = {
+                Icon(
+                    imageVector = if (isAccount) Icons.Default.AccountCircle else Icons.Outlined.AccountCircle,
+                    contentDescription = "Hesap"
+                )
+            },
+            label = {
+                Text(
+                    text = "Hesap",
+                    fontSize = 11.sp,
+                    fontWeight = if (isAccount) FontWeight.Bold else FontWeight.Normal
+                )
+            },
+            colors = NavigationBarItemDefaults.colors(
+                selectedIconColor = TealPrimary,
+                selectedTextColor = TealPrimary,
+                indicatorColor = TealContainer
+            ),
+            modifier = Modifier.testTag("nav_item_account")
+        )
     }
 }

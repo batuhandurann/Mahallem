@@ -1,0 +1,65 @@
+name: Android Physical Device Smoke
+
+on:
+  workflow_dispatch:
+    inputs:
+      gcp_project_id:
+        description: Google Cloud project with Firebase Test Lab enabled
+        required: true
+        type: string
+      android_api:
+        description: Android API level for physical device selection
+        required: true
+        default: "35"
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  physical-smoke:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    environment: staging
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - name: Authenticate Google Cloud
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093
+        with:
+          credentials_json: ${{ secrets.FIREBASE_TEST_LAB_SERVICE_ACCOUNT }}
+      - name: Set up gcloud
+        uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db
+      - name: Set up JDK 17
+        uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6
+        with:
+          distribution: temurin
+          java-version: "17"
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6
+        with:
+          gradle-version: "9.3.1"
+      - name: Build instrumentation APKs
+        run: gradle clean assembleDebug assembleDebugAndroidTest --no-daemon --stacktrace -PallowMissingGoogleServices=true
+      - name: Select a physical Test Lab device
+        id: device
+        env:
+          ANDROID_API: ${{ inputs.android_api }}
+        run: |
+          gcloud firebase test android models list --format=json > "$RUNNER_TEMP/models.json"
+          python3 - <<'PY' >> "$GITHUB_OUTPUT"
+          import json, os
+          models=json.load(open(os.environ["RUNNER_TEMP"]+"/models.json", encoding="utf-8"))
+          api=os.environ["ANDROID_API"]
+          for model in models:
+              if model.get("form") == "PHYSICAL" and api in [str(v) for v in model.get("supportedVersionIds", [])]:
+                  print("model="+model["id"])
+                  break
+          else:
+              raise SystemExit("No physical Firebase Test Lab device supports Android API "+api)
+          PY
+      - name: Run physical-device instrumentation smoke
+        run: |
+          gcloud firebase test android run             --project "${{ inputs.gcp_project_id }}"             --type instrumentation             --app app/build/outputs/apk/debug/app-debug.apk             --test app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk             --device model="${{ steps.device.outputs.model }}",version="${{ inputs.android_api }}",locale=tr,orientation=portrait             --timeout 15m

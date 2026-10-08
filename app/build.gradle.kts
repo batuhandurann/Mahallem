@@ -10,6 +10,8 @@ plugins {
 }
 
 val ciUnsignedRelease = providers.gradleProperty("ciUnsignedRelease").orNull == "true"
+val releaseVersionCode = providers.environmentVariable("ANDROID_VERSION_CODE").orNull?.toIntOrNull() ?: 1
+val releaseVersionName = providers.environmentVariable("ANDROID_VERSION_NAME").orNull ?: "1.0"
 
 android {
   namespace = "com.example"
@@ -19,8 +21,8 @@ android {
     applicationId = "com.aistudio.mahallemde.kxqrvz"
     minSdk = 24
     targetSdk = 36
-    versionCode = 1
-    versionName = "1.0"
+    versionCode = releaseVersionCode
+    versionName = releaseVersionName
 
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
   }
@@ -30,7 +32,7 @@ android {
       val keystorePath = System.getenv("KEYSTORE_PATH") ?: "${rootDir}/my-upload-key.jks"
       storeFile = file(keystorePath)
       storePassword = System.getenv("STORE_PASSWORD")
-      keyAlias = "upload"
+      keyAlias = System.getenv("KEY_ALIAS") ?: "upload"
       keyPassword = System.getenv("KEY_PASSWORD")
     }
   }

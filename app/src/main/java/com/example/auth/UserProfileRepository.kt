@@ -9,6 +9,11 @@ import kotlinx.coroutines.tasks.await
 class UserProfileRepository(
     private val firestore: FirebaseFirestore = FirebaseFirestore.getInstance()
 ) {
+    suspend fun getDeletionStatus(user: FirebaseUser): String {
+        val snapshot = firestore.collection("users").document(user.uid).get().await()
+        return if (!snapshot.exists()) "ACTIVE" else snapshot.getString("deletionStatus") ?: "ACTIVE"
+    }
+
     suspend fun ensureUserProfile(user: FirebaseUser) {
         val ref = firestore.collection("users").document(user.uid)
         val snapshot = ref.get().await()

@@ -125,6 +125,7 @@ fun MarketplaceApp(
     var profileReady by remember(currentUser?.uid) { mutableStateOf(false) }
     var profileError by remember(currentUser?.uid) { mutableStateOf<String?>(null) }
     var profileRetryToken by remember(currentUser?.uid) { mutableIntStateOf(0) }
+    var deletionStatus by remember(currentUser?.uid) { mutableStateOf<String?>(null) }
     var consentRevision by remember(currentUser?.uid) { mutableIntStateOf(0) }
     DisposableEffect(auth) {
         val listener = FirebaseAuth.AuthStateListener { currentUser = it.currentUser }
@@ -142,15 +143,26 @@ fun MarketplaceApp(
         LaunchedEffect(currentUser?.uid, profileRetryToken) {
             profileReady = false
             profileError = null
+            deletionStatus = null
             currentUser?.let { user ->
                 runCatching {
-                    UserProfileRepository().ensureUserProfile(user)
-                }.onSuccess {
-                    profileReady = true
-                    runCatching {
-                        PushTokenRepository().registerCurrentDevice()
-                    }.onFailure {
-                        android.util.Log.w("MahallemAuth", "Cihaz bildirimi kaydı başarısız; uygulama erişimi engellenmeyecek.", it)
+                    val profiles = UserProfileRepository()
+                    val status = profiles.getDeletionStatus(user)
+                    if (status == "REQUESTED" || status == "PURGING") {
+                        status
+                    } else {
+                        profiles.ensureUserProfile(user)
+                        "ACTIVE"
+                    }
+                }.onSuccess { status ->
+                    deletionStatus = status
+                    if (status == "ACTIVE") {
+                        profileReady = true
+                        runCatching {
+                            PushTokenRepository().registerCurrentDevice()
+                        }.onFailure {
+                            android.util.Log.w("MahallemAuth", "Cihaz bildirimi kaydı başarısız; uygulama erişimi engellenmeyecek.", it)
+                        }
                     }
                 }.onFailure {
                     profileError = "Hesabınız hazırlanamadı. İnternet bağlantınızı kontrol edip tekrar deneyin."
@@ -164,7 +176,15 @@ fun MarketplaceApp(
             ConsentRepository(context, currentUser!!.uid)
         }
 
-        if (profileError != null) {
+        if (deletionStatus == "REQUESTED" || deletionStatus == "PURGING") {
+            AccountDeletionPendingScreen(
+                status = deletionStatus!!,
+                onCanceled = {
+                    deletionStatus = null
+                    profileRetryToken++
+                }
+            )
+        } else if (profileError != null) {
             Box(
                 modifier = Modifier.fillMaxSize().padding(24.dp),
                 contentAlignment = androidx.compose.ui.Alignment.Center
@@ -312,7 +332,8 @@ private fun MarketplaceContent(
     val isMainTabScreen = currentScreen is ScreenDestination.Home ||
             currentScreen is ScreenDestination.MapView ||
             currentScreen is ScreenDestination.MyRequests ||
-            currentScreen is ScreenDestination.ConversationsList
+            currentScreen is ScreenDestination.ConversationsList ||
+            currentScreen is ScreenDestination.AccountSettings
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
@@ -564,6 +585,10 @@ private fun MarketplaceContent(
                             viewModel.navigateTo(ScreenDestination.Chat(convId))
                         }
                     )
+                }
+
+                is ScreenDestination.AccountSettings -> {
+                    AccountSettingsScreen(isLocalMode = AppEnvironment.mode == AppEnvironment.Mode.LOCAL)
                 }
 
                 is ScreenDestination.Chat -> {

@@ -45,6 +45,7 @@ sealed class ScreenDestination {
     object ProviderDashboard : ScreenDestination()
     data class Chat(val conversationId: String) : ScreenDestination()
     object ConversationsList : ScreenDestination()
+    object AccountSettings : ScreenDestination()
     object MapView : ScreenDestination()
 }
 
