@@ -145,6 +145,12 @@ class MarketplaceRepository(
         observe(db.collection("providers").whereEqualTo("visibility", "published")) { decode(it, ServiceProviderEntity::class.java) },
         observe(db.collection("users").document(uid).collection("favorites")) { it.id }
     ) { providers, favorites -> providers.map { it.copy(isFavorite = it.id in favorites) } }
+    // Own listings are a separate owner-scoped stream: never depend on public feed search/category/area filters.
+    fun getOwnedProviders(): Flow<List<ServiceProviderEntity>> =
+        observe(db.collection("providers").whereEqualTo("ownerUid", uid)) {
+            decode(it, ServiceProviderEntity::class.java)
+        }.map { profiles -> ownedProviderProfiles(profiles, uid) }
+
     fun getAllRequests(): Flow<List<JobRequestEntity>> = observe(db.collection("requests").whereEqualTo("visibility", "published")) {
         decode(it, JobRequestEntity::class.java).copy(createdAt = it.getTimestamp("createdAt")?.toDate()?.time ?: 0)
     }
