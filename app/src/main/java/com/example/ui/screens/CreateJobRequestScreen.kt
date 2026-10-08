@@ -29,6 +29,7 @@ import com.example.ui.components.DISTRICT_OPTIONS
 import com.example.ui.components.getCategoryIcon
 import com.example.ui.theme.*
 import com.example.validation.RequestDateTimeDefaults
+import com.example.validation.RequestSchedule
 import com.example.validation.RequestFormInput
 import com.example.validation.RequestFormValidator
 
@@ -79,8 +80,8 @@ fun CreateJobRequestScreen(
     var title by remember { mutableStateOf("") }
     // Emergency is conveyed by urgency; date and time must remain machine-readable.
     val initialDateTime = remember { RequestDateTimeDefaults.at() }
-    var date by remember { mutableStateOf(initialDateTime.first) }
-    var time by remember { mutableStateOf(initialDateTime.second) }
+    var date by remember { mutableStateOf(if (isEmergencyPreselected) RequestSchedule.EMERGENCY_DATE else initialDateTime.first) }
+    var time by remember { mutableStateOf(if (isEmergencyPreselected) RequestSchedule.EMERGENCY_TIME else initialDateTime.second) }
     var address by remember { mutableStateOf("") }
     var customerName by remember { mutableStateOf("") }
     var customerPhone by remember { mutableStateOf("") }
@@ -150,13 +151,7 @@ fun CreateJobRequestScreen(
             ) {
                 Button(
                     onClick = {
-                        val computedTitle = if (title.isNotBlank()) title else {
-                            if (isPhysicalService) {
-                                "${selectedDistrict}'da ${selectedRoomCount} ${selectedCategory.name} Talebi"
-                            } else {
-                                "${selectedEventType} İçin ${selectedCategory.name} (${selectedCostume})"
-                            }
-                        }
+                        val computedTitle = title.trim()
                         val validation = RequestFormValidator.validate(
                             RequestFormInput(
                                 title = computedTitle,
@@ -167,7 +162,8 @@ fun CreateJobRequestScreen(
                                 customerName = customerName,
                                 customerPhone = customerPhone,
                                 areaSquareMeters = areaSquareMeters.toIntOrNull() ?: 0,
-                                isPhysicalService = isPhysicalService
+                                isPhysicalService = isPhysicalService,
+                                isEmergency = selectedUrgency == UrgencyMode.EMERGENCY
                             )
                         )
                         if (!validation.isValid) {
@@ -235,6 +231,16 @@ fun CreateJobRequestScreen(
             )
             Spacer(modifier = Modifier.height(8.dp))
 
+            OutlinedTextField(
+                value = title,
+                onValueChange = { title = it },
+                label = { Text("İlan başlığı") },
+                placeholder = { Text("Örn: Acil su kaçağı için tesisatçı aranıyor") },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth().testTag("input_job_title")
+            )
+            Spacer(modifier = Modifier.height(12.dp))
+
             StableChipRows(items = SectorType.values().filter { it != SectorType.ALL }, spacing = 6.dp) { sec ->
                     FilterChip(
                         modifier = Modifier.weight(1f),
@@ -292,7 +298,11 @@ fun CreateJobRequestScreen(
                     Row {
                         FilterChip(
                             selected = selectedUrgency == UrgencyMode.EMERGENCY,
-                            onClick = { selectedUrgency = UrgencyMode.EMERGENCY },
+                            onClick = {
+                                selectedUrgency = UrgencyMode.EMERGENCY
+                                date = RequestSchedule.EMERGENCY_DATE
+                                time = RequestSchedule.EMERGENCY_TIME
+                            },
                             label = { Text("🚨 Acil", fontSize = 12.sp) },
                             colors = FilterChipDefaults.filterChipColors(
                                 selectedContainerColor = EmergencyRed,
@@ -303,7 +313,14 @@ fun CreateJobRequestScreen(
                         Spacer(modifier = Modifier.width(6.dp))
                         FilterChip(
                             selected = selectedUrgency == UrgencyMode.PLANNED,
-                            onClick = { selectedUrgency = UrgencyMode.PLANNED },
+                            onClick = {
+                                selectedUrgency = UrgencyMode.PLANNED
+                                if (date == RequestSchedule.EMERGENCY_DATE || time == RequestSchedule.EMERGENCY_TIME) {
+                                    val (newDate, newTime) = RequestDateTimeDefaults.at()
+                                    date = newDate
+                                    time = newTime
+                                }
+                            },
                             label = { Text("📅 Planlı", fontSize = 12.sp) },
                             colors = FilterChipDefaults.filterChipColors(
                                 selectedContainerColor = TealPrimary,

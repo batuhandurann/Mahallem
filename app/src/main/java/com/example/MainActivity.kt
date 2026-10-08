@@ -122,6 +122,7 @@ fun MarketplaceApp(
         return
     }
 
+    val sessionStore: com.example.auth.AccountViewModelStore = viewModel()
     var currentUser by remember { mutableStateOf(auth.currentUser) }
     var profileReady by remember(currentUser?.uid) { mutableStateOf(false) }
     var profileError by remember(currentUser?.uid) { mutableStateOf<String?>(null) }
@@ -129,7 +130,10 @@ fun MarketplaceApp(
     var deletionStatus by remember(currentUser?.uid) { mutableStateOf<String?>(null) }
     var consentRevision by remember(currentUser?.uid) { mutableIntStateOf(0) }
     DisposableEffect(auth) {
-        val listener = FirebaseAuth.AuthStateListener { currentUser = it.currentUser }
+        val listener = FirebaseAuth.AuthStateListener {
+            sessionStore.selectAccount(it.currentUser?.uid)
+            currentUser = it.currentUser
+        }
         auth.addAuthStateListener(listener)
         onDispose { auth.removeAuthStateListener(listener) }
     }
@@ -248,6 +252,13 @@ fun MarketplaceApp(
             }
             MarketplaceContent(
                 sessionKey = currentUser!!.uid,
+                viewModel = viewModel(
+                    viewModelStoreOwner = sessionStore,
+                    factory = androidx.lifecycle.ViewModelProvider.AndroidViewModelFactory.getInstance(
+                        context.applicationContext as android.app.Application
+                    ),
+                    key = marketplaceViewModelKey(currentUser!!.uid)
+                ),
                 notificationConversationId = notificationConversationId,
                 notificationOpenMyRequests = notificationOpenMyRequests,
                 onNotificationNavigationConsumed = onNotificationNavigationConsumed

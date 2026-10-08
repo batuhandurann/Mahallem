@@ -2,7 +2,6 @@ package com.example.auth
 
 import android.app.Activity
 import com.google.firebase.FirebaseException
-import com.example.data.local.AppDatabase
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.FirebaseAuthInvalidCredentialsException
 import com.google.firebase.auth.FirebaseUser
@@ -57,8 +56,7 @@ class PhoneAuthRepository(
     suspend fun verifyCode(verificationId: String, code: String): Result<FirebaseUser> = runCatching {
         require(code.matches(Regex("^\\d{6}$"))) { "SMS kodu 6 haneli olmalı." }
         val credential = PhoneAuthProvider.getCredential(verificationId, code)
-        auth.signInWithCredential(credential).await().user
-            ?: error("Kullanıcı oturumu oluşturulamadı.")
+        signInWithCredential(credential)
     }.recoverCatching { error ->
         if (error is FirebaseAuthInvalidCredentialsException) {
             throw IllegalArgumentException("SMS kodu geçersiz.", error)
@@ -66,9 +64,14 @@ class PhoneAuthRepository(
         throw error
     }
 
-    fun signOut() {
-        AppDatabase.clearLocalData()
-        auth.signOut()
+    suspend fun signInWithCredential(credential: PhoneAuthCredential): FirebaseUser =
+        SessionOperations.authenticate {
+            auth.signInWithCredential(credential).await().user
+                ?: error("Kullanıcı oturumu oluşturulamadı.")
+        }
+
+    suspend fun signOut() {
+        SessionOperations.signOut(endSession = { auth.signOut() })
     }
 
     private fun normalizeTurkishPhone(phone: String): String {

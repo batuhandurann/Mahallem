@@ -16,7 +16,6 @@ import androidx.compose.ui.unit.dp
 import com.example.auth.PhoneAuthRepository
 import com.example.auth.UserProfileRepository
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.tasks.await
 
 @Composable
 fun PhoneAuthScreen(
@@ -94,7 +93,7 @@ fun PhoneAuthScreen(
                             onCodeSent = { id -> verificationId = id; loading = false },
                             onAutoVerified = { credential ->
                                 scope.launch {
-                                    runCatching { com.google.firebase.auth.FirebaseAuth.getInstance().signInWithCredential(credential).await() }
+                                    runCatching { phoneAuth.signInWithCredential(credential) }
                                         .onFailure { error = it.message ?: "Otomatik doğrulama başarısız." }
                                         .onSuccess { finishAuth() }
                                 }

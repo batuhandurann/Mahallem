@@ -16,6 +16,7 @@ import {
   verifyPaytrCallback,
 } from "./payments/paytr";
 import { parseTryAmountMinor } from "./money";
+import { validateRequestSchedule } from "./requestSchedule";
 
 initializeApp();
 setGlobalOptions({ region: "europe-west1", maxInstances: 20, concurrency: 40 });
@@ -709,6 +710,11 @@ export const saveJobRequest = onCall(
     const eventTime = requireString(data, "eventTime", 32, 0);
     const budgetEstimate = requireString(data, "budgetEstimate", 200, 0);
 
+    try {
+      validateRequestSchedule(title, eventOrJobDate, eventTime);
+    } catch (error) {
+      throw new HttpsError("invalid-argument", (error as Error).message);
+    }
     if (eventOrJobDate && !isValidIsoDate(eventOrJobDate)) {
       throw new HttpsError("invalid-argument", "Geçersiz hizmet/talep tarihi.");
     }
@@ -772,7 +778,7 @@ export const saveJobRequest = onCall(
 
       tx.set(ref, {
         ownerId: request.auth!.uid,
-        title,
+        title: title.trim(),
         sector,
         categoryId,
         district,
