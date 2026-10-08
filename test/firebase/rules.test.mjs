@@ -31,6 +31,9 @@ test('private profile own create/read; strangers, anonymous, roles and UID mutat
   await assertFails(getDoc(doc(db(null),'users/alice')));
   await assertFails(updateDoc(ref,{uid:'bob',updatedAt:serverTimestamp()}));
   await assertFails(updateDoc(ref,{role:'admin',updatedAt:serverTimestamp()}));
+  await assertFails(updateDoc(ref,{isAdmin:true,updatedAt:serverTimestamp()}));
+  await assertFails(updateDoc(ref,{createdAt:new Date(0),updatedAt:serverTimestamp()}));
+  await assertFails(getDoc(doc(db('alice'),'unknownSystem/secret')));
   await assertFails(updateDoc(ref,{email:'forged@example.com',updatedAt:serverTimestamp()}));
   await assertSucceeds(updateDoc(ref,{displayName:'Alice Updated',updatedAt:serverTimestamp()}));
 });
