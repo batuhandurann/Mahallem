@@ -75,14 +75,21 @@ jobs:
           if-no-files-found: error
   ui-tests:
     name: ui-tests
-    needs: [android-emulator]
+    needs: [android-emulator, build-test-lint, auth-rules, release-build]
     if: always()
     runs-on: ubuntu-latest
     steps:
-      - name: Enforce emulator instrumentation result
+      - name: Enforce ALL P0 jobs through main-required ui-tests check
         env:
           ANDROID_EMULATOR_RESULT: ${{ needs.android-emulator.result }}
-        run: test "$ANDROID_EMULATOR_RESULT" = success
+          DEBUG_UNIT_LINT_RESULT: ${{ needs.build-test-lint.result }}
+          FIREBASE_AUTH_RULES_RESULT: ${{ needs.auth-rules.result }}
+          RELEASE_RESULT: ${{ needs.release-build.result }}
+        run: |
+          test "$ANDROID_EMULATOR_RESULT" = success
+          test "$DEBUG_UNIT_LINT_RESULT" = success
+          test "$FIREBASE_AUTH_RULES_RESULT" = success
+          test "$RELEASE_RESULT" = success
   auth-rules:
     name: auth-rules
     runs-on: ubuntu-latest
