@@ -22,6 +22,10 @@ fetch current remote state because other sessions may advance the repository.
   Python suite passed 32 tests, including real fixture JAR signing checks and
   rejection of API restrictions that omit FCM registration/Installations.
   Fixtures do not prove production signing or live Firebase configuration.
+- PR #38 validates this production follow-up. A warm Gradle cache caused CodeQL
+  to extract no Java/Kotlin sources; its build command now forces recompilation
+  with build/configuration caches disabled. Verify the current PR checks rather
+  than treating an older workflow's success as evidence for the latest commit.
 - Physical-device preflight observed zero attached phones and returned `NOT_RUN`.
   Local Firebase preflight rejected the old Android registration before Cloud
   access. No credentials or deployment were invented.
@@ -41,8 +45,8 @@ fetch current remote state because other sessions may advance the repository.
 
 ## Next concrete task
 
-Review this production follow-up's GitHub checks and merge through normal main
-protection. Then supply the protected inputs described in
+Preserve normal main protection and check PR #38's actual merge/check state.
+Supply the protected inputs described in
 `PRODUCTION_EXECUTION.md` / `FIREBASE_PRODUCTION_DEPLOY.md`, run the signed build,
 phone tests and authorized live audit/deployment, and record their real result
 IDs here. Do not repeat existing successful integration work.
