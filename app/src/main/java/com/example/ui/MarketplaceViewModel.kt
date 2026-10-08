@@ -848,6 +848,13 @@ class MarketplaceViewModel(application: Application) : AndroidViewModel(applicat
         budget: String
     ) {
         viewModelScope.launch {
+            val scheduleValidation = runCatching {
+                com.example.validation.RequestSchedules.requireValid(title, date, time)
+            }
+            if (scheduleValidation.isFailure) {
+                _toastMessage.value = scheduleValidation.exceptionOrNull()?.message
+                return@launch
+            }
             val authPhone = if (AppEnvironment.mode == AppEnvironment.Mode.LOCAL) {
                 ""
             } else {
@@ -859,7 +866,7 @@ class MarketplaceViewModel(application: Application) : AndroidViewModel(applicat
                 && resolvedCustomerPhone == authPhone
 
             val entity = JobRequestEntity(
-                title = title,
+                title = title.trim(),
                 sector = sector.name,
                 categoryId = category.id,
                 district = district,

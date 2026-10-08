@@ -696,25 +696,25 @@ export const saveJobRequest = onCall(
   { enforceAppCheck: true },
   async (request) => {
     if (!request.auth) throw new HttpsError("unauthenticated", "Kimlik doğrulaması gerekli.");
-    await assertAccountActive(request.auth.uid);
-
     const data = callableData(request.data);
     const requestId = requireString(data, "requestId", 80, 1);
-    const title = requireString(data, "title", 200, 1);
+    const title = requireString(data, "title", 120, 1).trim();
+    if (!title) throw new HttpsError("invalid-argument", "Başlık girilmelidir.");
     const sector = requireString(data, "sector", 64, 1);
     const categoryId = requireString(data, "categoryId", 80, 1);
     const district = requireString(data, "district", 80, 1);
     const urgencyMode = requireString(data, "urgencyMode", 32, 1);
-    const eventOrJobDate = requireString(data, "eventOrJobDate", 32, 0);
-    const eventTime = requireString(data, "eventTime", 32, 0);
+    const eventOrJobDate = requireString(data, "eventOrJobDate", 10, 1);
+    const eventTime = requireString(data, "eventTime", 5, 1);
     const budgetEstimate = requireString(data, "budgetEstimate", 200, 0);
 
-    if (eventOrJobDate && !isValidIsoDate(eventOrJobDate)) {
+    if (!isValidIsoDate(eventOrJobDate)) {
       throw new HttpsError("invalid-argument", "Geçersiz hizmet/talep tarihi.");
     }
-    if (eventTime && !isValidTime(eventTime)) {
+    if (!isValidTime(eventTime)) {
       throw new HttpsError("invalid-argument", "Geçersiz hizmet/talep saati.");
     }
+    await assertAccountActive(request.auth.uid);
 
     const customerPhone = typeof data.customerPhone === "string" ? data.customerPhone.slice(0, 32) : "";
     const phoneVerified = data.phoneVerified === true;

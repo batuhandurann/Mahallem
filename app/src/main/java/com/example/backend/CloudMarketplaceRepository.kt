@@ -210,10 +210,13 @@ class CloudMarketplaceRepository(
 
     suspend fun saveJobRequest(request: JobRequestEntity) {
         requireUid()
+        com.example.validation.RequestSchedules.requireValid(
+            request.title, request.eventOrJobDate, request.eventTime
+        )
         FunctionsRepository().saveJobRequest(
             mapOf(
                 "requestId" to request.id.toString(),
-                "title" to request.title,
+                "title" to request.title.trim(),
                 "sector" to request.sector,
                 "categoryId" to request.categoryId,
                 "district" to request.district,

@@ -48,4 +48,34 @@ class RequestFormValidatorTest {
         val result = RequestFormValidator.validate(validInput().copy(title = "x".repeat(121)))
         assertEquals(false, result.isValid)
     }
+
+    @Test fun blankTitlesCannotBePublished() {
+        listOf("", "   ", "\t\n").forEach {
+            assertEquals(false, RequestFormValidator.validate(validInput().copy(title = it)).isValid)
+        }
+    }
+
+    @Test fun invalidCalendarDatesAreRejected() {
+        listOf("", "Hemen / Bugün", "2026-02-29", "2026-02-31", "2026-13-01", "2026-10-00", "2026-1-01").forEach {
+            assertEquals(it, false, RequestFormValidator.validate(validInput().copy(date = it)).isValid)
+        }
+        assertTrue(RequestFormValidator.validate(validInput().copy(date = "2028-02-29")).isValid)
+    }
+
+    @Test fun invalidTimesAreRejected() {
+        listOf("", "En geç 1 saat içinde", "24:00", "25:70", "12:60", "9:00", "12:00:00").forEach {
+            assertEquals(it, false, RequestFormValidator.validate(validInput().copy(time = it)).isValid)
+        }
+        listOf("00:00", "23:59").forEach {
+            assertTrue(RequestFormValidator.validate(validInput().copy(time = it)).isValid)
+        }
+    }
+
+    @Test fun emergencyScheduleMatchesServerFormats() {
+        val instant = java.util.Date(1_791_460_800_000L)
+        val schedule = RequestSchedules.now(instant)
+        assertTrue(RequestSchedules.isValidDate(schedule.date))
+        assertTrue(RequestSchedules.isValidTime(schedule.time))
+        RequestSchedules.requireValid("Acil su kaçağı", schedule.date, schedule.time)
+    }
 }

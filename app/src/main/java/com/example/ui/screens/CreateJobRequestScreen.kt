@@ -30,6 +30,7 @@ import com.example.ui.components.getCategoryIcon
 import com.example.ui.theme.*
 import com.example.validation.RequestFormInput
 import com.example.validation.RequestFormValidator
+import com.example.validation.RequestSchedules
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
@@ -76,8 +77,9 @@ fun CreateJobRequestScreen(
     var districtMenuExpanded by remember { mutableStateOf(false) }
 
     var title by remember { mutableStateOf("") }
-    var date by remember { mutableStateOf(if (isEmergencyPreselected) "Hemen / Bugün" else "2026-10-18") }
-    var time by remember { mutableStateOf(if (isEmergencyPreselected) "En geç 1 saat içinde" else "14:00") }
+    val initialSchedule = remember { RequestSchedules.now() }
+    var date by remember { mutableStateOf(initialSchedule.date) }
+    var time by remember { mutableStateOf(initialSchedule.time) }
     var address by remember { mutableStateOf("") }
     var customerName by remember { mutableStateOf("") }
     var customerPhone by remember { mutableStateOf("") }
@@ -147,19 +149,16 @@ fun CreateJobRequestScreen(
             ) {
                 Button(
                     onClick = {
-                        val computedTitle = if (title.isNotBlank()) title else {
-                            if (isPhysicalService) {
-                                "${selectedDistrict}'da ${selectedRoomCount} ${selectedCategory.name} Talebi"
-                            } else {
-                                "${selectedEventType} İçin ${selectedCategory.name} (${selectedCostume})"
-                            }
-                        }
+                        val computedTitle = title.trim()
+                        val schedule = if (selectedUrgency == UrgencyMode.EMERGENCY) {
+                            RequestSchedules.now()
+                        } else com.example.validation.RequestSchedule(date, time)
                         val validation = RequestFormValidator.validate(
                             RequestFormInput(
                                 title = computedTitle,
                                 district = selectedDistrict,
-                                date = date,
-                                time = time,
+                                date = schedule.date,
+                                time = schedule.time,
                                 address = address,
                                 customerName = customerName,
                                 customerPhone = customerPhone,
@@ -178,8 +177,8 @@ fun CreateJobRequestScreen(
                             selectedCategory,
                             selectedDistrict,
                             selectedUrgency,
-                            date,
-                            time,
+                            schedule.date,
+                            schedule.time,
                             address.trim(),
                             customerName.trim(),
                             customerPhone.trim(),
@@ -231,6 +230,16 @@ fun CreateJobRequestScreen(
                 color = MaterialTheme.colorScheme.onSurface
             )
             Spacer(modifier = Modifier.height(8.dp))
+
+            OutlinedTextField(
+                value = title,
+                onValueChange = { title = it },
+                label = { Text("İlan başlığı") },
+                placeholder = { Text("Örn: Acil su kaçağı için tesisatçı aranıyor") },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth().testTag("input_job_title")
+            )
+            Spacer(modifier = Modifier.height(12.dp))
 
             StableChipRows(items = SectorType.values().filter { it != SectorType.ALL }, spacing = 6.dp) { sec ->
                     FilterChip(
@@ -549,18 +558,23 @@ fun CreateJobRequestScreen(
             )
             Spacer(modifier = Modifier.height(8.dp))
 
+            if (selectedUrgency == UrgencyMode.EMERGENCY) {
+                Text("Acil talebiniz gönderildiği tarih ve saatle yayınlanır.")
+            }
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 OutlinedTextField(
                     value = date,
                     onValueChange = { date = it },
-                    label = { Text("Tarih") },
+                    enabled = selectedUrgency != UrgencyMode.EMERGENCY,
+                    label = { Text("Tarih (YYYY-AA-GG)") },
                     singleLine = true,
                     modifier = Modifier.weight(1f).testTag("input_date")
                 )
                 OutlinedTextField(
                     value = time,
                     onValueChange = { time = it },
-                    label = { Text("Saat") },
+                    enabled = selectedUrgency != UrgencyMode.EMERGENCY,
+                    label = { Text("Saat (SS:DD)") },
                     singleLine = true,
                     modifier = Modifier.weight(1f).testTag("input_time")
                 )

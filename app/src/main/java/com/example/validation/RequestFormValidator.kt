@@ -25,8 +25,8 @@ object RequestFormValidator {
             if (input.district.isBlank() || input.district == "Tüm İlçeler") {
                 add("İlçe seçilmelidir.")
             }
-            if (input.date.isBlank()) add("Tarih girilmelidir.")
-            if (input.time.isBlank()) add("Saat girilmelidir.")
+            if (!RequestSchedules.isValidDate(input.date)) add("Geçerli bir tarih girin (YYYY-AA-GG).")
+            if (!RequestSchedules.isValidTime(input.time)) add("Geçerli bir saat girin (SS:DD, 00:00–23:59).")
             if (input.address.trim().length < 8) add("Geçerli bir adres veya mahalle girilmelidir.")
             if (input.customerName.trim().length < 2) add("Ad soyad girilmelidir.")
             val normalizedPhone = input.customerPhone.replace(Regex("""[\s()-]"""), "")
@@ -36,6 +36,7 @@ object RequestFormValidator {
             if (input.isPhysicalService && input.areaSquareMeters <= 0) {
                 add("Hizmet alanı 1 m² veya daha büyük olmalıdır.")
             }
+            if (input.title.isBlank()) add("Başlık girilmelidir.")
             if (input.title.trim().length > 120) {
                 add("Başlık en fazla 120 karakter olabilir.")
             }
