@@ -98,3 +98,9 @@ bağlantısını kendi başına kanıtlamaz; Play cihaz testi ve Console kontrol
 [App Check service API](https://firebase.google.com/docs/reference/appcheck/rest/v1/projects.services),
 [Play Integrity config API](https://firebase.google.com/docs/reference/appcheck/rest/v1/projects.apps.playIntegrityConfig),
 [API key restrictions API](https://cloud.google.com/api-keys/docs/reference/rest/v2/projects.locations.keys)
+
+Canlı API yanıtlarını elle dışa aktarmak yerine
+[korumalı üretim deploy/audit iş akışını](FIREBASE_PRODUCTION_DEPLOY.md)
+kullanabilirsiniz. `verify_firebase_cloud.py` açık yetkili ADC ile kanıtı bellekte
+toplar; yalnız anahtar/token içermeyen sonuç raporu üretir. Workflow hazırdır;
+gerçek Cloud yetkilendirmesi ve gerçek cihaz doğrulamasının yerine geçmez.
