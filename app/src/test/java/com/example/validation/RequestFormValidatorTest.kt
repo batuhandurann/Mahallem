@@ -49,7 +49,7 @@ class RequestFormValidatorTest {
     }
 
     @Test fun titleLengthIsLimited() {
-        val result = RequestFormValidator.validate(validInput().copy(title = "x".repeat(121), today()))
+        val result = RequestFormValidator.validate(validInput().copy(title = "x".repeat(121)), today())
         assertEquals(false, result.isValid)
     }
 
