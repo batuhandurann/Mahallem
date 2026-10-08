@@ -22,6 +22,22 @@ beforeEach(async () => {
   });
 });
 after(async () => env?.cleanup());
+test('urgent request uses real date/time; malformed calendars, times and blank titles denied', async () => {
+  const d = db('alice');
+  await assertSucceeds(setDoc(doc(d,'requests/urgent'),request({id:'urgent',urgencyMode:'EMERGENCY'})));
+  for (const [field, values] of Object.entries({
+    title: ['', '   ', '\t\n', 'x'.repeat(121)],
+    eventOrJobDate: ['', 'Hemen / Bugün', '2026-02-29', '2026-02-31', '2026-04-31', '2026-13-01', '2026-00-10', '2026-10-00', '2026-1-01', '1900-02-29'],
+    eventTime: ['', 'En geç 1 saat içinde', '24:00', '25:70', '12:60', '9:00', '12:00:00'],
+  })) {
+    for (const value of values) {
+      await assertFails(setDoc(doc(d,'requests/invalid'),request({id:'invalid',[field]:value})));
+    }
+  }
+  for (const [id, date, time] of [['leap','2028-02-29','00:00'],['century','2000-02-29','23:59']]) {
+    await assertSucceeds(setDoc(doc(d,`requests/${id}`),request({id,eventOrJobDate:date,eventTime:time})));
+  }
+});
 test('private profile own create/read; strangers, anonymous, roles and UID mutation denied', async () => {
   const d=db('alice'); const ref=doc(d,'users/alice');
   const data={uid:'alice',displayName:'Alice',email:'alice@example.com',...stamp()};

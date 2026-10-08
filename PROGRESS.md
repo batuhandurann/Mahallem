@@ -3,6 +3,26 @@
 Updated: 2026-10-08 (Europe/Istanbul). Read `AGENTS.md` and git status before work;
 fetch current remote state because other sessions may advance the repository.
 
+## Urgent listing follow-up (2026-10-08)
+
+- Continued from PR #37: its legacy QA run #719 passed unit/lint, emulator,
+  backend/Rules and debug + unsigned release APK/AAB. That branch predates the
+  current Firebase-only architecture and must not be merged into canonical main.
+- Based the new `fix/canonical-urgent-schedule-20261008` branch on main `85e8677`.
+  Main already removed Room, uses UID-bound repositories and clears session
+  ViewModels on logout/account switch; those working guards are preserved.
+- Added explicit required request title, strict calendar/time checks and actual
+  submission-time YYYY-MM-DD/HH:mm for urgent requests. Validation also runs in
+  the repository and Firestore Rules. Calendar leap-year rules reject impossible
+  dates; the existing minimum two-character title requirement is preserved.
+- Added Kotlin and Compose regressions, direct Firestore invalid-input tests and
+  actual Android SDK urgent-request server read-back in the existing account
+  isolation integration test. Current port's CI results must be verified; the
+  legacy PR's green checks do not prove this new source tree.
+- Real phone and production Firebase/config/attestation remain unavailable.
+  Next: verify the current port's main-targeted PR checks, fix any regression,
+  and preserve all main protection checks before integration.
+
 ## Completed and verified
 
 - PR #10 merged into `main`, merge commit `ae70278c4424fb45a1fad4b3bc5e7a90bbca7cce`.

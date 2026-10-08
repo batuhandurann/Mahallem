@@ -164,9 +164,12 @@ class MarketplaceRepository(
     }
     suspend fun createJobRequest(request: JobRequestEntity): String {
         requireAccount()
+        com.batuhanduran.burada.validation.RequestSchedules.requireValid(
+            request.title, request.eventOrJobDate, request.eventTime
+        )
         validateNeighborhood(request.provinceId, request.districtId, request.neighborhoodId)
         val ref = db.collection("requests").document()
-        val public = request.copy(id = ref.id, ownerUid = uid, address = "", customerPhone = "",
+        val public = request.copy(id = ref.id, title = request.title.trim(), ownerUid = uid, address = "", customerPhone = "",
             phoneVerified = false, status = "PENDING", escrowStatus = "NONE", escrowAmount = "")
         db.batch().apply {
             set(ref, envelope(encode(public, JobRequestEntity::class.java), "ownerUid" to uid,
