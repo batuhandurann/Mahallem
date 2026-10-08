@@ -108,6 +108,17 @@ test('reject by customer only; cannot mutate quote price or escrow',async()=>{
   await assertSucceeds(updateDoc(doc(db('alice'),'quotes/q'),{status:'REJECTED',updatedAt:serverTimestamp()}));
   await assertFails(accept(db('alice')));
 });
+test('provider can withdraw pending offer only; customer/outsider denied, withdrawal final',async()=>{
+  const ref = doc(db('bob'),'quotes/q');
+  await assertFails(updateDoc(doc(db('alice'),'quotes/q'),{status:'WITHDRAWN',updatedAt:serverTimestamp()}));
+  await assertFails(updateDoc(doc(db('eve'),'quotes/q'),{status:'WITHDRAWN',updatedAt:serverTimestamp()}));
+  await assertFails(updateDoc(ref,{status:'REJECTED',updatedAt:serverTimestamp()}));
+  await assertFails(updateDoc(ref,{'data.price':'0',updatedAt:serverTimestamp()}));
+  await assertSucceeds(updateDoc(ref,{status:'WITHDRAWN',updatedAt:serverTimestamp()}));
+  await assertFails(accept(db('alice')));
+  await assertFails(updateDoc(ref,{status:'PENDING',updatedAt:serverTimestamp()}));
+  await assertFails(updateDoc(ref,{status:'REJECTED',updatedAt:serverTimestamp()}));
+});
 test('conversations list scoped, outsider denied, participants immutable',async()=>{
   await assertSucceeds(getDoc(doc(db('alice'),'conversations/c')));
   await assertSucceeds(getDocs(query(collection(db('bob'),'conversations'),where('participantUids','array-contains','bob'))));

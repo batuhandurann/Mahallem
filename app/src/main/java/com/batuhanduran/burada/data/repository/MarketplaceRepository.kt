@@ -226,6 +226,13 @@ class MarketplaceRepository(
         db.collection("quotes").document(quoteId).update(mapOf("status" to "REJECTED",
             "updatedAt" to FieldValue.serverTimestamp())).awaitRemote()
     }
+    /** A provider may withdraw ONLY their own pending offer; Firestore rules enforce identity/status. */
+    suspend fun withdrawQuote(quoteId: String) {
+        requireAccount()
+        db.collection("quotes").document(quoteId).update(mapOf("status" to "WITHDRAWN",
+            "updatedAt" to FieldValue.serverTimestamp())).awaitRemote()
+    }
+
     fun getAllConversations(): Flow<List<ConversationEntity>> = observe(
         db.collection("conversations").whereArrayContains("participantUids", uid)
     ) { doc ->
