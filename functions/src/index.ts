@@ -2310,6 +2310,31 @@ async function anonymizeAccount(uid: string): Promise<void> {
     );
 
     await processQueryInPages(
+      db.collection("contentReports").where("targetId", "==", uid),
+      async (reports) => {
+        for (const report of reports) {
+          if (report.data().targetType !== "USER") continue;
+          writer.set(report.ref, {
+            targetId: anonymizedId,
+            accountDeletedAt: FieldValue.serverTimestamp(),
+          }, { merge: true });
+        }
+      }
+    );
+
+    await processQueryInPages(
+      db.collection("reviewAudits").where("providerOwnerId", "==", uid),
+      async (audits) => {
+        for (const audit of audits) {
+          writer.set(audit.ref, {
+            providerOwnerId: anonymizedId,
+            accountDeletedAt: FieldValue.serverTimestamp(),
+          }, { merge: true });
+        }
+      }
+    );
+
+    await processQueryInPages(
       db.collection("disputes").where("participantIds", "array-contains", uid),
       async (disputes) => {
         for (const dispute of disputes) {

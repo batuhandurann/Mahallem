@@ -70,6 +70,10 @@ assert.match(source, /contentReports/);
 assert.match(source, /where\("reporterUid", "==", uid\)/);
 assert.match(source, /String\(existing\.data\(\)\?\.status \?\? ""\) !== "PENDING"/);
 assert.match(source, /reporterUid: anonymizedId/);
+assert.match(source, /collection\("contentReports"\)\.where\("targetId", "==", uid\)/);
+assert.match(source, /targetId: anonymizedId/);
+assert.match(source, /collection\("reviewAudits"\)\.where\("providerOwnerId", "==", uid\)/);
+assert.match(source, /providerOwnerId: anonymizedId/);
 assert.match(source, /report-day:/);
 
 assert.match(source, /hourlyRateLimitRef/);

@@ -12,6 +12,17 @@ privacy = (root / "app/src/main/java/com/example/ui/screens/PrivacyConsentScreen
 
 errors = []
 
+version_code_raw = os.environ.get("ANDROID_VERSION_CODE", "").strip()
+version_name = os.environ.get("ANDROID_VERSION_NAME", "").strip()
+try:
+    version_code = int(version_code_raw)
+except ValueError:
+    version_code = 0
+if version_code < 1 or version_code > 2_100_000_000 or str(version_code) != version_code_raw:
+    errors.append("ANDROID_VERSION_CODE must be a canonical positive integer <= 2100000000.")
+if not version_name or version_name != version_name.strip() or len(version_name) > 100:
+    errors.append("ANDROID_VERSION_NAME must be non-empty, trimmed and at most 100 characters.")
+
 namespace = re.search(r'namespace\s*=\s*"([^"]+)"', gradle)
 application_id = re.search(r'applicationId\s*=\s*"([^"]+)"', gradle)
 app_name = re.search(r'<string\s+name="app_name">\s*([^<]+?)\s*</string>', strings)
