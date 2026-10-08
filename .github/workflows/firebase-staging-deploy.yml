@@ -2,11 +2,6 @@ name: Firebase Staging Deploy
 
 on:
   workflow_dispatch:
-    inputs:
-      project_id:
-        description: Firebase staging project id
-        required: true
-        type: string
 
 permissions:
   contents: read
@@ -16,11 +11,21 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 35
     environment: staging
+    env:
+      FIREBASE_PROJECT_ID_STAGING: ${{ vars.FIREBASE_PROJECT_ID_STAGING }}
+      FIREBASE_PROJECT_ID_PRODUCTION: ${{ vars.FIREBASE_PROJECT_ID_PRODUCTION }}
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           persist-credentials: false
+      - name: Validate staging target
+        run: |
+          test -n "$FIREBASE_PROJECT_ID_STAGING"
+          if [ -n "$FIREBASE_PROJECT_ID_PRODUCTION" ] && [ "$FIREBASE_PROJECT_ID_STAGING" = "$FIREBASE_PROJECT_ID_PRODUCTION" ]; then
+            echo "Staging and production Firebase project ids must differ." >&2
+            exit 1
+          fi
       - name: Authenticate Google Cloud
         uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093
         with:
@@ -36,7 +41,7 @@ jobs:
           node-version: "22"
       - name: Install dependencies and Firebase CLI
         run: |
-          npm --prefix functions install --ignore-scripts
+          npm --prefix functions ci --ignore-scripts
           npm install --global firebase-tools@15.32.1 --ignore-scripts
       - name: Re-run backend and rules tests before deploy
         run: |
@@ -44,4 +49,7 @@ jobs:
           npm --prefix functions run rules:test
       - name: Deploy staging rules, indexes, storage and functions
         run: |
-          firebase deploy             --project "${{ inputs.project_id }}"             --only firestore:rules,firestore:indexes,storage,functions             --non-interactive
+          firebase deploy \
+            --project "$FIREBASE_PROJECT_ID_STAGING" \
+            --only firestore:rules,firestore:indexes,storage,functions \
+            --non-interactive

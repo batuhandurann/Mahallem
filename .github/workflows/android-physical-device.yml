@@ -3,10 +3,6 @@ name: Android Physical Device Smoke
 on:
   workflow_dispatch:
     inputs:
-      gcp_project_id:
-        description: Google Cloud project with Firebase Test Lab enabled
-        required: true
-        type: string
       android_api:
         description: Android API level for physical device selection
         required: true
@@ -19,36 +15,56 @@ permissions:
 jobs:
   physical-smoke:
     runs-on: ubuntu-24.04
-    timeout-minutes: 45
+    timeout-minutes: 50
     environment: staging
+    env:
+      FIREBASE_TEST_LAB_PROJECT_ID: ${{ vars.FIREBASE_TEST_LAB_PROJECT_ID }}
+      FIREBASE_PROJECT_ID_PRODUCTION: ${{ vars.FIREBASE_PROJECT_ID_PRODUCTION }}
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           persist-credentials: false
+      - name: Validate physical-test target
+        run: |
+          test -n "$FIREBASE_TEST_LAB_PROJECT_ID"
+          if [ -n "$FIREBASE_PROJECT_ID_PRODUCTION" ] && [ "$FIREBASE_TEST_LAB_PROJECT_ID" = "$FIREBASE_PROJECT_ID_PRODUCTION" ]; then
+            echo "Physical smoke must not target the production Firebase/GCP project." >&2
+            exit 1
+          fi
       - name: Authenticate Google Cloud
         uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093
         with:
           credentials_json: ${{ secrets.FIREBASE_TEST_LAB_SERVICE_ACCOUNT }}
       - name: Set up gcloud
         uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db
-      - name: Set up JDK 17
+      - name: Set up JDK 21
         uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6
         with:
           distribution: temurin
-          java-version: "17"
+          java-version: "21"
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6
         with:
           gradle-version: "9.3.1"
-      - name: Build instrumentation APKs
-        run: gradle clean assembleDebug assembleDebugAndroidTest --no-daemon --stacktrace -PallowMissingGoogleServices=true
+      - name: Materialize protected staging Android config
+        env:
+          GOOGLE_SERVICES_B64: ${{ secrets.GOOGLE_SERVICES_JSON_STAGING_BASE64 }}
+          MAPS_API_KEY: ${{ secrets.MAPS_API_KEY_STAGING }}
+        run: |
+          test -n "$GOOGLE_SERVICES_B64"
+          test -n "$MAPS_API_KEY"
+          mkdir -p app/src/staging
+          printf '%s' "$GOOGLE_SERVICES_B64" | base64 --decode > app/src/staging/google-services.json
+          printf 'MAPS_API_KEY=%s\n' "$MAPS_API_KEY" > .env
+      - name: Build staging instrumentation APKs
+        run: gradle clean assembleStaging assembleStagingAndroidTest --no-daemon --stacktrace
       - name: Select a physical Test Lab device
         id: device
         env:
           ANDROID_API: ${{ inputs.android_api }}
         run: |
-          gcloud firebase test android models list --format=json > "$RUNNER_TEMP/models.json"
+          gcloud firebase test android models list --project "$FIREBASE_TEST_LAB_PROJECT_ID" --format=json > "$RUNNER_TEMP/models.json"
           python3 - <<'PY' >> "$GITHUB_OUTPUT"
           import json, os
           models=json.load(open(os.environ["RUNNER_TEMP"]+"/models.json", encoding="utf-8"))
@@ -60,6 +76,12 @@ jobs:
           else:
               raise SystemExit("No physical Firebase Test Lab device supports Android API "+api)
           PY
-      - name: Run physical-device instrumentation smoke
+      - name: Run physical-device staging instrumentation smoke
         run: |
-          gcloud firebase test android run             --project "${{ inputs.gcp_project_id }}"             --type instrumentation             --app app/build/outputs/apk/debug/app-debug.apk             --test app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk             --device model="${{ steps.device.outputs.model }}",version="${{ inputs.android_api }}",locale=tr,orientation=portrait             --timeout 15m
+          gcloud firebase test android run \
+            --project "$FIREBASE_TEST_LAB_PROJECT_ID" \
+            --type instrumentation \
+            --app app/build/outputs/apk/staging/app-staging.apk \
+            --test app/build/outputs/apk/androidTest/staging/app-staging-androidTest.apk \
+            --device model="${{ steps.device.outputs.model }}",version="${{ inputs.android_api }}",locale=tr,orientation=portrait \
+            --timeout 15m

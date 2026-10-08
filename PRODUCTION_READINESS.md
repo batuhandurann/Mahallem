@@ -15,6 +15,13 @@ This repository treats a green pull-request CI as necessary but not sufficient f
 Staging environment:
 - `FIREBASE_SERVICE_ACCOUNT_STAGING`
 - `FIREBASE_TEST_LAB_SERVICE_ACCOUNT`
+- `GOOGLE_SERVICES_JSON_STAGING_BASE64`
+- `MAPS_API_KEY_STAGING`
+
+Staging protected variables:
+- `FIREBASE_PROJECT_ID_STAGING`
+- `FIREBASE_TEST_LAB_PROJECT_ID`
+- `FIREBASE_PROJECT_ID_PRODUCTION` (guardrail; must differ from staging/test)
 
 Production environment:
 - `ANDROID_KEYSTORE_BASE64`
