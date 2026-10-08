@@ -193,6 +193,13 @@ async function run() {
   });
   await assertFails(getBytes(ref(bob.storage("gs://" + bucket), chatPath), 64));
   await assertFails(getBytes(ref(alice.storage("gs://" + bucket), chatPath), 64));
+  const privateChatPath = "privateChatAttachments/chat-1/alice/grant-chat.jpg";
+  await env.withSecurityRulesDisabled(async (ctx) => {
+    await uploadBytes(ref(ctx.storage("gs://" + bucket), privateChatPath), validImage, { contentType: "image/png" });
+  });
+  await assertFails(getBytes(ref(bob.storage("gs://" + bucket), privateChatPath), 64));
+  await assertFails(getBytes(ref(alice.storage("gs://" + bucket), privateChatPath), 64));
+  await assertFails(uploadBytes(ref(alice.storage("gs://" + bucket), privateChatPath), validImage, { contentType: "image/png" }));
 
   await assertFails(
     uploadBytes(ref(alice.storage("gs://" + bucket), "chatAttachments/chat-1/alice/grant-chat.jpg"), validImage, {

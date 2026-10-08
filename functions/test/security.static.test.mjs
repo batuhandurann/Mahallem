@@ -137,7 +137,8 @@ assert.doesNotMatch(
 assert.doesNotMatch(storage, /allow read: if signedIn\(\);/);
 assert.match(storage, /match \/chatAttachments\/[^]*?allow read: if false;/);
 assert.match(source, /readChatAttachment = onCall/);
-assert.match(source, /firebaseStorageDownloadTokens: null/);
+assert.match(storage, /match \/privateChatAttachments\/[^]*?allow read, write: if false;/);
+assert.match(source, /privateObjectPath/);
 assert.match(
   storage,
   /match \/providers\/\{providerId\}\/\{allPaths=\*\*\} \{[\s\S]*?allow read, write, delete: if isAdmin\(\);/
