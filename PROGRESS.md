@@ -16,9 +16,17 @@ fetch current remote state because other sessions may advance the repository.
   Firestore accepts. Submission-time date/time still use the device's local zone.
 - Added unit regressions for successful/failed/hanging/cancelled cleanup,
   replacement-account protection, and Pacific/Apia + America/Sao_Paulo dates.
-- Local Android tests are NOT verified: wrapper download is network-blocked and
-  offline Gradle lacks the foojay resolver plugin. Required GitHub CI must prove
-  this new application source before merge; previous test results do not apply.
+- Application source `12450c5f0d44ebfcea2ee5022e446a17e34eef29` in
+  [PR #49](https://github.com/batuhandurann/Mahallem/pull/49) passed Android Quality
+  [#155](https://github.com/batuhandurann/Mahallem/actions/runs/37822569191) and
+  Security [#603](https://github.com/batuhandurann/Mahallem/actions/runs/37822569511).
+  New unit regressions, full unit/lint, debug APK, clean unsigned release APK/AAB,
+  backend/Auth/Rules/media and all required aliases passed. All 14 Android
+  instrumentation tests and foreground/rotation/process-death/cold-relaunch
+  smoke passed; both CodeQL languages and secret scan passed. Artifacts exist.
+  Local Android execution remains unverified: wrapper download is network-blocked
+  and offline Gradle lacks the foojay resolver plugin. CI is the test evidence.
+  This record-only update must pass the normal final-head checks before merge.
 - Physical-device and production Firebase checks remain unavailable. Next:
   complete the follow-up PR checks normally, then use protected real inputs for
   the existing production/physical-device plan.
