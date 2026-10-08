@@ -6,6 +6,9 @@ import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 import androidx.room.Room
 import androidx.room.RoomDatabase
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.withContext
 
 @Database(
     entities = [
@@ -29,43 +32,50 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
-        private const val DATABASE_NAME = "mahallemde_marketplace.db"
-
         @Volatile
         private var INSTANCE: AppDatabase? = null
 
-        fun clearLocalData() {
-            synchronized(this) {
-                INSTANCE?.let {
-                    it.clearAllTables()
-                    it.close()
-                }
-                INSTANCE = null
+        private var applicationContext: Context? = null
+
+        fun initialize(context: Context) {
+            applicationContext = context.applicationContext
+        }
+
+        suspend fun clearLocalData() = withContext(NonCancellable + Dispatchers.IO) {
+            synchronized(this@Companion) {
+                // Open a persisted database even when no screen accessed Room in this process.
+                val database = INSTANCE ?: applicationContext?.let { getDatabase(it) }
+                database?.clearAllTables()
+                // Keep DAO/Flow references valid; closing the shared singleton breaks returning users.
             }
         }
 
         /**
-         * Log-out cleanup must delete persisted rows even after a process restart,
-         * when INSTANCE is null. Call from a background dispatcher.
+         * Context-aware destructive cleanup for owners who explicitly need the on-disk
+         * database removed (such as account deletion). Call off the main thread.
+         * Normal account switching uses clearLocalData() to preserve DAO references.
          */
         fun clearLocalData(context: Context) {
             synchronized(this) {
                 INSTANCE?.close()
                 INSTANCE = null
                 val appContext = context.applicationContext
-                val deleted = appContext.deleteDatabase(DATABASE_NAME)
-                check(deleted || !appContext.getDatabasePath(DATABASE_NAME).exists()) {
+                val databaseName = "mahallemde_marketplace.db"
+                val deleted = appContext.deleteDatabase(databaseName)
+                check(deleted || !appContext.getDatabasePath(databaseName).exists()) {
                     "Yerel veritabanı silinemedi."
                 }
+                applicationContext = appContext
             }
         }
 
         fun getDatabase(context: Context): AppDatabase {
+            initialize(context)
             return INSTANCE ?: synchronized(this) {
                 INSTANCE ?: Room.databaseBuilder(
                     context.applicationContext,
                     AppDatabase::class.java,
-                    DATABASE_NAME
+                    "mahallemde_marketplace.db"
                 ).addMigrations(MIGRATION_3_4).build().also { INSTANCE = it }
             }
         }

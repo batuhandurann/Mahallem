@@ -1,17 +1,13 @@
 package com.example.auth
 
 import android.app.Activity
-import com.google.firebase.FirebaseApp
 import com.google.firebase.FirebaseException
-import com.example.data.local.AppDatabase
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.FirebaseAuthInvalidCredentialsException
 import com.google.firebase.auth.FirebaseUser
 import com.google.firebase.auth.PhoneAuthCredential
 import com.google.firebase.auth.PhoneAuthOptions
 import com.google.firebase.auth.PhoneAuthProvider
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
 import kotlinx.coroutines.tasks.await
 import java.util.concurrent.TimeUnit
 
@@ -60,8 +56,7 @@ class PhoneAuthRepository(
     suspend fun verifyCode(verificationId: String, code: String): Result<FirebaseUser> = runCatching {
         require(code.matches(Regex("^\\d{6}$"))) { "SMS kodu 6 haneli olmalı." }
         val credential = PhoneAuthProvider.getCredential(verificationId, code)
-        auth.signInWithCredential(credential).await().user
-            ?: error("Kullanıcı oturumu oluşturulamadı.")
+        signInWithCredential(credential)
     }.recoverCatching { error ->
         if (error is FirebaseAuthInvalidCredentialsException) {
             throw IllegalArgumentException("SMS kodu geçersiz.", error)
@@ -69,11 +64,14 @@ class PhoneAuthRepository(
         throw error
     }
 
-    suspend fun signOut() {
-        withContext(Dispatchers.IO) {
-            AppDatabase.clearLocalData(FirebaseApp.getInstance().applicationContext)
+    suspend fun signInWithCredential(credential: PhoneAuthCredential): FirebaseUser =
+        SessionOperations.authenticate {
+            auth.signInWithCredential(credential).await().user
+                ?: error("Kullanıcı oturumu oluşturulamadı.")
         }
-        auth.signOut()
+
+    suspend fun signOut() {
+        SessionOperations.signOut(endSession = { auth.signOut() })
     }
 
     private fun normalizeTurkishPhone(phone: String): String {

@@ -43,7 +43,7 @@ class AppDatabaseSingletonTest {
     }
 
     @Test
-    fun clearingOnIoClosesInstanceAndAllowsFreshRoomInstance() = runBlocking {
+    fun clearingOnIoPreservesSharedRoomForExistingDaoReferences() = runBlocking {
         val context = ApplicationProvider.getApplicationContext<Context>()
         withContext(Dispatchers.IO) { AppDatabase.clearLocalData() }
         try {
@@ -54,7 +54,7 @@ class AppDatabaseSingletonTest {
             val second = withContext(Dispatchers.IO) {
                 AppDatabase.getDatabase(context).also { it.openHelper.writableDatabase }
             }
-            assertNotSame(first, second)
+            assertSame(first, second)
         } finally {
             withContext(Dispatchers.IO) { AppDatabase.clearLocalData() }
         }
@@ -72,7 +72,7 @@ class AppDatabaseSingletonTest {
 
                 // Simulate a new-process logout with no currently open singleton.
                 AppDatabase.clearLocalData()
-                assertTrue("Old API leaves the file on disk", file.exists())
+                assertTrue("Account switching clears rows without invalidating DAO references", file.exists())
 
                 AppDatabase.clearLocalData(context)
                 assertFalse("Account data must not survive logout", file.exists())

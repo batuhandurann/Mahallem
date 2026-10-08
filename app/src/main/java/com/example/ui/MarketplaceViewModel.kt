@@ -18,6 +18,9 @@ import com.example.data.model.UrgencyMode
 import com.example.data.repository.MarketplaceRepository
 import com.example.core.AppEnvironment
 import com.example.payment.parseTryAmountMinor
+import com.example.validation.RequestFormInput
+import com.example.validation.RequestFormValidator
+import com.example.validation.RequestSchedule
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.delay
@@ -858,14 +861,28 @@ class MarketplaceViewModel(application: Application) : AndroidViewModel(applicat
                 && authPhone.isNotBlank()
                 && resolvedCustomerPhone == authPhone
 
+            val now = java.util.Date()
+            val validation = RequestFormValidator.validate(
+                RequestFormInput(
+                    title, district, date, time, address, customerName, resolvedCustomerPhone,
+                    areaSquareMeters,
+                    sector in setOf(SectorType.HOME_REPAIR, SectorType.CLEANING, SectorType.MOVING_ASSEMBLY),
+                    urgency == UrgencyMode.EMERGENCY
+                ), now
+            )
+            if (!validation.isValid) {
+                _toastMessage.value = validation.errors.joinToString(" ")
+                return@launch
+            }
+            val schedule = RequestSchedule.resolve(date, time, urgency == UrgencyMode.EMERGENCY, now)
             val entity = JobRequestEntity(
-                title = title,
+                title = title.trim(),
                 sector = sector.name,
                 categoryId = category.id,
                 district = district,
                 urgencyMode = urgency.name,
-                eventOrJobDate = date,
-                eventTime = time,
+                eventOrJobDate = schedule.date,
+                eventTime = schedule.time,
                 address = address,
                 status = "PENDING",
                 customerName = customerName.ifBlank { "Mahalle Sakini" },
