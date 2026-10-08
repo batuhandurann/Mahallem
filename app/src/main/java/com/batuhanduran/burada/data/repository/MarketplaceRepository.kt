@@ -282,9 +282,9 @@ class MarketplaceRepository(
         return id
     }
     fun getMessagesForConversation(convId: String): Flow<List<ChatMessageEntity>> = observe(
-        db.collection("conversations").document(convId).collection("messages").orderBy("createdAt", Query.Direction.DESCENDING).limit(ChatOrdering.RECENT_MESSAGE_LIMIT)
+        db.collection("conversations").document(convId).collection("messages").orderBy("createdAt")
     ) { doc -> decode(doc, ChatMessageEntity::class.java).copy(isFromMe = doc.getString("senderUid") == uid,
-        timestamp = doc.getTimestamp("createdAt")?.toDate()?.time ?: 0) }.map(ChatOrdering::oldestFirst)
+        timestamp = doc.getTimestamp("createdAt")?.toDate()?.time ?: 0) }
     suspend fun sendChatMessage(conversationId: String, senderName: String, text: String,
         isFromMe: Boolean, isOffer: Boolean = false, offerPrice: String = "",
         isVoiceNote: Boolean = false, voiceDurationSeconds: Int = 0,
