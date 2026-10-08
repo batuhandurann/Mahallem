@@ -61,6 +61,7 @@ fun MarketplaceApp(
     val searchSuggestions by viewModel.searchSuggestions.collectAsStateWithLifecycle()
     val selectedDistrict by viewModel.selectedDistrict.collectAsStateWithLifecycle()
     val providers by viewModel.providers.collectAsStateWithLifecycle()
+    val ownedProviders by viewModel.ownedProviders.collectAsStateWithLifecycle()
     val requests by viewModel.jobRequests.collectAsStateWithLifecycle()
     val myRequests by viewModel.myRequests.collectAsStateWithLifecycle()
     val quotes by viewModel.allQuotes.collectAsStateWithLifecycle()
@@ -355,7 +356,7 @@ fun MarketplaceApp(
 
                 is ScreenDestination.ProviderDashboard -> {
                     ProviderDashboardScreen(
-                        providers = providers.filter { it.ownerUid == viewModel.currentUid },
+                        providers = ownedProviders,
                         requests = requests.filter { it.ownerUid != viewModel.currentUid && it.status == "PENDING" },
                         onBackClick = { viewModel.navigateBack() },
                         onToggleOffers = { pId, status ->
