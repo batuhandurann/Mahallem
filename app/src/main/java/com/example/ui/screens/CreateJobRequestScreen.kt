@@ -30,6 +30,9 @@ import com.example.ui.components.getCategoryIcon
 import com.example.ui.theme.*
 import com.example.validation.RequestFormInput
 import com.example.validation.RequestFormValidator
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
@@ -76,8 +79,8 @@ fun CreateJobRequestScreen(
     var districtMenuExpanded by remember { mutableStateOf(false) }
 
     var title by remember { mutableStateOf("") }
-    var date by remember { mutableStateOf(if (isEmergencyPreselected) "Hemen / Bugün" else "2026-10-18") }
-    var time by remember { mutableStateOf(if (isEmergencyPreselected) "En geç 1 saat içinde" else "14:00") }
+    var date by remember { mutableStateOf(SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date())) }
+    var time by remember { mutableStateOf(SimpleDateFormat("HH:mm", Locale.US).format(Date())) }
     var address by remember { mutableStateOf("") }
     var customerName by remember { mutableStateOf("") }
     var customerPhone by remember { mutableStateOf("") }
