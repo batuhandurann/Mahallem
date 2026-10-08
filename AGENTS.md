@@ -16,6 +16,8 @@ Bu dosya repo genelinde geçerlidir. Kullanıcının güncel talimatları öncel
 - APK/AAB oluşması, test geçmesi, merge ve deployment ayrı aşamalardır. İmzasız veya eksik servis yapılandırmalı build'i üretime hazır sayma.
 - Secrets, servis hesabı dosyaları, imzalama anahtarları ve token'ları kaynak koda, rapora veya loga koyma.
 - Paylaşılan dala yazmadan hemen önce güncel head'i kontrol et. Normal fast-forward/expected-head kontrolü kullan; başka değişiklikleri ezme.
+- P0 entegrasyonu için PR hedefi `qa/mahallem-test-suite` ve durum Draft olmalı. `main` push, otomatik merge, deploy ve secret değişikliği yapma. Issue #11'de kapsamı ve sonucu kaydet.
+- Gradle çalıştırmadan önce `python3 scripts/verify-gradle-wrapper.py` ile pinleri kontrol et; build için `./gradlew` kullan. QA hedefli PR'da CodeQL ve Secret scan yoksa P0 tamamlandı deme.
 
 ## Her görevin sonunda
 - `PROGRESS.md` içindeki kısa özeti güncelle: tamamlanan işler, kanıtlı testler, açık sorun/engeller ve tek sıradaki görev.

@@ -28,3 +28,12 @@ Bu doküman görevi için içerik ve `git diff --check` kontrolü yapıldı. Uyg
 
 ## Sıradaki tek görev
 Mevcut staging/physical-smoke workflow ve testlerini incele; iki hesapla tüm auth/lifecycle senaryolarını çalıştırıp cihaz, commit ve test raporunu kaydet. Cihaz veya güvenli config yoksa engeli açıkça yaz; tamamlandı işaretleme.
+
+## P0 entegrasyon çalışması — 2026-10-08
+- Ayrı dal: `agent/qa-ci-p0-integration-20261008`, taban `10422de8d3b4bd53b97f8b24ae62a2bfa9a92b2e`. Eski başarılı CI bu yeni yamaların kanıtı değildir.
+- Hazırlanan `59d45cc` wrapper yaması güncel QA'ya port edildi; QA/CodeQL build'leri wrapper kullanır. Security PR filtresine QA hedefi eklendi; JDK 21, wrapper JAR SHA-256 ve Gradle dağıtım SHA-256 pinleri doğrulanır.
+- PR #14'ün build evidence doğrulayıcısı ve 6 testi yeniden kullanıldı; sahte/eksik APK/AAB, eksik DEX ve farklı checkout SHA reddedilir.
+- PASS: `python3 -m unittest discover -s scripts/tests -v` 12/12, wrapper checksum ve Bash syntax, `git diff --check`. Wrapper pinleri resmi Gradle 9.3.1 checksum endpointleriyle karşılaştırıldı.
+- NOT RUN: yeni commit'in Android CI, signed production, fiziksel cihaz ve gerçek staging doğrulamaları. CI sonuçları geldikten sonra bu kayıt güncellenecek.
+- Main ruleset #24702630 aktif, sekiz check zorunlu, strict=true, bypass yok. QA hedef dalına aynı korumanın uygulandığı henüz kanıtlanmadı; başarısız merge denemesi yapılmadı (merge yasak).
+- Sonraki iş: production feed helper bağlantısı ve güvenli sohbet medya erişim iptali için üretim kodu/negatif testler.
