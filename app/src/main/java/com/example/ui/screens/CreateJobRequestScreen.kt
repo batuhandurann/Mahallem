@@ -28,11 +28,9 @@ import com.example.data.model.UrgencyMode
 import com.example.ui.components.DISTRICT_OPTIONS
 import com.example.ui.components.getCategoryIcon
 import com.example.ui.theme.*
+import com.example.validation.RequestDateTimeDefaults
 import com.example.validation.RequestFormInput
 import com.example.validation.RequestFormValidator
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
@@ -79,8 +77,10 @@ fun CreateJobRequestScreen(
     var districtMenuExpanded by remember { mutableStateOf(false) }
 
     var title by remember { mutableStateOf("") }
-    var date by remember { mutableStateOf(SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date())) }
-    var time by remember { mutableStateOf(SimpleDateFormat("HH:mm", Locale.US).format(Date())) }
+    // Emergency is conveyed by urgency; date and time must remain machine-readable.
+    val initialDateTime = remember { RequestDateTimeDefaults.at() }
+    var date by remember { mutableStateOf(initialDateTime.first) }
+    var time by remember { mutableStateOf(initialDateTime.second) }
     var address by remember { mutableStateOf("") }
     var customerName by remember { mutableStateOf("") }
     var customerPhone by remember { mutableStateOf("") }
