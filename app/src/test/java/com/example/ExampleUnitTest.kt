@@ -37,4 +37,13 @@ class ExampleUnitTest {
     )
   }
 
+  @Test
+  fun marketplaceViewModelKey_isolatedPerAuthenticatedUid() {
+    assertNotEquals(
+      marketplaceViewModelKey("uid-alice"),
+      marketplaceViewModelKey("uid-batuhan")
+    )
+    assertEquals("marketplace-local", marketplaceViewModelKey(""))
+  }
+
 }

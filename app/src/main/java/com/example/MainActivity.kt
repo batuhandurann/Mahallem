@@ -103,7 +103,7 @@ fun MarketplaceApp(
     onNotificationNavigationConsumed: () -> Unit = {}
 ) {
     if (AppEnvironment.mode == AppEnvironment.Mode.LOCAL) {
-        MarketplaceContent()
+        MarketplaceContent(sessionKey = "local")
         return
     }
 
@@ -206,6 +206,7 @@ fun MarketplaceApp(
                 }
             }
             MarketplaceContent(
+                sessionKey = currentUser!!.uid,
                 notificationConversationId = notificationConversationId,
                 notificationOpenMyRequests = notificationOpenMyRequests,
                 onNotificationNavigationConsumed = onNotificationNavigationConsumed
@@ -214,9 +215,13 @@ fun MarketplaceApp(
     }
 }
 
+internal fun marketplaceViewModelKey(sessionKey: String): String =
+    "marketplace-" + sessionKey.ifBlank { "local" }
+
 @Composable
 private fun MarketplaceContent(
-    viewModel: MarketplaceViewModel = viewModel(),
+    sessionKey: String,
+    viewModel: MarketplaceViewModel = viewModel(key = marketplaceViewModelKey(sessionKey)),
     notificationConversationId: String? = null,
     notificationOpenMyRequests: Boolean = false,
     onNotificationNavigationConsumed: () -> Unit = {}
