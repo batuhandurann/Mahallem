@@ -51,15 +51,17 @@ sealed class ScreenDestination {
 class MarketplaceViewModel(application: Application) : AndroidViewModel(application) {
 
     private val paymentIdempotencyKeys = mutableMapOf<String, String>()
-    private val repository: MarketplaceRepository
+    private val repository: MarketplaceRepository by lazy(LazyThreadSafetyMode.NONE) {
+        MarketplaceRepository(AppDatabase.getDatabase(getApplication()).appDao())
+    }
     private val cloudRepository = com.example.backend.CloudMarketplaceRepository()
     private val cloudChatRepository = com.example.backend.CloudChatRepository()
 
     init {
-        val database = AppDatabase.getDatabase(application)
-        repository = MarketplaceRepository(database.appDao())
-        viewModelScope.launch {
-            repository.checkAndSeedInitialData()
+        if (AppEnvironment.mode == AppEnvironment.Mode.LOCAL) {
+            viewModelScope.launch {
+                repository.checkAndSeedInitialData()
+            }
         }
     }
 
