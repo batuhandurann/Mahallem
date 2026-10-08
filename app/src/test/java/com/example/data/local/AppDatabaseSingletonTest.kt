@@ -5,6 +5,7 @@ import androidx.test.core.app.ApplicationProvider
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
+import org.junit.Assert.assertNotSame
 import org.junit.Assert.assertSame
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -35,6 +36,24 @@ class AppDatabaseSingletonTest {
             databases.drop(1).forEach { assertSame(databases.first(), it) }
         } finally {
             executor.shutdownNow()
+            withContext(Dispatchers.IO) { AppDatabase.clearLocalData() }
+        }
+    }
+
+    @Test
+    fun clearingOnIoClosesInstanceAndAllowsFreshRoomInstance() = runBlocking {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        withContext(Dispatchers.IO) { AppDatabase.clearLocalData() }
+        try {
+            val first = withContext(Dispatchers.IO) {
+                AppDatabase.getDatabase(context).also { it.openHelper.writableDatabase }
+            }
+            withContext(Dispatchers.IO) { AppDatabase.clearLocalData() }
+            val second = withContext(Dispatchers.IO) {
+                AppDatabase.getDatabase(context).also { it.openHelper.writableDatabase }
+            }
+            assertNotSame(first, second)
+        } finally {
             withContext(Dispatchers.IO) { AppDatabase.clearLocalData() }
         }
     }
