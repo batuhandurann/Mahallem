@@ -55,7 +55,13 @@ class AuthViewModel(private val auth: FirebaseAuth = com.batuhanduran.burada.dat
         val validationError = AuthValidation.emailError(email)
             ?: AuthValidation.passwordError(password, registering = false)
         perform(validationError) {
-            auth.signInWithEmailAndPassword(email.trim(), password).awaitResult()
+            auth.signInWithEmailAndPassword(email.trim(), password).awaitResult { abandonedResult ->
+                // Firebase Auth Tasks cannot be cancelled. If this screen is destroyed
+                // while login is in flight, undo any late successful sign-in for that UID.
+                abandonedResult.user?.let { signedInUser ->
+                    if (auth.currentUser?.uid == signedInUser.uid) auth.signOut()
+                }
+            }
         }
     }
 
@@ -190,7 +196,7 @@ private fun FirebaseUser.asAuthUser() = AuthUser(
 
 private class RegistrationProfileException(message: String, cause: Throwable) : Exception(message, cause)
 
-private fun Exception.asTurkishMessage(): String = when (this) {
+internal fun Exception.asTurkishMessage(): String = when (this) {
     is RegistrationProfileException -> message ?: "Hesabınızın adı kaydedilemedi."
     is FirebaseNetworkException -> "Bağlantı kurulamadı. İnternet bağlantınızı kontrol edip yeniden deneyin."
     is FirebaseTooManyRequestsException -> "Çok fazla deneme yapıldı. Bir süre bekleyip yeniden deneyin."
@@ -210,7 +216,7 @@ private fun Exception.asTurkishMessage(): String = when (this) {
 }
 
 /** Wait without introducing the deprecated Firebase KTX or a new coroutine dependency. */
-private suspend fun <T> Task<T>.awaitResult(onAbandonedSuccess: ((T) -> Unit)? = null): T =
+internal suspend fun <T> Task<T>.awaitResult(onAbandonedSuccess: ((T) -> Unit)? = null): T =
     suspendCancellableCoroutine { continuation ->
         addOnCompleteListener { task ->
             if (!continuation.isActive) {
