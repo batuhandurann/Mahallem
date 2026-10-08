@@ -5,6 +5,9 @@ on:
   workflow_dispatch:
 permissions:
   contents: read
+concurrency:
+  group: android-quality-${{ github.event_name }}-${{ github.head_ref || github.ref_name }}
+  cancel-in-progress: true
 jobs:
   build-test-lint:
     name: build-test-lint
@@ -37,6 +40,59 @@ jobs:
             app/build/outputs/apk/debug/
             app/build/outputs/apk/androidTest/debug/
             app/build/test-results/
+  release-build:
+    name: release-build
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: android-actions/setup-android@9fc6c4e9069bf8d3d10b2204b1fb8f6ef7065407
+        with:
+          cmdline-tools-version: 13114758
+          packages: platform-tools
+      - run: sdkmanager 'platforms;android-36.1' 'build-tools;36.0.0'
+      - uses: gradle/actions/wrapper-validation@3f5f9adaf7d9fecd50b5935e54106014257a94e6
+      - uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6
+      - name: Clean unsigned release APK and AAB (CI-only; not installable production evidence)
+        run: ./gradlew --no-daemon clean :app:assembleRelease :app:bundleRelease -PciUnsignedRelease=true
+      - name: Verify both release artifacts have bytes
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -s app/build/outputs/apk/release/app-release-unsigned.apk
+          test -s app/build/outputs/bundle/release/app-release.aab
+          sha256sum app/build/outputs/apk/release/app-release-unsigned.apk app/build/outputs/bundle/release/app-release.aab
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: success()
+        with:
+          name: ci-unsigned-release-not-for-distribution
+          path: |
+            app/build/outputs/apk/release/app-release-unsigned.apk
+            app/build/outputs/bundle/release/app-release.aab
+          if-no-files-found: error
+  ui-tests:
+    name: ui-tests
+    needs: [android-emulator, build-test-lint, auth-rules, release-build]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Enforce ALL P0 jobs through main-required ui-tests check
+        env:
+          ANDROID_EMULATOR_RESULT: ${{ needs.android-emulator.result }}
+          DEBUG_UNIT_LINT_RESULT: ${{ needs.build-test-lint.result }}
+          FIREBASE_AUTH_RULES_RESULT: ${{ needs.auth-rules.result }}
+          RELEASE_RESULT: ${{ needs.release-build.result }}
+        run: |
+          test "$ANDROID_EMULATOR_RESULT" = success
+          test "$DEBUG_UNIT_LINT_RESULT" = success
+          test "$FIREBASE_AUTH_RULES_RESULT" = success
+          test "$RELEASE_RESULT" = success
   auth-rules:
     name: auth-rules
     runs-on: ubuntu-latest
@@ -108,7 +164,7 @@ jobs:
   required-checks:
     name: required-checks
     if: always()
-    needs: [build-test-lint, auth-rules, android-emulator]
+    needs: [build-test-lint, auth-rules, android-emulator, release-build, ui-tests]
     runs-on: ubuntu-latest
     steps:
       - name: Require every gate to succeed
@@ -116,4 +172,6 @@ jobs:
           BUILD: ${{ needs.build-test-lint.result }}
           RULES: ${{ needs.auth-rules.result }}
           EMULATOR: ${{ needs.android-emulator.result }}
-        run: test "$BUILD" = success && test "$RULES" = success && test "$EMULATOR" = success
+          RELEASE: ${{ needs.release-build.result }}
+          UI: ${{ needs.ui-tests.result }}
+        run: test "$BUILD" = success && test "$RULES" = success && test "$EMULATOR" = success && test "$RELEASE" = success && test "$UI" = success
