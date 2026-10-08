@@ -8,7 +8,7 @@ import { doc, setDoc } from "firebase/firestore";
 import { ref, uploadBytes, getBytes } from "firebase/storage";
 
 const rules = readFileSync(new URL("../../storage.rules", import.meta.url), "utf8");
-const projectId = process.env.FIREBASE_PROJECT_ID || "mahallem-rules-test";
+const projectId = process.env.FIREBASE_PROJECT_ID || "demo-mahallem-rules-test";
 const bucket = projectId + ".appspot.com";
 
 const env = await initializeTestEnvironment({
@@ -183,9 +183,23 @@ async function run() {
     });
   });
 
-  await assertSucceeds(
+  // All private chat reads must go through the live-authorizing callable.
+  await assertFails(
     getBytes(ref(bob.storage("gs://" + bucket), chatPath), 64)
   );
+
+  await env.withSecurityRulesDisabled(async (ctx) => {
+    await setDoc(doc(ctx.firestore(), "conversations/chat-1"), { participantIds: ["alice"] });
+  });
+  await assertFails(getBytes(ref(bob.storage("gs://" + bucket), chatPath), 64));
+  await assertFails(getBytes(ref(alice.storage("gs://" + bucket), chatPath), 64));
+  const privateChatPath = "privateChatAttachments/chat-1/alice/grant-chat.jpg";
+  await env.withSecurityRulesDisabled(async (ctx) => {
+    await uploadBytes(ref(ctx.storage("gs://" + bucket), privateChatPath), validImage, { contentType: "image/png" });
+  });
+  await assertFails(getBytes(ref(bob.storage("gs://" + bucket), privateChatPath), 64));
+  await assertFails(getBytes(ref(alice.storage("gs://" + bucket), privateChatPath), 64));
+  await assertFails(uploadBytes(ref(alice.storage("gs://" + bucket), privateChatPath), validImage, { contentType: "image/png" }));
 
   await assertFails(
     uploadBytes(ref(alice.storage("gs://" + bucket), "chatAttachments/chat-1/alice/grant-chat.jpg"), validImage, {

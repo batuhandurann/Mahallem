@@ -12,7 +12,7 @@ assert.match(
 
 const onCallCount = (source.match(/export const [A-Za-z0-9_]+ = onCall\(/g) || []).length;
 const appCheckCount = (source.match(/enforceAppCheck:\s*true/g) || []).length;
-assert.equal(onCallCount, 27, "Unexpected callable-function count; review App Check coverage.");
+assert.equal(onCallCount, 28, "Unexpected callable-function count; review App Check coverage.");
 assert.equal(appCheckCount, onCallCount, "Every callable function must enforce App Check.");
 
 assert.match(source, /hashDeviceToken/);
@@ -135,6 +135,10 @@ assert.doesNotMatch(
   /match \/users\/\{uid\}\/images\/\{grantId\}\.jpg/
 );
 assert.doesNotMatch(storage, /allow read: if signedIn\(\);/);
+assert.match(storage, /match \/chatAttachments\/[^]*?allow read: if false;/);
+assert.match(source, /readChatAttachment = onCall/);
+assert.match(storage, /match \/privateChatAttachments\/[^]*?allow read, write: if false;/);
+assert.match(source, /privateObjectPath/);
 assert.match(
   storage,
   /match \/providers\/\{providerId\}\/\{allPaths=\*\*\} \{[\s\S]*?allow read, write, delete: if isAdmin\(\);/

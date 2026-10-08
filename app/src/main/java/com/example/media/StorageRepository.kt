@@ -55,6 +55,9 @@ class StorageRepository(
             )
         )
     }
+
+    /** Reauthorize every private read; do not cache URLs or authorization. */
+    suspend fun readChatImage(path: String): ByteArray = functions.readChatAttachment(path)
     suspend fun uploadJobRequestImage(
         ownerUid: String,
         requestId: String,

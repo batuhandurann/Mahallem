@@ -913,6 +913,79 @@ export const issueImageUploadGrant = onCall(
   }
 );
 
+/** Private bytes only; no bearer download URL that survives membership removal. */
+export const readChatAttachment = onCall(
+  { enforceAppCheck: true },
+  async (request) => {
+    if (!request.auth) throw new HttpsError("unauthenticated", "Kimlik doğrulaması gerekli.");
+    const uid = request.auth.uid;
+    const data = callableData(request.data);
+    const path = requireString(data, "path", 320, 1);
+    const match = /^chatAttachments\/([a-f0-9]{64})\/([A-Za-z0-9_-]{1,80})\/([A-Za-z0-9_-]{1,80})\.jpg$/.exec(path);
+    if (!match) throw new HttpsError("invalid-argument", "Geçersiz sohbet medya yolu.");
+    const [, conversationId, senderUid, grantId] = match;
+    const privatePath = path.replace(/^chatAttachments\//, "privateChatAttachments/");
+
+    const authorize = async () => {
+      await assertAccountActive(uid);
+      await db.runTransaction(async (tx) => {
+        const [conversationSnap, grantSnap] = await Promise.all([
+          tx.get(db.collection("conversations").doc(conversationId!)),
+          tx.get(db.collection("users").doc(senderUid!).collection("uploadGrants").doc(grantId!)),
+        ]);
+        const participants = conversationSnap.data()?.participantIds;
+        const grant = grantSnap.data();
+        if (!conversationSnap.exists || !Array.isArray(participants)
+          || !participants.includes(uid) || !participants.includes(senderUid)
+          || !grantSnap.exists || grant?.ownerUid !== senderUid || grant?.kind !== "CHAT"
+          || grant?.conversationId !== conversationId || grant?.validated !== true
+          || grant?.privateObjectPath !== privatePath) {
+          throw new HttpsError("permission-denied", "Bu sohbet medyasına erişemezsiniz.");
+        }
+        for (const otherUid of participants) {
+          if (typeof otherUid !== "string" || !ID_PATTERN.test(otherUid)) {
+            throw new HttpsError("permission-denied", "Geçersiz sohbet üyeliği.");
+          }
+          if (otherUid === uid) continue;
+          const [outgoingBlock, incomingBlock] = await Promise.all([
+            tx.get(db.collection("users").doc(uid).collection("blockedUsers").doc(otherUid)),
+            tx.get(db.collection("users").doc(otherUid).collection("blockedUsers").doc(uid)),
+          ]);
+          if (outgoingBlock.exists || incomingBlock.exists) {
+            throw new HttpsError("permission-denied", "Bu kullanıcıyla medya paylaşımı engellendi.");
+          }
+        }
+      });
+    };
+
+    await authorize();
+    const rateRef = db.collection("rateLimits").doc("chat-media-read:" + uid);
+    const now = Date.now();
+    await db.runTransaction(async (tx) => {
+      const snap = await tx.get(rateRef);
+      const rate = snap.data() ?? {};
+      const start = Number(rate.windowStartMs ?? 0);
+      const active = Number.isSafeInteger(start) && now >= start && now - start < 60_000;
+      const count = Number(rate.count ?? 0);
+      if (active && count >= 30) throw new HttpsError("resource-exhausted", "Medya okuma kotasına ulaşıldı.");
+      tx.set(rateRef, { windowStartMs: active ? start : now, count: active ? count + 1 : 1 });
+    });
+
+    const file = getStorage().bucket().file(privatePath);
+    const [metadata] = await file.getMetadata();
+    const size = Number(metadata.size);
+    if (!Number.isSafeInteger(size) || size <= 0 || size > 5 * 1024 * 1024
+      || !["image/jpeg", "image/png", "image/webp"].includes(String(metadata.contentType))) {
+      throw new HttpsError("failed-precondition", "Medya dosyası geçersiz.");
+    }
+    const [bytes] = await file.download({ start: 0, end: 5 * 1024 * 1024 });
+    if (bytes.length !== size) throw new HttpsError("failed-precondition", "Medya boyutu değişti.");
+    // Recheck after I/O so an intervening revocation is not hidden by a snapshot.
+    await authorize();
+    return { base64: bytes.toString("base64"), contentType: metadata.contentType };
+  }
+);
+
 export const registerDeviceToken = onCall(
   { enforceAppCheck: true },
   async (request) => {
@@ -2447,6 +2520,7 @@ async function anonymizeAccount(uid: string): Promise<void> {
     "availability-hour:" + uid,
     "conversation-read:" + uid,
     "conversation-read-hour:" + uid,
+    "chat-media-read:" + uid,
     "block-day:" + uid,
     "favorite-hour:" + uid,
   ];
@@ -2484,6 +2558,12 @@ async function anonymizeAccount(uid: string): Promise<void> {
       await bucket.file(objectPath).delete().catch((error: { code?: number }) => {
         if (error.code !== 404) throw error;
       });
+      if (kind === "CHAT") {
+        // Derive the path from trusted identifiers; never delete an arbitrary
+        // stored path while purging a user.
+        const privatePath = objectPath.replace(/^chatAttachments\//, "privateChatAttachments/");
+        await bucket.file(privatePath).delete({ ignoreNotFound: true });
+      }
     }));
   });
 
@@ -2955,6 +3035,30 @@ export const validateUploadedImage = onObjectFinalized(
       return;
     }
 
+    // Firebase upload objects can have persistent bearer tokens. Move validated
+    // bytes through the GCS Admin API to a server-only object, then DELETE the
+    // upload object before marking the grant ready. A known old upload token
+    // cannot download a deleted object; private bytes have no bearer URL.
+    if (parts[0] === "chatAttachments") {
+      const conversationSnap = await db.collection("conversations").doc(parts[1]!).get();
+      const participants = conversationSnap.data()?.participantIds;
+      if (grant.ownerUid !== uid || grant.kind !== "CHAT" || grant.conversationId !== parts[1]
+        || !conversationSnap.exists || !Array.isArray(participants) || !participants.includes(uid)) {
+        await file.delete({ ignoreNotFound: true });
+        await grantRef.set({ validated: false, rejectedAt: FieldValue.serverTimestamp() }, { merge: true });
+        return;
+      }
+      const privateObjectPath = name.replace(/^chatAttachments\//, "privateChatAttachments/");
+      const [bytes] = await file.download({ start: 0, end: 5 * 1024 * 1024 });
+      if (bytes.length !== size) throw new Error("Chat upload changed during validation");
+      await getStorage().bucket(object.bucket).file(privateObjectPath).save(bytes, {
+        resumable: false,
+        metadata: { contentType, cacheControl: "private, no-store" },
+      });
+      await file.delete({ ignoreNotFound: true });
+      await grantRef.set({ validated: true, privateObjectPath, validatedAt: FieldValue.serverTimestamp() }, { merge: true });
+      return;
+    }
     await grantRef.set({ validated: true, validatedAt: FieldValue.serverTimestamp() }, { merge: true });
   }
 );

@@ -131,12 +131,10 @@ service firebase.storage {
     }
 
     match /chatAttachments/{conversationId}/{senderUid}/{fileName} {
-      allow read: if accountActive(request.auth.uid)
-        && validImageFileName(fileName)
-        && validChatGrant(senderUid, conversationId, filenameGrantId(fileName))
-        && firestore.get(
-          /databases/(default)/documents/users/$(senderUid)/uploadGrants/$(filenameGrantId(fileName))
-        ).data.validated == true;
+      // The callable rechecks live membership, account state, blocks and grant
+      // validation without Storage's two-Firestore-document limit. Never issue
+      // a download token or signed URL for this private namespace.
+      allow read: if false;
 
       allow write: if accountActive(senderUid)
         && request.auth.uid == senderUid
@@ -149,6 +147,11 @@ service firebase.storage {
         || (accountActive(senderUid)
           && request.auth.uid == senderUid
           && validImageFileName(fileName));
+    }
+
+    // Only trusted Admin SDK handlers can access the final private media.
+    match /privateChatAttachments/{allPaths=**} {
+      allow read, write: if false;
     }
 
     // Legacy namespace: current app media uses grant-scoped paths above.

@@ -1,0 +1,127 @@
+{
+  "observed_at": "2026-10-08T18:19:33.268Z",
+  "run": {
+    "id": 37822941864,
+    "url": "https://github.com/batuhandurann/Mahallem/actions/runs/37822941864",
+    "head_sha": "887acb54bac92d6e52336f5b25e5f04a64ce5ce1",
+    "event": "workflow_dispatch",
+    "status": "completed",
+    "conclusion": "failure"
+  },
+  "job": {
+    "id": 113468364144,
+    "steps": [
+      {
+        "name": "Set up job",
+        "status": "completed",
+        "conclusion": "success",
+        "number": 1
+      },
+      {
+        "name": "Require reviewed main before accessing production signing inputs",
+        "status": "completed",
+        "conclusion": "success",
+        "number": 2
+      },
+      {
+        "name": "Checkout",
+        "status": "completed",
+        "conclusion": "success",
+        "number": 3
+      },
+      {
+        "name": "Set up JDK 21",
+        "status": "completed",
+        "conclusion": "success",
+        "number": 4
+      },
+      {
+        "name": "Set up Android SDK",
+        "status": "completed",
+        "conclusion": "success",
+        "number": 5
+      },
+      {
+        "name": "Run sdkmanager 'platforms;android-36.1' 'build-tools;36.0.0'",
+        "status": "completed",
+        "conclusion": "success",
+        "number": 6
+      },
+      {
+        "name": "Run gradle/actions/wrapper-validation@3f5f9adaf7d9fecd50b5935e54106014257a94e6",
+        "status": "completed",
+        "conclusion": "success",
+        "number": 7
+      },
+      {
+        "name": "Run gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6",
+        "status": "completed",
+        "conclusion": "success",
+        "number": 8
+      },
+      {
+        "name": "Materialize protected production config and upload signing key",
+        "status": "completed",
+        "conclusion": "failure",
+        "number": 9
+      },
+      {
+        "name": "Clean signed APK and AAB (real Firebase config, no CI bypass)",
+        "status": "completed",
+        "conclusion": "skipped",
+        "number": 10
+      },
+      {
+        "name": "Verify both artifact signatures against the protected upload key",
+        "status": "completed",
+        "conclusion": "skipped",
+        "number": 11
+      },
+      {
+        "name": "Upload signed release evidence (manual, no Play deployment)",
+        "status": "completed",
+        "conclusion": "skipped",
+        "number": 12
+      },
+      {
+        "name": "Delete temporary signing material and Firebase config",
+        "status": "completed",
+        "conclusion": "success",
+        "number": 13
+      },
+      {
+        "name": "Post Run gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6",
+        "status": "completed",
+        "conclusion": "success",
+        "number": 24
+      },
+      {
+        "name": "Post Set up JDK 21",
+        "status": "completed",
+        "conclusion": "success",
+        "number": 25
+      },
+      {
+        "name": "Post Checkout",
+        "status": "completed",
+        "conclusion": "success",
+        "number": 26
+      },
+      {
+        "name": "Complete job",
+        "status": "completed",
+        "conclusion": "success",
+        "number": 27
+      }
+    ]
+  },
+  "failure": "Missing protected GOOGLE_SERVICES_JSON_BASE64",
+  "artifacts": [],
+  "scope": "Signing build only; no main push, merge, deployment or secret modification.",
+  "not_run": [
+    "Signed APK/AAB build",
+    "Artifact signature verification",
+    "Approved Firebase project identity verification",
+    "Play Console approved upload certificate match"
+  ]
+}

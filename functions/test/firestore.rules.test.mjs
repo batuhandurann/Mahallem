@@ -9,7 +9,7 @@ import { doc, setDoc, getDoc, getDocs, collection, query, limit, deleteDoc, upda
 
 const rules = readFileSync(new URL("../../firestore.rules", import.meta.url), "utf8");
 
-const projectId = process.env.FIREBASE_PROJECT_ID || "mahallem-rules-test";
+const projectId = process.env.FIREBASE_PROJECT_ID || "demo-mahallem-rules-test";
 
 const env = await initializeTestEnvironment({
   projectId,

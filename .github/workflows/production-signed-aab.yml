@@ -36,6 +36,9 @@ jobs:
       KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
       PRIVACY_POLICY_URL: ${{ inputs.privacy_policy_url }}
       ACCOUNT_DELETION_URL: ${{ inputs.account_deletion_url }}
+      APPROVED_FIREBASE_PROJECT_ID: ${{ vars.FIREBASE_PROJECT_ID_PRODUCTION }}
+      APPROVED_ANDROID_APPLICATION_ID: ${{ vars.ANDROID_APPLICATION_ID_PRODUCTION }}
+      APPROVED_UPLOAD_CERT_SHA256: ${{ vars.ANDROID_UPLOAD_CERT_SHA256_PRODUCTION }}
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
@@ -48,8 +51,8 @@ jobs:
           java-version: "21"
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6
-        with:
-          gradle-version: "9.3.1"
+      - name: Verify pinned Gradle wrapper
+        run: python3 scripts/verify-gradle-wrapper.py
       - name: Production release preflight
         run: python3 scripts/production-preflight.py
       - name: Materialize protected production config
@@ -67,12 +70,14 @@ jobs:
           printf '%s' "$GOOGLE_SERVICES_B64" | base64 --decode > app/google-services.json
           printf 'MAPS_API_KEY=%s\n' "$MAPS_API_KEY" > .env
       - name: Build signed production AAB
-        run: gradle clean bundleRelease --no-daemon --stacktrace
+        run: |
+          python3 scripts/verify-release-identity.py config
+          ./gradlew clean bundleRelease --no-daemon --stacktrace
       - name: Verify AAB signature and checksum
         run: |
           AAB=app/build/outputs/bundle/release/app-release.aab
           test -f "$AAB"
-          jarsigner -verify -strict "$AAB"
+          python3 scripts/verify-release-identity.py signed
           sha256sum "$AAB" | tee app/build/outputs/bundle/release/app-release.aab.sha256
       - name: Upload signed release evidence
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
@@ -82,4 +87,5 @@ jobs:
             app/build/outputs/bundle/release/app-release.aab
             app/build/outputs/bundle/release/app-release.aab.sha256
             app/build/outputs/mapping/release/mapping.txt
+            app/build/reports/release-identity.json
           if-no-files-found: error
