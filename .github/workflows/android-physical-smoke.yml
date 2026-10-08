@@ -1,0 +1,90 @@
+name: Android Physical Test Lab Smoke
+
+on:
+  workflow_dispatch:
+    inputs:
+      gcp_project_id:
+        description: Isolated staging GCP project with Firebase Test Lab and billing enabled
+        type: string
+        required: true
+      android_api:
+        description: Physical Android API level
+        type: string
+        required: true
+        default: '35'
+
+permissions:
+  contents: read
+
+jobs:
+  physical-smoke:
+    name: physical-smoke
+    environment: staging
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: android-actions/setup-android@9fc6c4e9069bf8d3d10b2204b1fb8f6ef7065407
+        with:
+          cmdline-tools-version: 13114758
+          packages: platform-tools
+      - run: sdkmanager 'platforms;android-36.1' 'build-tools;36.0.0'
+      - uses: gradle/actions/wrapper-validation@3f5f9adaf7d9fecd50b5935e54106014257a94e6
+      - uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6
+      - name: Build isolated emulator-mode instrumentation APKs
+        run: ./gradlew --no-daemon -PfirebaseEmulators=true clean :app:assembleDebug :app:assembleDebugAndroidTest
+      - name: Authenticate staging-only Firebase Test Lab
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093
+        with:
+          credentials_json: ${{ secrets.FIREBASE_TEST_LAB_SERVICE_ACCOUNT }}
+      - name: Configure gcloud
+        uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db
+      - name: Select available physical Android model
+        id: model
+        env:
+          ANDROID_API: ${{ inputs.android_api }}
+          PROJECT_ID: ${{ inputs.gcp_project_id }}
+        run: |
+          set -euo pipefail
+          gcloud firebase test android models list --project "$PROJECT_ID" --format=json > "$RUNNER_TEMP/models.json"
+          python3 - <<'PY' >> "$GITHUB_OUTPUT"
+          import json, os
+          models = json.load(open(os.environ['RUNNER_TEMP'] + '/models.json', encoding='utf-8'))
+          api = os.environ['ANDROID_API']
+          for item in models:
+              if item.get('form') == 'PHYSICAL' and api in [str(v) for v in item.get('supportedVersionIds', [])]:
+                  print('model=' + item['id'])
+                  break
+          else:
+              raise SystemExit('No physical Firebase Test Lab device available for API ' + api)
+          PY
+      - name: Physical device Compose smoke (no production backend)
+        env:
+          PROJECT_ID: ${{ inputs.gcp_project_id }}
+          ANDROID_API: ${{ inputs.android_api }}
+          DEVICE_MODEL: ${{ steps.model.outputs.model }}
+        run: |
+          set -euo pipefail
+          test -s app/build/outputs/apk/debug/app-debug.apk
+          test -s app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
+          gcloud firebase test android run \
+            --project "$PROJECT_ID" \
+            --type instrumentation \
+            --app app/build/outputs/apk/debug/app-debug.apk \
+            --test app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk \
+            --test-targets 'class com.batuhanduran.burada.location.NeighborhoodDiscoveryInstrumentedTest' \
+            --device model="$DEVICE_MODEL",version="$ANDROID_API",locale=tr,orientation=portrait \
+            --timeout 15m | tee "$RUNNER_TEMP/physical-smoke-result.txt"
+      - name: Upload Test Lab execution evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: physical-smoke-test-lab-evidence
+          path: ${{ runner.temp }}/physical-smoke-result.txt
+          if-no-files-found: warn
