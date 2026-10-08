@@ -11,6 +11,14 @@ on:
         description: User-visible release version
         required: true
         type: string
+      privacy_policy_url:
+        description: Public HTTPS privacy policy URL used for Play listing
+        required: true
+        type: string
+      account_deletion_url:
+        description: Public HTTPS web page for account deletion requests
+        required: true
+        type: string
 
 permissions:
   contents: read
@@ -26,6 +34,8 @@ jobs:
       STORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
       KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
       KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+      PRIVACY_POLICY_URL: ${{ inputs.privacy_policy_url }}
+      ACCOUNT_DELETION_URL: ${{ inputs.account_deletion_url }}
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
@@ -40,6 +50,8 @@ jobs:
         uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6
         with:
           gradle-version: "9.3.1"
+      - name: Production release preflight
+        run: python3 scripts/production-preflight.py
       - name: Materialize protected production config
         env:
           KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}

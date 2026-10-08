@@ -107,6 +107,7 @@ fun MarketplaceApp(
         return
     }
 
+    val context = LocalContext.current
     val auth = remember { runCatching { FirebaseAuth.getInstance() }.getOrNull() }
     if (auth == null) {
         Box(
@@ -131,6 +132,17 @@ fun MarketplaceApp(
         val listener = FirebaseAuth.AuthStateListener { currentUser = it.currentUser }
         auth.addAuthStateListener(listener)
         onDispose { auth.removeAuthStateListener(listener) }
+    }
+
+    LaunchedEffect(currentUser?.uid) {
+        if (currentUser == null) {
+            runCatching {
+                com.google.firebase.analytics.FirebaseAnalytics.getInstance(context).apply {
+                    setAnalyticsCollectionEnabled(false)
+                    setUserId(null)
+                }
+            }
+        }
     }
 
     val notificationPermissionLauncher = rememberLauncherForActivityResult(
@@ -171,7 +183,6 @@ fun MarketplaceApp(
             }
         }
 
-        val context = LocalContext.current
         val consent = remember(context, currentUser?.uid, consentRevision) {
             ConsentRepository(context, currentUser!!.uid)
         }
@@ -221,8 +232,10 @@ fun MarketplaceApp(
         } else {
             LaunchedEffect(currentUser?.uid, consent.analyticsConsent) {
                 runCatching {
-                    com.google.firebase.analytics.FirebaseAnalytics.getInstance(context)
-                        .setAnalyticsCollectionEnabled(consent.analyticsConsent)
+                    com.google.firebase.analytics.FirebaseAnalytics.getInstance(context).apply {
+                        setUserId(currentUser!!.uid)
+                        setAnalyticsCollectionEnabled(consent.analyticsConsent)
+                    }
                 }
             }
             LaunchedEffect(currentUser?.uid) {

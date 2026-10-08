@@ -1,12 +1,12 @@
 name: Mahallem QA
 concurrency:
-  group: mahallem-qa-${{ github.event.pull_request.number || github.ref }}
+  group: mahallem-qa-${{ github.head_ref || github.ref_name }}
   cancel-in-progress: true
 
 
 on:
   push:
-    branches: ["**"]
+    branches: ["main"]
   pull_request:
     branches: ["main"]
   workflow_dispatch:
@@ -84,7 +84,9 @@ jobs:
 
   ui-tests:
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
+    timeout-minutes: 40
+    env:
+      GRADLE_OPTS: -Djava.awt.headless=true
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
@@ -99,13 +101,25 @@ jobs:
         uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6
         with:
           gradle-version: "9.3.1"
+      - name: Prebuild instrumentation APKs
+        run: gradle :app:assembleDebug :app:assembleDebugAndroidTest --no-daemon --stacktrace --max-workers=2 -PallowMissingGoogleServices=true
       - name: Run Compose UI tests on emulator
         uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d
         with:
           api-level: 35
           arch: x86_64
           profile: pixel_2
-          script: gradle connectedDebugAndroidTest --no-daemon --stacktrace -PallowMissingGoogleServices=true
+          cores: 2
+          ram-size: 3072M
+          heap-size: 512M
+          emulator-boot-timeout: 900
+          disable-animations: true
+          disable-spellchecker: true
+          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -camera-back none
+          script: |
+            adb wait-for-device
+            test "$(adb shell getprop sys.boot_completed | tr -d '\r')" = "1"
+            gradle :app:connectedDebugAndroidTest --no-daemon --stacktrace --max-workers=2 -PallowMissingGoogleServices=true
       - name: Upload emulator reports
         if: ${{ always() }}
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02

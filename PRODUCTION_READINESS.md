@@ -31,3 +31,13 @@ Before merging to `main`, repository administration must require pull requests a
 ## Store release gate
 
 A Play Console release is not approved until the signed AAB above passes internal testing, Data Safety/privacy disclosures are complete, account deletion is reachable in-app, App Check enforcement is enabled for production backends, and the release has crash/ANR monitoring.
+
+
+## Production preflight blockers
+
+The signed production AAB workflow intentionally fails until:
+- the generated `com.example` namespace is migrated,
+- the generated `com.aistudio.mahallemde.kxqrvz` application id is replaced with the final immutable Play Store id,
+- the privacy notice is replaced by company/legal-approved production text,
+- a public HTTPS privacy-policy URL is supplied,
+- a public HTTPS account-deletion URL is supplied.

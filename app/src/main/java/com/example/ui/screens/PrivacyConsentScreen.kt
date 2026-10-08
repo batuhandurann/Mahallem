@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.MaterialTheme
@@ -12,6 +13,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import com.example.privacy.ConsentRepository
 import androidx.compose.runtime.rememberCoroutineScope
@@ -24,6 +26,7 @@ fun PrivacyConsentScreen(userId: String, onCompleted: () -> Unit) {
     var analytics by remember { mutableStateOf(false) }
     var marketing by remember { mutableStateOf(false) }
     var viewedNotice by remember { mutableStateOf(false) }
+    var showNotice by remember { mutableStateOf(false) }
     val coroutineScope = rememberCoroutineScope()
 
     Column(
@@ -37,8 +40,8 @@ fun PrivacyConsentScreen(userId: String, onCompleted: () -> Unit) {
             modifier = Modifier.padding(top = 12.dp)
         )
         Button(
-            onClick = { viewedNotice = true },
-            modifier = Modifier.fillMaxWidth().padding(top = 16.dp)
+            onClick = { showNotice = true },
+            modifier = Modifier.fillMaxWidth().padding(top = 16.dp).testTag("privacy_open_notice")
         ) { Text("Aydınlatma metnini görüntüle") }
 
         RowConsent("Ürün analitiğine izin ver", analytics) { analytics = it }
@@ -58,8 +61,39 @@ fun PrivacyConsentScreen(userId: String, onCompleted: () -> Unit) {
                     onCompleted()
                 }
             },
-            modifier = Modifier.fillMaxWidth().padding(top = 16.dp)
+            modifier = Modifier.fillMaxWidth().padding(top = 16.dp).testTag("privacy_continue")
         ) { Text("Devam Et") }
+    }
+
+    if (showNotice) {
+        AlertDialog(
+            modifier = Modifier.testTag("privacy_notice_dialog"),
+            onDismissRequest = { showNotice = false },
+            title = { Text("Aydınlatma metni") },
+            text = {
+                Text(
+                    "Mahallem; hesap ve güvenlik, hizmet talepleri, teklifler, mesajlaşma, ödeme/itiraz " +
+                        "ve kötüye kullanım önleme için gerekli verileri işler. Ürün analitiği ve pazarlama " +
+                        "tercihe bağlıdır. Hesap silme talebi Hesap ve Gizlilik bölümünden yönetilir. " +
+                        "Şirket/unvan, iletişim ve yayınlanmış gizlilik politikası bağlantısı üretim yayını " +
+                        "öncesinde hukuk onayıyla bu metne eklenmelidir."
+                )
+            },
+            confirmButton = {
+                androidx.compose.material3.TextButton(
+                    modifier = Modifier.testTag("privacy_notice_ack"),
+                    onClick = {
+                        viewedNotice = true
+                        showNotice = false
+                    }
+                ) { Text("Okudum") }
+            },
+            dismissButton = {
+                androidx.compose.material3.TextButton(onClick = { showNotice = false }) {
+                    Text("Kapat")
+                }
+            }
+        )
     }
 }
 
