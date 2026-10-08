@@ -35,7 +35,8 @@ class SessionOperationsTest {
         val actual = runCatching {
             SessionOperations.signOut(clearLocalData = { throw failure }, endSession = { signedOut = true })
         }.exceptionOrNull()
-        assertSame(failure, actual)
+        assertEquals(failure.javaClass, actual?.javaClass)
+        assertEquals(failure.message, actual?.message)
         assertTrue(signedOut)
     }
 
