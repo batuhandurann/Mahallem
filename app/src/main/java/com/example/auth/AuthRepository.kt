@@ -5,6 +5,8 @@ import com.example.data.local.AppDatabase
 import com.example.notification.PushTokenRepository
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.FirebaseUser
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.tasks.await
 
 class AuthRepository(
@@ -33,7 +35,7 @@ class AuthRepository(
 
     suspend fun signOutAndRemoveDevice() {
         runCatching { PushTokenRepository(auth = auth).unregisterCurrentDevice() }
-        AppDatabase.clearLocalData()
+        withContext(Dispatchers.IO) { AppDatabase.clearLocalData() }
         auth.signOut()
     }
 
