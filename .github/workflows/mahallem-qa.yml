@@ -6,7 +6,7 @@ concurrency:
 
 on:
   push:
-    branches: ["main"]
+    branches: ["main", "qa/mahallem-test-suite"]
   pull_request:
     branches: ["main", "qa/mahallem-test-suite"]
   workflow_dispatch:
