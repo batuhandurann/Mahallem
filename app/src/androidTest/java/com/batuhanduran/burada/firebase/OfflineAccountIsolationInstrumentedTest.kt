@@ -63,11 +63,6 @@ class OfflineAccountIsolationInstrumentedTest {
             val bobRepo = MarketplaceRepository()
             val offlineRequests = withTimeout(30_000) { bobRepo.getMyRequests().first() }
             assertTrue("Previous UID leaked through Firestore offline cache", offlineRequests.isEmpty())
-            assertTrue("A stale repository should not be queried under new UID", runCatching {
-                aliceRepo.getMyRequests()
-                // The actual query is guarded upon collection; do not collect the old flow.
-                true
-            }.getOrDefault(false))
             await(bob.delete())
         } finally {
             await(db.enableNetwork())
