@@ -4,6 +4,7 @@ import com.example.data.local.ChatMessageEntity
 import com.example.data.local.ConversationEntity
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.Query
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
@@ -38,6 +39,7 @@ class CloudChatRepository(
 
         val conversationListener = firestore.collection("conversations")
             .whereArrayContains("participantIds", me)
+            .orderBy("updatedAt", Query.Direction.DESCENDING)
             .limit(50)
             .addSnapshotListener { snap, error ->
                 if (error != null) {
@@ -85,6 +87,7 @@ class CloudChatRepository(
         uid()
         val listener = firestore.collection("messages")
             .whereEqualTo("conversationId", conversationId)
+            .orderBy("createdAt", Query.Direction.DESCENDING)
             .limit(200)
             .addSnapshotListener { snap, error ->
                 if (error != null) { close(error); return@addSnapshotListener }
