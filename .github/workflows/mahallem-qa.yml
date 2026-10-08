@@ -6,7 +6,7 @@ concurrency:
 
 on:
   push:
-    branches: ["main"]
+    branches: ["**"]
   pull_request:
     branches: ["main"]
   workflow_dispatch:
@@ -34,7 +34,19 @@ jobs:
         with:
           gradle-version: "9.3.1"
       - name: Unit tests, lint and debug build
-        run: gradle testDebugUnitTest lintDebug assembleDebug --no-daemon --stacktrace -PallowMissingGoogleServices=true
+        run: gradle clean testDebugUnitTest lintDebug assembleDebug --no-daemon --stacktrace -PallowMissingGoogleServices=true
+      - name: Verify debug artifact
+        run: python3 scripts/build-evidence.py debug
+      - name: Upload debug APK and reports
+        if: ${{ always() }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: debug-build-${{ github.sha }}
+          path: |
+            app/build/outputs/apk/debug/*.apk
+            app/build/reports/
+            app/build/test-results/
+          if-no-files-found: error
 
   release-build:
     runs-on: ubuntu-24.04
@@ -59,9 +71,16 @@ jobs:
       - name: Build unsigned release APK and AAB
         run: gradle clean assembleRelease bundleRelease --no-daemon --stacktrace -PallowMissingGoogleServices=true -PciUnsignedRelease=true
       - name: Verify release artifacts
-        run: |
-          test -f app/build/outputs/apk/release/app-release-unsigned.apk
-          test -f app/build/outputs/bundle/release/app-release.aab
+        run: python3 scripts/build-evidence.py release
+      - name: Upload unsigned release APK, AAB and evidence
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: release-unsigned-${{ github.sha }}
+          path: |
+            app/build/outputs/apk/release/*.apk
+            app/build/outputs/bundle/release/*.aab
+            app/build/reports/build-evidence-release.json
+          if-no-files-found: error
 
   ui-tests:
     runs-on: ubuntu-24.04
@@ -87,6 +106,15 @@ jobs:
           arch: x86_64
           profile: pixel_2
           script: gradle connectedDebugAndroidTest --no-daemon --stacktrace -PallowMissingGoogleServices=true
+      - name: Upload emulator reports
+        if: ${{ always() }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: emulator-reports-${{ github.sha }}
+          path: |
+            app/build/reports/androidTests/
+            app/build/outputs/androidTest-results/
+          if-no-files-found: warn
 
 
   backend:
