@@ -43,9 +43,6 @@ jobs:
           : "${KEYSTORE_B64:?Missing protected ANDROID_KEYSTORE_BASE64}"
           : "${STORE_PASSWORD:?Missing protected ANDROID_KEYSTORE_PASSWORD}"
           : "${KEY_PASSWORD:?Missing protected ANDROID_KEY_PASSWORD}"
-          echo "KEYSTORE_PATH=$RUNNER_TEMP/release-upload.jks" >> "$GITHUB_ENV"
-          echo "STORE_PASSWORD=$STORE_PASSWORD" >> "$GITHUB_ENV"
-          echo "KEY_PASSWORD=$KEY_PASSWORD" >> "$GITHUB_ENV"
           printf '%s' "$KEYSTORE_B64" | base64 --decode > "$RUNNER_TEMP/release-upload.jks"
           chmod 600 "$RUNNER_TEMP/release-upload.jks"
           printf '%s' "$FIREBASE_CONFIG_B64" | base64 --decode > app/google-services.json
@@ -62,6 +59,10 @@ jobs:
           assert "com.batuhanduran.burada" in pkgs, "Wrong Android Firebase registration"
           PY
       - name: Clean release AAB build (real Firebase config, real signing, no CI bypass)
+        env:
+          KEYSTORE_PATH: ${{ runner.temp }}/release-upload.jks
+          STORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: ./gradlew --no-daemon clean :app:bundleRelease
       - name: Verify signed AAB and record checksum
         shell: bash
