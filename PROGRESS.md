@@ -1,5 +1,18 @@
 # Mahallem ilerleme kaydı
 
+## 2026-10-08 — Acil talep ve güvenli çıkış düzeltmesi
+- Kaynak: QA `10422de`; düzeltme dalı `fix/urgent-date-logout-20261008`, uygulama head'i `0481e2e9a172f69760419206083d06a14533ff40`. [Draft PR #37](https://github.com/batuhandurann/Mahallem/pull/37) QA dalına açıldı; merge/deploy yapılmadı.
+- Acil talep gönderim anında gerçek `YYYY-MM-DD` / `HH:mm` kullanır. Eksik başlık giriş alanı eklendi. Boş başlıklar, geçersiz takvim günleri ve saatler formda, kayıt yolunda ve callable sunucusunda reddedilir.
+- Room temizliği suspend + `Dispatchers.IO`; DAO/Flow referanslarını bozan DB kapatma kaldırıldı. Temizlik hatasında oturum korunur ve tekrar deneme mesajı gösterilir. Token kaldırma 5 saniye ile sınırlı; iptal yutulmaz. Yerel temizlik + signOut iptal edilemez tek sınır olarak tamamlanır.
+- Hesap değişimi/çıkış ViewModelStore'u temizler; aynı hesapta ekran döndürme durumunu korur. Room altı tablo temizleme, yeniden kullanım, hata/iptal/zaman aşımı, hesap A→B→çıkış→A ve Compose gönderim regresyonları eklendi.
+- Doğrulandı: `functions/` içinde `npm test` (26/26 başarılı; gerçek callable handler üzerinde 21 negatif/auth senaryosu dahil), `git diff --check` başarılı. Yerel kaynak ağacı uzak uygulama commit'iyle aynı tree SHA'sına sahip (`6ea08e64a28703c7978e81d715160837f54f3265`).
+- Yerel Android test/build/lint denemesi ayar aşamasında durdu: `foojay-resolver-convention:1.0.0` Gradle plugin deposundan indirilemedi. Bu bir test başarısı veya kod derleme kanıtı değildir.
+- [QA #714](https://github.com/batuhandurann/Mahallem/actions/runs/37778929651) uygulama head'i için başlatıldı; bu kayıt anında bekliyor. Bu doküman commit'inden sonra yeni koşu oluşursa yeni head'in sonucunu kontrol et.
+- Açık: yeni Android test/build/lint/emülatör kanıtı ve gerçek cihaz + gerçek Firebase ile iki hesap uçtan uca doğrulaması. Önceki CI başarıları bu yeni kodun başarısı olarak kullanılmaz.
+- Sıradaki tek görev: PR #37'nin son head'i için CI sonuçlarını incele, varsa yeni regresyonu düzelt; ardından güvenli staging erişimiyle gerçek iki hesap smoke testi yap.
+
+## Önceki oturum kaydı (yalnız belirtilen eski commit için)
+
 Güncelleme: 2026-10-08 (Europe/Istanbul). Bu özet doğrulanmış durumu gösterir; yeni oturumda git ve CI ile karşılaştır.
 
 ## Dal ve kapsam
