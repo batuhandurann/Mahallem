@@ -10,6 +10,15 @@ plugins {
   alias(libs.plugins.google.services)
 }
 
+// CI may verify compilation of unsigned release APK/AAB without production signing keys.
+// The normal release variant still requires the canonical live Firebase registration.
+val ciUnsignedRelease = providers.gradleProperty("ciUnsignedRelease").orElse("false").get().toBooleanStrict()
+if (ciUnsignedRelease) {
+  require(System.getenv("CI") == "true") {
+    "ciUnsignedRelease is only supported in an isolated CI build. Production releases must be signed."
+  }
+}
+
 android {
   namespace = "com.batuhanduran.burada"
   compileSdk { version = release(36) { minorApiLevel = 1 } }
@@ -48,7 +57,7 @@ android {
       isCrunchPngs = false
       isMinifyEnabled = false
       proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
-      signingConfig = signingConfigs.getByName("release")
+      signingConfig = if (ciUnsignedRelease) null else signingConfigs.getByName("release")
     }
     debug {
       buildConfigField("boolean", "USE_FIREBASE_EMULATORS", providers.gradleProperty("firebaseEmulators").orElse("false").get())
@@ -93,8 +102,9 @@ googleServices { missingGoogleServicesStrategy = MissingGoogleServicesStrategy.E
 val liveFirebaseConfig = layout.projectDirectory.file("google-services.json").asFile
 tasks.withType<GoogleServicesTask>().configureEach {
   val isLocalEmulatorDebug = firebaseEmulatorBuild && name.contains("Debug")
-  enabled = !isLocalEmulatorDebug
-  if (!isLocalEmulatorDebug) {
+  val isCiUnsignedRelease = ciUnsignedRelease && name.contains("Release")
+  enabled = !(isLocalEmulatorDebug || isCiUnsignedRelease)
+  if (enabled) {
     doFirst {
       val config = liveFirebaseConfig
       check(config.isFile) { "Register com.batuhanduran.burada in Firebase and provide app/google-services.json" }
