@@ -16,7 +16,7 @@ wait_for_boot() {
 }
 
 run_tests() {
-  gradle :app:connectedDebugAndroidTest \
+  ./gradlew :app:connectedDebugAndroidTest \
     --no-daemon \
     --stacktrace \
     --max-workers=2 \

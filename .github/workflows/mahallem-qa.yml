@@ -29,12 +29,12 @@ jobs:
         with:
           distribution: temurin
           java-version: "21"
+      - name: Validate checked-in Gradle wrapper
+        uses: gradle/actions/wrapper-validation@3f5f9adaf7d9fecd50b5935e54106014257a94e6
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6
-        with:
-          gradle-version: "9.3.1"
       - name: Unit tests, lint and debug build
-        run: gradle clean testDebugUnitTest lintDebug assembleDebug --no-daemon --stacktrace -PallowMissingGoogleServices=true
+        run: ./gradlew clean testDebugUnitTest lintDebug assembleDebug --no-daemon --stacktrace -PallowMissingGoogleServices=true
       - name: Verify debug artifact
         run: python3 scripts/build-evidence.py debug
       - name: Upload debug APK and reports
@@ -63,13 +63,13 @@ jobs:
         with:
           distribution: temurin
           java-version: "21"
+      - name: Validate checked-in Gradle wrapper
+        uses: gradle/actions/wrapper-validation@3f5f9adaf7d9fecd50b5935e54106014257a94e6
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6
-        with:
-          gradle-version: "9.3.1"
       # Exercise release-only R8/resource shrinking without exposing the production signing key.
       - name: Build unsigned release APK and AAB
-        run: gradle clean assembleRelease bundleRelease --no-daemon --stacktrace -PallowMissingGoogleServices=true -PciUnsignedRelease=true
+        run: ./gradlew clean assembleRelease bundleRelease --no-daemon --stacktrace -PallowMissingGoogleServices=true -PciUnsignedRelease=true
       - name: Verify release artifacts
         run: python3 scripts/build-evidence.py release
       - name: Upload unsigned release APK, AAB and evidence
@@ -97,12 +97,12 @@ jobs:
         with:
           distribution: temurin
           java-version: "21"
+      - name: Validate checked-in Gradle wrapper
+        uses: gradle/actions/wrapper-validation@3f5f9adaf7d9fecd50b5935e54106014257a94e6
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6
-        with:
-          gradle-version: "9.3.1"
       - name: Prebuild instrumentation APKs
-        run: gradle :app:assembleDebug :app:assembleDebugAndroidTest --no-daemon --stacktrace --max-workers=2 -PallowMissingGoogleServices=true
+        run: ./gradlew :app:assembleDebug :app:assembleDebugAndroidTest --no-daemon --stacktrace --max-workers=2 -PallowMissingGoogleServices=true
       - name: Enable KVM hardware acceleration
         shell: bash
         run: |
