@@ -44,13 +44,11 @@ abstract class AppDatabase : RoomDatabase() {
 
         fun getDatabase(context: Context): AppDatabase {
             return INSTANCE ?: synchronized(this) {
-                val instance = Room.databaseBuilder(
+                INSTANCE ?: Room.databaseBuilder(
                     context.applicationContext,
                     AppDatabase::class.java,
                     "mahallemde_marketplace.db"
-                ).addMigrations(MIGRATION_3_4).build()
-                INSTANCE = instance
-                instance
+                ).addMigrations(MIGRATION_3_4).build().also { INSTANCE = it }
             }
         }
     }
