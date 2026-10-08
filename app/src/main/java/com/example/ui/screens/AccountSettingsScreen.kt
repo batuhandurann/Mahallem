@@ -97,15 +97,17 @@ fun AccountSettingsScreen(isLocalMode: Boolean) {
                     onClick = {
                         busy = true
                         scope.launch {
-                            runCatching {
+                            try {
                                 AccountLifecycleRepository().requestDeletion()
                                 signOutWithFeedback { message = it }
-                                busy = false
                                 confirmDelete = false
-                            }.onFailure {
-                                message = it.message ?: "Hesap silme talebi oluşturulamadı."
-                                busy = false
+                            } catch (error: CancellationException) {
+                                throw error
+                            } catch (error: Exception) {
+                                message = error.message ?: "Hesap silme talebi oluşturulamadı."
                                 confirmDelete = false
+                            } finally {
+                                busy = false
                             }
                         }
                     }

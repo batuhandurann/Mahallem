@@ -1,6 +1,8 @@
 # Mahallem ilerleme kaydı
 
 ## 2026-10-08 — Acil talep ve güvenli çıkış düzeltmesi
+- Ek düzeltme: oturum kapatma Firebase uygulama context'iyle Room'u açıp temizler; process restart sonrası singleton henüz oluşturulmamışken diskte kalan veriler de silinir. Bu senaryo için disk yeniden açılış regresyonu eklendi. Hesap silme sonrası çıkış yolunda coroutine iptali artık yutulmaz.
+- [QA #715](https://github.com/batuhandurann/Mahallem/actions/runs/37779067630), `3211996` için backend + audit ve Firebase Rules başarılı; Android kontrolleri bu ek düzeltmeden önce henüz devam ediyordu. Son head için yeni CI sonucu gereklidir.
 - Kaynak: QA `10422de`; düzeltme dalı `fix/urgent-date-logout-20261008`, uygulama head'i `0481e2e9a172f69760419206083d06a14533ff40`. [Draft PR #37](https://github.com/batuhandurann/Mahallem/pull/37) QA dalına açıldı; merge/deploy yapılmadı.
 - Acil talep gönderim anında gerçek `YYYY-MM-DD` / `HH:mm` kullanır. Eksik başlık giriş alanı eklendi. Boş başlıklar, geçersiz takvim günleri ve saatler formda, kayıt yolunda ve callable sunucusunda reddedilir.
 - Room temizliği suspend + `Dispatchers.IO`; DAO/Flow referanslarını bozan DB kapatma kaldırıldı. Temizlik hatasında oturum korunur ve tekrar deneme mesajı gösterilir. Token kaldırma 5 saniye ile sınırlı; iptal yutulmaz. Yerel temizlik + signOut iptal edilemez tek sınır olarak tamamlanır.

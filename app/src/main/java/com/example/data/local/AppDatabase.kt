@@ -34,11 +34,13 @@ abstract class AppDatabase : RoomDatabase() {
         @Volatile
         private var INSTANCE: AppDatabase? = null
 
-        suspend fun clearLocalData() = withContext(Dispatchers.IO) {
+        suspend fun clearLocalData(context: Context? = null) = withContext(Dispatchers.IO) {
             synchronized(this) {
                 // Keep existing DAO/Flow references valid. Closing the shared instance
                 // races active collectors; clearAllTables is transactional instead.
-                INSTANCE?.clearAllTables()
+                // After a process restart the disk cache can exist before INSTANCE does.
+                val database = INSTANCE ?: context?.let { getDatabase(it) }
+                database?.clearAllTables()
             }
         }
 

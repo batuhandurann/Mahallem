@@ -15,6 +15,20 @@ import org.robolectric.annotation.Config
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [36])
 class AppDatabaseLogoutTest {
+    @Test fun logoutAlsoClearsDiskCacheWhenSingletonWasNotInitialized() = runBlocking {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val database = AppDatabase.getDatabase(context)
+        AppDatabase.clearLocalData()
+        database.appDao().insertRequest(InitialData.getSeedRequests().first())
+        // Simulate a fresh process: persisted rows remain, singleton memory is gone.
+        withContext(Dispatchers.IO) { database.close() }
+        val field = AppDatabase::class.java.getDeclaredField("INSTANCE")
+        field.isAccessible = true
+        field.set(null, null)
+        AppDatabase.clearLocalData(context)
+        assertTrue(AppDatabase.getDatabase(context).appDao().getAllRequests().first().isEmpty())
+    }
+
     @Test fun mainThreadLogoutClearsEveryTableAndKeepsDaoUsableForNextAccount() = runBlocking {
         val context = ApplicationProvider.getApplicationContext<Context>()
         val database = AppDatabase.getDatabase(context)
