@@ -24,6 +24,17 @@ import com.example.auth.AccountLifecycleRepository
 import com.example.auth.AuthRepository
 import com.google.firebase.auth.FirebaseAuth
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.CancellationException
+
+private suspend fun signOutWithFeedback(onError: (String) -> Unit) {
+    try {
+        AuthRepository().signOutAndRemoveDevice()
+    } catch (error: CancellationException) {
+        throw error
+    } catch (_: Exception) {
+        onError("Yerel veriler temizlenemedi. Güvenli çıkış için tekrar deneyin.")
+    }
+}
 
 @Composable
 fun AccountSettingsScreen(isLocalMode: Boolean) {
@@ -49,9 +60,11 @@ fun AccountSettingsScreen(isLocalMode: Boolean) {
                 onClick = {
                     busy = true
                     scope.launch {
-                        runCatching { AuthRepository().signOutAndRemoveDevice() }
-                            .onFailure { message = it.message ?: "Çıkış yapılamadı." }
-                        busy = false
+                        try {
+                            signOutWithFeedback { message = it }
+                        } finally {
+                            busy = false
+                        }
                     }
                 },
                 enabled = !busy,
@@ -86,7 +99,9 @@ fun AccountSettingsScreen(isLocalMode: Boolean) {
                         scope.launch {
                             runCatching {
                                 AccountLifecycleRepository().requestDeletion()
-                                AuthRepository().signOutAndRemoveDevice()
+                                signOutWithFeedback { message = it }
+                                busy = false
+                                confirmDelete = false
                             }.onFailure {
                                 message = it.message ?: "Hesap silme talebi oluşturulamadı."
                                 busy = false
@@ -153,9 +168,11 @@ fun AccountDeletionPendingScreen(
             onClick = {
                 busy = true
                 scope.launch {
-                    runCatching { AuthRepository().signOutAndRemoveDevice() }
-                        .onFailure { message = it.message ?: "Çıkış yapılamadı." }
-                    busy = false
+                    try {
+                        signOutWithFeedback { message = it }
+                    } finally {
+                        busy = false
+                    }
                 }
             },
             modifier = Modifier.fillMaxWidth().padding(top = 12.dp)

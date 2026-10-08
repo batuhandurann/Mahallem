@@ -6,6 +6,8 @@ import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 import androidx.room.Room
 import androidx.room.RoomDatabase
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 @Database(
     entities = [
@@ -32,13 +34,11 @@ abstract class AppDatabase : RoomDatabase() {
         @Volatile
         private var INSTANCE: AppDatabase? = null
 
-        fun clearLocalData() {
+        suspend fun clearLocalData() = withContext(Dispatchers.IO) {
             synchronized(this) {
-                INSTANCE?.let {
-                    it.clearAllTables()
-                    it.close()
-                }
-                INSTANCE = null
+                // Keep existing DAO/Flow references valid. Closing the shared instance
+                // races active collectors; clearAllTables is transactional instead.
+                INSTANCE?.clearAllTables()
             }
         }
 

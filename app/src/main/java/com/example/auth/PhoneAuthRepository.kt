@@ -2,7 +2,6 @@ package com.example.auth
 
 import android.app.Activity
 import com.google.firebase.FirebaseException
-import com.example.data.local.AppDatabase
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.FirebaseAuthInvalidCredentialsException
 import com.google.firebase.auth.FirebaseUser
@@ -66,10 +65,7 @@ class PhoneAuthRepository(
         throw error
     }
 
-    fun signOut() {
-        AppDatabase.clearLocalData()
-        auth.signOut()
-    }
+    suspend fun signOut() = AuthRepository(auth).signOutAndRemoveDevice()
 
     private fun normalizeTurkishPhone(phone: String): String {
         val clean = phone.filter { it.isDigit() || it == '+' }

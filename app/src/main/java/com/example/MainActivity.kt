@@ -31,6 +31,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.core.AppEnvironment
 import com.example.privacy.ConsentRepository
 import com.example.auth.UserProfileRepository
+import com.example.auth.MarketplaceSessionStore
 import com.example.notification.PushTokenRepository
 import com.example.data.local.DigitalReceiptEntity
 import com.example.data.local.JobRequestEntity
@@ -102,6 +103,7 @@ fun MarketplaceApp(
     notificationOpenMyRequests: Boolean = false,
     onNotificationNavigationConsumed: () -> Unit = {}
 ) {
+    val sessions: MarketplaceSessionStore = viewModel()
     if (AppEnvironment.mode == AppEnvironment.Mode.LOCAL) {
         MarketplaceContent(sessionKey = "local")
         return
@@ -129,7 +131,10 @@ fun MarketplaceApp(
     var deletionStatus by remember(currentUser?.uid) { mutableStateOf<String?>(null) }
     var consentRevision by remember(currentUser?.uid) { mutableIntStateOf(0) }
     DisposableEffect(auth) {
-        val listener = FirebaseAuth.AuthStateListener { currentUser = it.currentUser }
+        val listener = FirebaseAuth.AuthStateListener {
+            sessions.selectSession(it.currentUser?.uid)
+            currentUser = it.currentUser
+        }
         auth.addAuthStateListener(listener)
         onDispose { auth.removeAuthStateListener(listener) }
     }
@@ -260,9 +265,21 @@ internal fun marketplaceViewModelKey(sessionKey: String): String =
     "marketplace-" + sessionKey.ifBlank { "local" }
 
 @Composable
+private fun sessionMarketplaceViewModel(sessionKey: String): MarketplaceViewModel {
+    val sessions: MarketplaceSessionStore = viewModel()
+    val owner = sessions.selectSession(sessionKey)
+    val application = LocalContext.current.applicationContext as android.app.Application
+    return viewModel(
+        viewModelStoreOwner = owner,
+        key = marketplaceViewModelKey(sessionKey),
+        factory = androidx.lifecycle.ViewModelProvider.AndroidViewModelFactory.getInstance(application)
+    )
+}
+
+@Composable
 private fun MarketplaceContent(
     sessionKey: String,
-    viewModel: MarketplaceViewModel = viewModel(key = marketplaceViewModelKey(sessionKey)),
+    viewModel: MarketplaceViewModel = sessionMarketplaceViewModel(sessionKey),
     notificationConversationId: String? = null,
     notificationOpenMyRequests: Boolean = false,
     onNotificationNavigationConsumed: () -> Unit = {}

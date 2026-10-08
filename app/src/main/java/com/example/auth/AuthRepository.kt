@@ -32,17 +32,16 @@ class AuthRepository(
     }
 
     suspend fun signOutAndRemoveDevice() {
-        runCatching { PushTokenRepository(auth = auth).unregisterCurrentDevice() }
-        AppDatabase.clearLocalData()
-        auth.signOut()
+        SessionLogout.run(
+            removeDevice = { PushTokenRepository(auth = auth).unregisterCurrentDevice() },
+            clearLocalData = { AppDatabase.clearLocalData() },
+            signOut = { auth.signOut() }
+        )
     }
 
-    fun clearLocalData() {
+    suspend fun clearLocalData() {
         AppDatabase.clearLocalData()
     }
 
-    fun signOut() {
-        AppDatabase.clearLocalData()
-        auth.signOut()
-    }
+    suspend fun signOut() = signOutAndRemoveDevice()
 }
