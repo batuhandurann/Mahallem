@@ -5,7 +5,9 @@ import androidx.test.core.app.ApplicationProvider
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotSame
+import org.junit.Assert.assertTrue
 import org.junit.Assert.assertSame
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -41,7 +43,7 @@ class AppDatabaseSingletonTest {
     }
 
     @Test
-    fun clearingOnIoClosesInstanceAndAllowsFreshRoomInstance() = runBlocking {
+    fun clearingOnIoPreservesSharedRoomForExistingDaoReferences() = runBlocking {
         val context = ApplicationProvider.getApplicationContext<Context>()
         withContext(Dispatchers.IO) { AppDatabase.clearLocalData() }
         try {
@@ -52,9 +54,31 @@ class AppDatabaseSingletonTest {
             val second = withContext(Dispatchers.IO) {
                 AppDatabase.getDatabase(context).also { it.openHelper.writableDatabase }
             }
-            assertNotSame(first, second)
+            assertSame(first, second)
         } finally {
             withContext(Dispatchers.IO) { AppDatabase.clearLocalData() }
+        }
+    }
+
+    @Test
+    fun persistedDatabaseIsDeletedWhenSingletonIsNull() = runBlocking {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val file = context.getDatabasePath("mahallemde_marketplace.db")
+        withContext(Dispatchers.IO) {
+            AppDatabase.clearLocalData(context)
+            try {
+                AppDatabase.getDatabase(context).openHelper.writableDatabase
+                assertTrue("Room should create the DB on disk", file.exists())
+
+                // Simulate a new-process logout with no currently open singleton.
+                AppDatabase.clearLocalData()
+                assertTrue("Account switching clears rows without invalidating DAO references", file.exists())
+
+                AppDatabase.clearLocalData(context)
+                assertFalse("Account data must not survive logout", file.exists())
+            } finally {
+                AppDatabase.clearLocalData(context)
+            }
         }
     }
 }

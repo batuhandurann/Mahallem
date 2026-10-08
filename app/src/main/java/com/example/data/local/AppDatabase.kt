@@ -50,6 +50,25 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        /**
+         * Context-aware destructive cleanup for owners who explicitly need the on-disk
+         * database removed (such as account deletion). Call off the main thread.
+         * Normal account switching uses clearLocalData() to preserve DAO references.
+         */
+        fun clearLocalData(context: Context) {
+            synchronized(this) {
+                INSTANCE?.close()
+                INSTANCE = null
+                val appContext = context.applicationContext
+                val databaseName = "mahallemde_marketplace.db"
+                val deleted = appContext.deleteDatabase(databaseName)
+                check(deleted || !appContext.getDatabasePath(databaseName).exists()) {
+                    "Yerel veritabanı silinemedi."
+                }
+                applicationContext = appContext
+            }
+        }
+
         fun getDatabase(context: Context): AppDatabase {
             initialize(context)
             return INSTANCE ?: synchronized(this) {
