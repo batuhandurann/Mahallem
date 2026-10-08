@@ -1,9 +1,10 @@
 export function parseTryAmountMinor(input: string): number | null {
-  const raw = input
-    .replace(/₺/g, "")
-    .replace(/TL/gi, "")
-    .trim()
-    .replace(/\s+/g, "");
+  // Accept one currency marker at either edge, never embedded in an amount.
+  // Global replacement would turn "1TL2" into a valid 12 TL payment.
+  const compact = input.trim().replace(/\s+/g, "");
+  const raw = compact.startsWith("₺")
+    ? compact.slice(1)
+    : compact.replace(/(?:TL|₺)$/i, "");
 
   if (!/^(?:\d+|\d{1,3}(?:\.\d{3})+)(?:,\d{1,2})?$/.test(raw)) return null;
 

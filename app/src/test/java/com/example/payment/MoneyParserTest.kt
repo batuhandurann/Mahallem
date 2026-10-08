@@ -21,6 +21,21 @@ class MoneyParserTest {
         assertEquals(280_000L, parseTryAmountMinor(" 2 800 ₺ "))
     }
 
+    @Test fun acceptsLeadingLiraSymbol() {
+        assertEquals(12_550L, parseTryAmountMinor("₺ 125,5"))
+    }
+
+    @Test fun rejectsCurrencyMarkersEmbeddedInDigits() {
+        assertNull(parseTryAmountMinor("1TL2"))
+        assertNull(parseTryAmountMinor("1₺2"))
+    }
+
+    @Test fun rejectsDuplicateOrMisplacedCurrencyMarkers() {
+        assertNull(parseTryAmountMinor("₺1TL"))
+        assertNull(parseTryAmountMinor("1TLTL"))
+        assertNull(parseTryAmountMinor("TL100"))
+    }
+
     @Test fun rejectsRanges() {
         assertNull(parseTryAmountMinor("3.000 - 6.000 ₺"))
     }
@@ -41,5 +56,10 @@ class MoneyParserTest {
 
     @Test fun rejectsOverflowInsteadOfThrowing() {
         assertNull(parseTryAmountMinor("999999999999999999999999999999999999"))
+    }
+
+    @Test fun rejectsAmountsBeyondBackendSafeIntegerLimit() {
+        assertEquals(9_007_199_254_740_991L, parseTryAmountMinor("90071992547409,91"))
+        assertNull(parseTryAmountMinor("90071992547409,92"))
     }
 }
