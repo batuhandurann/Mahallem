@@ -21,6 +21,7 @@ class ConversationsListScreenTest {
                 ConversationsListScreen(listOf(conversation), {}, {})
             }
         }
-        rule.onNodeWithTag("conversation_time_test").assertTextEquals("Tarih yok")
+        rule.onNodeWithTag("conversation_time_test", useUnmergedTree = true)
+            .assertTextEquals("Tarih yok")
     }
 }
