@@ -288,12 +288,20 @@ service cloud.firestore {
         && requestDoc(request.resource.data.requestId).data.status == 'PENDING'
         && notBlocked(request.resource.data.providerUid, request.resource.data.customerUid)
         && providerDoc(request.resource.data.data.providerId).ownerUid == request.auth.uid;
-      allow update: if signed() && resource.data.customerUid == request.auth.uid && resource.data.status == 'PENDING'
+      allow update: if signed() && resource.data.status == 'PENDING'
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status','updatedAt'])
-        && changed(request.resource.data) && (request.resource.data.status == 'REJECTED'
-          || (request.resource.data.status == 'ACCEPTED' && requestAfter(resource.data.requestId).acceptedQuoteId == id
-            && requestAfter(resource.data.requestId).acceptedProviderUid == resource.data.providerUid
-            && requestAfter(resource.data.requestId).data.status == 'ACCEPTED'));
+        && changed(request.resource.data)
+        && (
+          (resource.data.providerUid == request.auth.uid
+            && request.resource.data.status == 'WITHDRAWN'
+            && requestDoc(resource.data.requestId).data.status == 'PENDING')
+          || (resource.data.customerUid == request.auth.uid
+            && (request.resource.data.status == 'REJECTED'
+              || (request.resource.data.status == 'ACCEPTED'
+                && requestAfter(resource.data.requestId).acceptedQuoteId == id
+                && requestAfter(resource.data.requestId).acceptedProviderUid == resource.data.providerUid
+                && requestAfter(resource.data.requestId).data.status == 'ACCEPTED')))
+        );
     }
     match /conversations/{id} {
       allow get: if signed() && (!exists(/databases/$(database)/documents/conversations/$(id)) || member(resource.data));
