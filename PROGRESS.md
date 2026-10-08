@@ -17,11 +17,24 @@ fetch current remote state because other sessions may advance the repository.
   dates; the existing minimum two-character title requirement is preserved.
 - Added Kotlin and Compose regressions, direct Firestore invalid-input tests and
   actual Android SDK urgent-request server read-back in the existing account
-  isolation integration test. Current port's CI results must be verified; the
-  legacy PR's green checks do not prove this new source tree.
+  isolation integration test.
+- [PR #45](https://github.com/batuhandurann/Mahallem/pull/45), application source
+  `df8417a23f52815e1dd0cbac1f54f6c2aede3977`, passed Android Quality
+  [#136](https://github.com/batuhandurann/Mahallem/actions/runs/37816260461)
+  and Security [#594](https://github.com/batuhandurann/Mahallem/actions/runs/37816260502).
+  Verified debug APK, unit/lint, clean unsigned release APK/AAB, 14 Android
+  instrumentation tests (zero failures/skips), account isolation and actual
+  urgent-request server read-back. ADB foreground/rotation/process-death/cold
+  relaunch smoke passed. Backend/Auth/Rules/media and all required status aliases
+  passed; both CodeQL languages and secret scan passed. Artifacts were uploaded.
+- Local `npm run test:rules`: 24/24 passed using demo-mahallem Auth/Firestore
+  emulators; `git diff --check` passed. PR #37 was closed as superseded by #45.
+  This evidence is for the stated application source, before this record-only
+  documentation update; do not reuse it for later application changes.
 - Real phone and production Firebase/config/attestation remain unavailable.
-  Next: verify the current port's main-targeted PR checks, fix any regression,
-  and preserve all main protection checks before integration.
+  Next: provide protected production inputs and a real phone/Test Lab to verify
+  the signed build and live account/notification/attestation flows. Emulator
+  success does not establish production deployment or physical-device evidence.
 
 ## Completed and verified
 
