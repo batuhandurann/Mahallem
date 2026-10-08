@@ -8,7 +8,7 @@ const { onDocumentCreated } = require("firebase-functions/v2/firestore");
 const { onCall, HttpsError } = require("firebase-functions/v2/https");
 const crypto = require("node:crypto");
 const sharp = require("sharp");
-const { MAX_PHOTO_BYTES, segment, participants, recipientFor, pushPayload, photoBytes, deadToken } = require("./policy");
+const { MAX_PHOTO_BYTES, segment, participants, recipientFor, pushPayload, photoBytes, deadToken, recipientPushAllowed } = require("./policy");
 
 initializeApp();
 const DATABASE = process.env.FIRESTORE_DATABASE_ID || "mahallem";
@@ -172,6 +172,13 @@ exports.notifyConversationMessage = onDocumentCreated({
     doc.data().updatedAt?.toMillis() > Date.now() - 30 * 86400 * 1000);
   if (!valid.length) return;
   if (await blocked(ids[0], ids[1])) return;
+  // Cached device tokens are not evidence of a currently authorized recipient.
+  const recipientAccount = await getAuth().getUser(recipientUid).catch(error => {
+    if (error.code === "auth/user-not-found") return null;
+    throw error;
+  });
+  const recipientProfile = (await db.doc(`users/${recipientUid}`).get()).data();
+  if (!recipientPushAllowed(recipientAccount, recipientProfile)) return;
   try { await reserve(message.senderUid, "messagePush", 240, 3600); }
   catch (error) {
     if (error.code === "resource-exhausted") return;
