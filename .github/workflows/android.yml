@@ -76,6 +76,38 @@ jobs:
             app/build/outputs/apk/release/app-release-unsigned.apk
             app/build/outputs/bundle/release/app-release.aab
           if-no-files-found: error
+  # The main ruleset uses QA-style status names. These aliases remain strict:
+  # they only pass when the underlying real test job succeeds, never on skip/failure.
+  backend:
+    name: backend
+    needs: [auth-rules]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require real backend, Auth, Firestore, and media tests
+        env:
+          AUTH_RULES: ${{ needs.auth-rules.result }}
+        run: test "$AUTH_RULES" = success
+  firebase-rules:
+    name: firebase-rules
+    needs: [auth-rules]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require Firebase Auth and Firestore emulator tests
+        env:
+          AUTH_RULES: ${{ needs.auth-rules.result }}
+        run: test "$AUTH_RULES" = success
+  unit-and-static:
+    name: unit-and-static
+    needs: [build-test-lint]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require Android debug, unit, lint, and static audit
+        env:
+          BUILD_UNIT_STATIC: ${{ needs.build-test-lint.result }}
+        run: test "$BUILD_UNIT_STATIC" = success
   ui-tests:
     name: ui-tests
     needs: [android-emulator, build-test-lint, auth-rules, release-build]
@@ -164,7 +196,7 @@ jobs:
   required-checks:
     name: required-checks
     if: always()
-    needs: [build-test-lint, auth-rules, android-emulator, release-build, ui-tests]
+    needs: [build-test-lint, auth-rules, android-emulator, release-build, ui-tests, backend, firebase-rules, unit-and-static]
     runs-on: ubuntu-latest
     steps:
       - name: Require every gate to succeed
@@ -174,4 +206,7 @@ jobs:
           EMULATOR: ${{ needs.android-emulator.result }}
           RELEASE: ${{ needs.release-build.result }}
           UI: ${{ needs.ui-tests.result }}
-        run: test "$BUILD" = success && test "$RULES" = success && test "$EMULATOR" = success && test "$RELEASE" = success && test "$UI" = success
+          BACKEND: ${{ needs.backend.result }}
+          FIREBASE: ${{ needs.firebase-rules.result }}
+          UNIT_STATIC: ${{ needs.unit-and-static.result }}
+        run: test "$BUILD" = success && test "$RULES" = success && test "$EMULATOR" = success && test "$RELEASE" = success && test "$UI" = success && test "$BACKEND" = success && test "$FIREBASE" = success && test "$UNIT_STATIC" = success
