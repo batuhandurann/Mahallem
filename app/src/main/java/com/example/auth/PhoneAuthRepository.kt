@@ -1,6 +1,7 @@
 package com.example.auth
 
 import android.app.Activity
+import com.google.firebase.FirebaseApp
 import com.google.firebase.FirebaseException
 import com.example.data.local.AppDatabase
 import com.google.firebase.auth.FirebaseAuth
@@ -9,6 +10,8 @@ import com.google.firebase.auth.FirebaseUser
 import com.google.firebase.auth.PhoneAuthCredential
 import com.google.firebase.auth.PhoneAuthOptions
 import com.google.firebase.auth.PhoneAuthProvider
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.tasks.await
 import java.util.concurrent.TimeUnit
 
@@ -66,8 +69,10 @@ class PhoneAuthRepository(
         throw error
     }
 
-    fun signOut() {
-        AppDatabase.clearLocalData()
+    suspend fun signOut() {
+        withContext(Dispatchers.IO) {
+            AppDatabase.clearLocalData(FirebaseApp.getInstance().applicationContext)
+        }
         auth.signOut()
     }
 
