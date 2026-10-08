@@ -48,4 +48,23 @@ class RequestFormValidatorTest {
         val result = RequestFormValidator.validate(validInput().copy(title = "x".repeat(121)))
         assertEquals(false, result.isValid)
     }
+    @Test fun invalidCalendarDatesAreRejected() {
+        listOf("2026-02-30", "2025-02-29", "2026-13-01", "2026-00-01", "Hemen / Bugün").forEach {
+            assertEquals("Expected invalid date: $it", false, RequestFormValidator.validate(validInput().copy(date = it)).isValid)
+        }
+    }
+
+    @Test fun leapDayIsAccepted() {
+        assertTrue(RequestFormValidator.validate(validInput().copy(date = "2028-02-29")).isValid)
+    }
+
+    @Test fun invalidTimesAreRejected() {
+        listOf("24:00", "12:60", "1:05", "En geç 1 saat içinde").forEach {
+            assertEquals("Expected invalid time: $it", false, RequestFormValidator.validate(validInput().copy(time = it)).isValid)
+        }
+    }
+
+    @Test fun blankTitlesAreRejected() {
+        assertEquals(false, RequestFormValidator.validate(validInput().copy(title = "  ")).isValid)
+    }
 }
