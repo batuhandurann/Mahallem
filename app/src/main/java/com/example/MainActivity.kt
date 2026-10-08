@@ -125,6 +125,7 @@ fun MarketplaceApp(
     var profileReady by remember(currentUser?.uid) { mutableStateOf(false) }
     var profileError by remember(currentUser?.uid) { mutableStateOf<String?>(null) }
     var profileRetryToken by remember(currentUser?.uid) { mutableIntStateOf(0) }
+    var consentRevision by remember(currentUser?.uid) { mutableIntStateOf(0) }
     DisposableEffect(auth) {
         val listener = FirebaseAuth.AuthStateListener { currentUser = it.currentUser }
         auth.addAuthStateListener(listener)
@@ -159,7 +160,7 @@ fun MarketplaceApp(
         }
 
         val context = LocalContext.current
-        val consent = remember(context, currentUser?.uid) {
+        val consent = remember(context, currentUser?.uid, consentRevision) {
             ConsentRepository(context, currentUser!!.uid)
         }
 
@@ -195,7 +196,7 @@ fun MarketplaceApp(
         } else if (!consent.privacyNoticeAcknowledged) {
             PrivacyConsentScreen(
                 userId = currentUser!!.uid,
-                onCompleted = { currentUser = auth.currentUser }
+                onCompleted = { consentRevision++ }
             )
         } else {
             LaunchedEffect(currentUser?.uid, consent.analyticsConsent) {
