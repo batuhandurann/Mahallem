@@ -17,3 +17,17 @@
 local.properties
 .env
 debug.keystore
+
+node_modules/
+*-debug.log
+app/build/
+.firebase/
+
+# Local production audit evidence may include API key metadata/string.
+*cloud-evidence*.json
+__pycache__/
+
+node_modules/
+*-debug.log
+app/build/
+.firebase/

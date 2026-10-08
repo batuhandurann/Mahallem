@@ -1,4 +1,6 @@
 import com.google.gms.googleservices.GoogleServicesPlugin.MissingGoogleServicesStrategy
+import com.google.gms.googleservices.GoogleServicesTask
+import groovy.json.JsonSlurper
 
 plugins {
   alias(libs.plugins.android.application)
@@ -8,12 +10,21 @@ plugins {
   alias(libs.plugins.google.services)
 }
 
+// CI may verify compilation of unsigned release APK/AAB without production signing keys.
+// The normal release variant still requires the canonical live Firebase registration.
+val ciUnsignedRelease = providers.gradleProperty("ciUnsignedRelease").orElse("false").get().toBooleanStrict()
+if (ciUnsignedRelease) {
+  require(System.getenv("CI") == "true") {
+    "ciUnsignedRelease is only supported in an isolated CI build. Production releases must be signed."
+  }
+}
+
 android {
-  namespace = "com.example"
+  namespace = "com.batuhanduran.burada"
   compileSdk { version = release(36) { minorApiLevel = 1 } }
 
   defaultConfig {
-    applicationId = "com.aistudio.mahallemde.kxqrvz"
+    applicationId = "com.batuhanduran.burada"
     minSdk = 24
     targetSdk = 36
     versionCode = 1
@@ -41,12 +52,18 @@ android {
 
   buildTypes {
     release {
+      buildConfigField("boolean", "USE_FIREBASE_EMULATORS", "false")
+      buildConfigField("String", "EMULATOR_HOST", "\"\"")
       isCrunchPngs = false
       isMinifyEnabled = false
       proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
-      signingConfig = signingConfigs.getByName("release")
+      signingConfig = if (ciUnsignedRelease) null else signingConfigs.getByName("release")
     }
     debug {
+      buildConfigField("boolean", "USE_FIREBASE_EMULATORS", providers.gradleProperty("firebaseEmulators").orElse("false").get())
+      val emulatorHost = providers.gradleProperty("emulatorHost").orElse("10.0.2.2").get()
+      require(emulatorHost.matches(Regex("[A-Za-z0-9.:-]+")))
+      buildConfigField("String", "EMULATOR_HOST", "\"$emulatorHost\"")
       // Android creates its standard debug key when no project-specific key is supplied.
       signingConfig = if (file("${rootDir}/debug.keystore").exists()) {
         signingConfigs.getByName("debugConfig")
@@ -78,7 +95,35 @@ secrets {
   ignoreList.add("FIREBASE_APPCHECK_DEBUG_TOKEN")
 }
 
-googleServices { missingGoogleServicesStrategy = MissingGoogleServicesStrategy.WARN }
+// Emulator builds use programmatic demo-only FirebaseOptions and do not read a real app config.
+// All live/debug and release builds must use the canonical Firebase Android registration.
+val firebaseEmulatorBuild = providers.gradleProperty("firebaseEmulators").orElse("false").get().toBooleanStrict()
+googleServices { missingGoogleServicesStrategy = MissingGoogleServicesStrategy.ERROR }
+val liveFirebaseConfig = layout.projectDirectory.file("google-services.json").asFile
+tasks.withType<GoogleServicesTask>().configureEach {
+  val isLocalEmulatorDebug = firebaseEmulatorBuild && name.contains("Debug")
+  val isCiUnsignedRelease = ciUnsignedRelease && name.contains("Release")
+  enabled = !(isLocalEmulatorDebug || isCiUnsignedRelease)
+  if (enabled) {
+    doFirst {
+      val config = liveFirebaseConfig
+      check(config.isFile) { "Register com.batuhanduran.burada in Firebase and provide app/google-services.json" }
+      val parsed = JsonSlurper().parse(config) as Map<*, *>
+      val projectInfo = parsed["project_info"] as? Map<*, *>
+      val projectId = projectInfo?.get("project_id") as? String
+      check(!projectId.isNullOrBlank() && !projectId.startsWith("demo-")) {
+        "Live builds require a real Firebase project, never demo-*"
+      }
+      val clients = parsed["client"] as? List<*> ?: emptyList<Any>()
+      val hasCanonicalApp = clients.any { entry ->
+        val info = (entry as? Map<*, *>)?.get("client_info") as? Map<*, *>
+        val androidInfo = info?.get("android_client_info") as? Map<*, *>
+        androidInfo?.get("package_name") == "com.batuhanduran.burada"
+      }
+      check(hasCanonicalApp) { "google-services.json does not register com.batuhanduran.burada; download the correct Firebase app configuration" }
+    }
+  }
+}
 
 // Some unused dependencies are commented out below instead of being removed.
 // This makes it easy to add them back in the future if needed.
@@ -103,8 +148,6 @@ dependencies {
   implementation(libs.androidx.lifecycle.runtime.ktx)
   implementation(libs.androidx.lifecycle.viewmodel.compose)
   // implementation(libs.androidx.navigation.compose)
-  implementation(libs.androidx.room.ktx)
-  implementation(libs.androidx.room.runtime)
   // implementation(libs.coil.compose)
   implementation(libs.converter.moshi)
   implementation(libs.firebase.ai)
@@ -115,8 +158,11 @@ dependencies {
   // implementation(libs.androidx.credentials)
   // implementation(libs.androidx.credentials.play.services)
   // implementation(libs.googleid)
-  implementation(libs.firebase.appcheck.recaptcha)
-  implementation(libs.firebase.appcheck.debug)
+  implementation(libs.firebase.appcheck.playintegrity)
+  debugImplementation(libs.firebase.appcheck.debug)
+  implementation("com.google.firebase:firebase-messaging")
+  implementation("com.google.firebase:firebase-storage")
+  implementation("com.google.firebase:firebase-functions")
   implementation(libs.kotlinx.coroutines.android)
   implementation(libs.kotlinx.coroutines.core)
   implementation(libs.logging.interceptor)
@@ -137,6 +183,5 @@ dependencies {
   androidTestImplementation(libs.androidx.runner)
   debugImplementation(libs.androidx.compose.ui.test.manifest)
   debugImplementation(libs.androidx.compose.ui.tooling)
-  "ksp"(libs.androidx.room.compiler)
   "ksp"(libs.moshi.kotlin.codegen)
 }
