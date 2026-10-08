@@ -215,12 +215,9 @@ fun CreateJobRequestScreen(
             )
             Spacer(modifier = Modifier.height(8.dp))
 
-            FlowRow(
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
-                verticalArrangement = Arrangement.spacedBy(6.dp)
-            ) {
-                SectorType.values().filter { it != SectorType.ALL }.forEach { sec ->
+            StableChipRows(items = SectorType.values().filter { it != SectorType.ALL }, spacing = 6.dp) { sec ->
                     FilterChip(
+                        modifier = Modifier.weight(1f),
                         selected = selectedSector == sec,
                         onClick = {
                             selectedSector = sec
@@ -229,7 +226,7 @@ fun CreateJobRequestScreen(
                         },
                         label = { Text("${sec.icon} ${sec.titleTr}", fontSize = 12.sp) }
                     )
-                }
+                
             }
 
             Spacer(modifier = Modifier.height(16.dp))
@@ -242,11 +239,7 @@ fun CreateJobRequestScreen(
             Spacer(modifier = Modifier.height(8.dp))
 
             val filteredCategories = APP_CATEGORIES.filter { it.sector == selectedSector }
-            FlowRow(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                filteredCategories.forEach { cat ->
+            StableChipRows(items = filteredCategories, spacing = 8.dp) { cat ->
                     FilterChip(
                         selected = selectedCategory.id == cat.id,
                         onClick = { selectedCategory = cat },
@@ -263,9 +256,9 @@ fun CreateJobRequestScreen(
                             selectedLabelColor = Color.White,
                             selectedLeadingIconColor = Color.White
                         ),
-                        modifier = Modifier.testTag("chip_select_cat_${cat.id}")
+                        modifier = Modifier.weight(1f).testTag("chip_select_cat_${cat.id}")
                     )
-                }
+                
             }
 
             Spacer(modifier = Modifier.height(16.dp))
@@ -432,12 +425,9 @@ fun CreateJobRequestScreen(
                         // Etkinlik Türü Seçimi
                         Text("Etkinlik Türü", style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold))
                         Spacer(modifier = Modifier.height(4.dp))
-                        FlowRow(
-                            horizontalArrangement = Arrangement.spacedBy(6.dp),
-                            verticalArrangement = Arrangement.spacedBy(6.dp)
-                        ) {
-                            listOf("Doğum Günü", "Okul / Kreş Şenliği", "Sünnet Düğünü", "Mağaza Açılışı").forEach { evType ->
+                        StableChipRows(items = listOf("Doğum Günü", "Okul / Kreş Şenliği", "Sünnet Düğünü", "Mağaza Açılışı"), spacing = 6.dp) { evType ->
                                 FilterChip(
+                                    modifier = Modifier.weight(1f),
                                     selected = selectedEventType == evType,
                                     onClick = { selectedEventType = evType },
                                     label = { Text(evType, fontSize = 11.5.sp) },
@@ -446,7 +436,7 @@ fun CreateJobRequestScreen(
                                         selectedLabelColor = Color.White
                                     )
                                 )
-                            }
+                            
                         }
 
                         Spacer(modifier = Modifier.height(12.dp))
@@ -493,17 +483,14 @@ fun CreateJobRequestScreen(
                         // Kostüm / Karakter Tercihi
                         Text("İstenen Karakter & Kostüm", style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold))
                         Spacer(modifier = Modifier.height(4.dp))
-                        FlowRow(
-                            horizontalArrangement = Arrangement.spacedBy(6.dp),
-                            verticalArrangement = Arrangement.spacedBy(6.dp)
-                        ) {
-                            listOf("Palyaço", "Spiderman", "Karlar Kraliçesi Elsa", "Dev Sevimli Ayıcık", "Pamuk Prenses").forEach { costume ->
+                        StableChipRows(items = listOf("Palyaço", "Spiderman", "Karlar Kraliçesi Elsa", "Dev Sevimli Ayıcık", "Pamuk Prenses"), spacing = 6.dp) { costume ->
                                 FilterChip(
+                                    modifier = Modifier.weight(1f),
                                     selected = selectedCostume == costume,
                                     onClick = { selectedCostume = costume },
                                     label = { Text(costume, fontSize = 11.sp) }
                                 )
-                            }
+                            
                         }
 
                         Spacer(modifier = Modifier.height(12.dp))
@@ -589,6 +576,23 @@ fun CreateJobRequestScreen(
             )
 
             Spacer(modifier = Modifier.height(30.dp))
+        }
+    }
+}
+
+// Avoid runtime FlowRow overload mismatches across Compose artifact versions.
+@Composable
+private fun <T> StableChipRows(
+    items: List<T>,
+    spacing: androidx.compose.ui.unit.Dp,
+    itemContent: @Composable RowScope.(T) -> Unit
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(spacing)) {
+        items.chunked(2).forEach { pair ->
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(spacing)) {
+                pair.forEach { item -> itemContent(item) }
+                if (pair.size == 1) Spacer(modifier = Modifier.weight(1f))
+            }
         }
     }
 }
