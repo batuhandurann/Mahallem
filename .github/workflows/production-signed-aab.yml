@@ -23,7 +23,6 @@ jobs:
     env:
       ANDROID_VERSION_CODE: ${{ inputs.version_code }}
       ANDROID_VERSION_NAME: ${{ inputs.version_name }}
-      KEYSTORE_PATH: ${{ runner.temp }}/upload-key.jks
       STORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
       KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
       KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
@@ -50,6 +49,8 @@ jobs:
           test -n "$KEYSTORE_B64"
           test -n "$GOOGLE_SERVICES_B64"
           test -n "$MAPS_API_KEY"
+          KEYSTORE_PATH="$RUNNER_TEMP/upload-key.jks"
+          echo "KEYSTORE_PATH=$KEYSTORE_PATH" >> "$GITHUB_ENV"
           printf '%s' "$KEYSTORE_B64" | base64 --decode > "$KEYSTORE_PATH"
           printf '%s' "$GOOGLE_SERVICES_B64" | base64 --decode > app/google-services.json
           printf 'MAPS_API_KEY=%s\n' "$MAPS_API_KEY" > .env
