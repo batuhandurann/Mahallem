@@ -6,7 +6,7 @@ on:
 permissions:
   contents: read
 concurrency:
-  group: android-quality-${{ github.head_ref || github.ref_name }}
+  group: android-quality-${{ github.event_name }}-${{ github.head_ref || github.ref_name }}
   cancel-in-progress: true
 jobs:
   build-test-lint:
