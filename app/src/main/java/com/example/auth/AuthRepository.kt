@@ -3,6 +3,7 @@ package com.example.auth
 import com.example.data.local.AppDatabase
 
 import com.example.notification.PushTokenRepository
+import com.google.firebase.FirebaseApp
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.FirebaseUser
 import kotlinx.coroutines.Dispatchers
@@ -35,16 +36,18 @@ class AuthRepository(
 
     suspend fun signOutAndRemoveDevice() {
         runCatching { PushTokenRepository(auth = auth).unregisterCurrentDevice() }
-        withContext(Dispatchers.IO) { AppDatabase.clearLocalData() }
+        clearLocalData()
         auth.signOut()
     }
 
-    fun clearLocalData() {
-        AppDatabase.clearLocalData()
+    suspend fun clearLocalData() {
+        withContext(Dispatchers.IO) {
+            AppDatabase.clearLocalData(FirebaseApp.getInstance().applicationContext)
+        }
     }
 
-    fun signOut() {
-        AppDatabase.clearLocalData()
+    suspend fun signOut() {
+        clearLocalData()
         auth.signOut()
     }
 }
