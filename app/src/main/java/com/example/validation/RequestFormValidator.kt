@@ -1,5 +1,24 @@
 package com.example.validation
 
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.GregorianCalendar
+import java.util.Locale
+import java.util.TimeZone
+
+/** Capture date and time from the same instant to avoid inconsistent pairs at midnight. */
+object RequestDateTimeDefaults {
+    fun at(
+        epochMillis: Long = System.currentTimeMillis(),
+        timeZone: TimeZone = TimeZone.getDefault()
+    ): Pair<String, String> {
+        val instant = Date(epochMillis)
+        val date = SimpleDateFormat("yyyy-MM-dd", Locale.US).apply { this.timeZone = timeZone }
+        val time = SimpleDateFormat("HH:mm", Locale.US).apply { this.timeZone = timeZone }
+        return date.format(instant) to time.format(instant)
+    }
+}
+
 data class RequestFormInput(
     val title: String,
     val district: String,
@@ -18,6 +37,22 @@ data class ValidationResult(
 )
 
 object RequestFormValidator {
+    private val dateRegex = Regex("""^\d{4}-\d{2}-\d{2}$""")
+    private val timeRegex = Regex("""^([01]\d|2[0-3]):[0-5]\d$""")
+
+    private fun validDate(value: String): Boolean {
+        if (!dateRegex.matches(value)) return false
+        val year = value.substring(0, 4).toInt()
+        if (year < 100) return false
+        return runCatching {
+            GregorianCalendar(TimeZone.getTimeZone("UTC")).apply {
+                isLenient = false
+                clear()
+                set(year, value.substring(5, 7).toInt() - 1, value.substring(8, 10).toInt())
+            }.time
+        }.isSuccess
+    }
+
     private val trPhoneRegex = Regex("""^(?:\+90|0090|0)?5\d{9}$""")
 
     fun validate(input: RequestFormInput): ValidationResult {
@@ -25,8 +60,8 @@ object RequestFormValidator {
             if (input.district.isBlank() || input.district == "Tüm İlçeler") {
                 add("İlçe seçilmelidir.")
             }
-            if (input.date.isBlank()) add("Tarih girilmelidir.")
-            if (input.time.isBlank()) add("Saat girilmelidir.")
+            if (!validDate(input.date)) add("Geçerli bir tarih girilmelidir (YYYY-MM-DD).")
+            if (!timeRegex.matches(input.time)) add("Geçerli bir saat girilmelidir (HH:MM).")
             if (input.address.trim().length < 8) add("Geçerli bir adres veya mahalle girilmelidir.")
             if (input.customerName.trim().length < 2) add("Ad soyad girilmelidir.")
             val normalizedPhone = input.customerPhone.replace(Regex("""[\s()-]"""), "")
@@ -36,6 +71,7 @@ object RequestFormValidator {
             if (input.isPhysicalService && input.areaSquareMeters <= 0) {
                 add("Hizmet alanı 1 m² veya daha büyük olmalıdır.")
             }
+            if (input.title.isBlank()) add("Başlık boş olamaz.")
             if (input.title.trim().length > 120) {
                 add("Başlık en fazla 120 karakter olabilir.")
             }

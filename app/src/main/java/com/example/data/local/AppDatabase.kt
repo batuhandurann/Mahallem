@@ -29,6 +29,8 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        private const val DATABASE_NAME = "mahallemde_marketplace.db"
+
         @Volatile
         private var INSTANCE: AppDatabase? = null
 
@@ -42,12 +44,28 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        /**
+         * Log-out cleanup must delete persisted rows even after a process restart,
+         * when INSTANCE is null. Call from a background dispatcher.
+         */
+        fun clearLocalData(context: Context) {
+            synchronized(this) {
+                INSTANCE?.close()
+                INSTANCE = null
+                val appContext = context.applicationContext
+                val deleted = appContext.deleteDatabase(DATABASE_NAME)
+                check(deleted || !appContext.getDatabasePath(DATABASE_NAME).exists()) {
+                    "Yerel veritabanı silinemedi."
+                }
+            }
+        }
+
         fun getDatabase(context: Context): AppDatabase {
             return INSTANCE ?: synchronized(this) {
                 INSTANCE ?: Room.databaseBuilder(
                     context.applicationContext,
                     AppDatabase::class.java,
-                    "mahallemde_marketplace.db"
+                    DATABASE_NAME
                 ).addMigrations(MIGRATION_3_4).build().also { INSTANCE = it }
             }
         }

@@ -28,6 +28,7 @@ import com.example.data.model.UrgencyMode
 import com.example.ui.components.DISTRICT_OPTIONS
 import com.example.ui.components.getCategoryIcon
 import com.example.ui.theme.*
+import com.example.validation.RequestDateTimeDefaults
 import com.example.validation.RequestFormInput
 import com.example.validation.RequestFormValidator
 
@@ -76,8 +77,10 @@ fun CreateJobRequestScreen(
     var districtMenuExpanded by remember { mutableStateOf(false) }
 
     var title by remember { mutableStateOf("") }
-    var date by remember { mutableStateOf(if (isEmergencyPreselected) "Hemen / Bugün" else "2026-10-18") }
-    var time by remember { mutableStateOf(if (isEmergencyPreselected) "En geç 1 saat içinde" else "14:00") }
+    // Emergency is conveyed by urgency; date and time must remain machine-readable.
+    val initialDateTime = remember { RequestDateTimeDefaults.at() }
+    var date by remember { mutableStateOf(initialDateTime.first) }
+    var time by remember { mutableStateOf(initialDateTime.second) }
     var address by remember { mutableStateOf("") }
     var customerName by remember { mutableStateOf("") }
     var customerPhone by remember { mutableStateOf("") }
