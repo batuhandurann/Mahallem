@@ -30,6 +30,9 @@ import com.example.ui.components.getCategoryIcon
 import com.example.ui.theme.*
 import com.example.validation.RequestFormInput
 import com.example.validation.RequestFormValidator
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
@@ -76,8 +79,8 @@ fun CreateJobRequestScreen(
     var districtMenuExpanded by remember { mutableStateOf(false) }
 
     var title by remember { mutableStateOf("") }
-    var date by remember { mutableStateOf(if (isEmergencyPreselected) "Hemen / Bugün" else "2026-10-18") }
-    var time by remember { mutableStateOf(if (isEmergencyPreselected) "En geç 1 saat içinde" else "14:00") }
+    var date by remember { mutableStateOf(if (isEmergencyPreselected) "Hemen / Bugün" else SimpleDateFormat("yyyy-MM-dd", Locale.ROOT).format(Date())) }
+    var time by remember { mutableStateOf(if (isEmergencyPreselected) "En geç 1 saat içinde" else SimpleDateFormat("HH:mm", Locale.ROOT).format(Date())) }
     var address by remember { mutableStateOf("") }
     var customerName by remember { mutableStateOf("") }
     var customerPhone by remember { mutableStateOf("") }
@@ -164,7 +167,8 @@ fun CreateJobRequestScreen(
                                 customerName = customerName,
                                 customerPhone = customerPhone,
                                 areaSquareMeters = areaSquareMeters.toIntOrNull() ?: 0,
-                                isPhysicalService = isPhysicalService
+                                isPhysicalService = isPhysicalService,
+                                isEmergency = selectedUrgency == UrgencyMode.EMERGENCY
                             )
                         )
                         if (!validation.isValid) {
@@ -289,7 +293,11 @@ fun CreateJobRequestScreen(
                     Row {
                         FilterChip(
                             selected = selectedUrgency == UrgencyMode.EMERGENCY,
-                            onClick = { selectedUrgency = UrgencyMode.EMERGENCY },
+                            onClick = {
+                                selectedUrgency = UrgencyMode.EMERGENCY
+                                date = "Hemen / Bugün"
+                                time = "En geç 1 saat içinde"
+                            },
                             label = { Text("🚨 Acil", fontSize = 12.sp) },
                             colors = FilterChipDefaults.filterChipColors(
                                 selectedContainerColor = EmergencyRed,
@@ -300,7 +308,11 @@ fun CreateJobRequestScreen(
                         Spacer(modifier = Modifier.width(6.dp))
                         FilterChip(
                             selected = selectedUrgency == UrgencyMode.PLANNED,
-                            onClick = { selectedUrgency = UrgencyMode.PLANNED },
+                            onClick = {
+                                selectedUrgency = UrgencyMode.PLANNED
+                                if (date == "Hemen / Bugün") date = SimpleDateFormat("yyyy-MM-dd", Locale.ROOT).format(Date())
+                                if (time == "En geç 1 saat içinde") time = SimpleDateFormat("HH:mm", Locale.ROOT).format(Date())
+                            },
                             label = { Text("📅 Planlı", fontSize = 12.sp) },
                             colors = FilterChipDefaults.filterChipColors(
                                 selectedContainerColor = TealPrimary,

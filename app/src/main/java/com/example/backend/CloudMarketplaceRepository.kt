@@ -210,16 +210,20 @@ class CloudMarketplaceRepository(
 
     suspend fun saveJobRequest(request: JobRequestEntity) {
         requireUid()
+        require(request.title.isNotBlank()) { "Başlık girilmelidir." }
+        val schedule = com.example.validation.RequestSchedule.resolve(
+            request.eventOrJobDate, request.eventTime, request.urgencyMode == "EMERGENCY"
+        )
         FunctionsRepository().saveJobRequest(
             mapOf(
                 "requestId" to request.id.toString(),
-                "title" to request.title,
+                "title" to request.title.trim(),
                 "sector" to request.sector,
                 "categoryId" to request.categoryId,
                 "district" to request.district,
                 "urgencyMode" to request.urgencyMode,
-                "eventOrJobDate" to request.eventOrJobDate,
-                "eventTime" to request.eventTime,
+                "eventOrJobDate" to schedule.date,
+                "eventTime" to schedule.time,
                 "budgetEstimate" to request.budgetEstimate,
                 "address" to request.address,
                 "customerName" to request.customerName,
