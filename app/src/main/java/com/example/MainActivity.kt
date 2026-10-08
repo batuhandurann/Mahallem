@@ -159,7 +159,9 @@ fun MarketplaceApp(
         }
 
         val context = LocalContext.current
-        val consent = remember(context) { ConsentRepository(context) }
+        val consent = remember(context, currentUser?.uid) {
+            ConsentRepository(context, currentUser!!.uid)
+        }
 
         if (profileError != null) {
             Box(
@@ -192,9 +194,16 @@ fun MarketplaceApp(
             }
         } else if (!consent.privacyNoticeAcknowledged) {
             PrivacyConsentScreen(
+                userId = currentUser!!.uid,
                 onCompleted = { currentUser = auth.currentUser }
             )
         } else {
+            LaunchedEffect(currentUser?.uid, consent.analyticsConsent) {
+                runCatching {
+                    com.google.firebase.analytics.FirebaseAnalytics.getInstance(context)
+                        .setAnalyticsCollectionEnabled(consent.analyticsConsent)
+                }
+            }
             LaunchedEffect(currentUser?.uid) {
                 if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU
                     && ContextCompat.checkSelfPermission(

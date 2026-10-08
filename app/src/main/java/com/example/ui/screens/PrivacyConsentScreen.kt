@@ -18,9 +18,9 @@ import androidx.compose.runtime.rememberCoroutineScope
 import kotlinx.coroutines.launch
 
 @Composable
-fun PrivacyConsentScreen(onCompleted: () -> Unit) {
+fun PrivacyConsentScreen(userId: String, onCompleted: () -> Unit) {
     val context = LocalContext.current
-    val repository = remember { ConsentRepository(context) }
+    val repository = remember(context, userId) { ConsentRepository(context, userId) }
     var analytics by remember { mutableStateOf(false) }
     var marketing by remember { mutableStateOf(false) }
     var viewedNotice by remember { mutableStateOf(false) }

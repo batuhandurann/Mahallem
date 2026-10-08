@@ -46,4 +46,16 @@ class ExampleUnitTest {
     assertEquals("marketplace-local", marketplaceViewModelKey(""))
   }
 
+  @Test
+  fun consentPreferenceKey_isolatedPerUid() {
+    assertNotEquals(
+      com.example.privacy.consentPreferenceKey("uid-a", "analytics_consent"),
+      com.example.privacy.consentPreferenceKey("uid-b", "analytics_consent")
+    )
+    assertEquals(
+      "uid-a:analytics_consent",
+      com.example.privacy.consentPreferenceKey("uid-a", "analytics_consent")
+    )
+  }
+
 }

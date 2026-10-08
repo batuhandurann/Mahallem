@@ -5,7 +5,6 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.os.Build
 import com.example.core.AppEnvironment
-import com.example.privacy.ConsentRepository
 import com.google.firebase.FirebaseApp
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
@@ -61,8 +60,10 @@ class MahallemApplication : Application() {
                 AppEnvironment.mode != AppEnvironment.Mode.LOCAL
         }
 
+        // Analytics defaults to disabled in AndroidManifest. MarketplaceApp enables it
+        // only after the active user's UID-scoped consent has been loaded.
         runCatching {
-            FirebaseAnalytics.getInstance(this).setAnalyticsCollectionEnabled(ConsentRepository(this).analyticsConsent)
+            FirebaseAnalytics.getInstance(this).setAnalyticsCollectionEnabled(false)
         }
     }
 }
