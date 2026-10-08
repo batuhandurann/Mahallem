@@ -4,7 +4,7 @@
 MyRequestsScreen currently displays "Eğlence & Organizasyon" for every non-HOME_REPAIR request and renders event-only fields for cleaning, moving, tutoring and personal care.
 
 ## Scope
-Branch: `agent/product-request-sector-summary-20261008`. This branch adds `RequestSectorLabel.kt` and `RequestSectorLabelTest.kt`. It does **not** yet wire the policy into `MyRequestsScreen.kt`: two connector updates were blocked.
+Branch: `agent/product-request-sector-summary-20261008`. This branch adds `RequestSectorLabel.kt` and `RequestSectorLabelTest.kt`, wires the policy into `MyRequestsScreen.kt`, and includes Compose UI regressions in `MyRequestsSectorScreenTest.kt`. The code is committed on an isolated product branch, not merged.
 
 ## Acceptance criteria
 1. Each of the six persisted sector codes shows its matching `SectorType.titleTr` label.
@@ -16,10 +16,10 @@ Branch: `agent/product-request-sector-summary-20261008`. This branch adds `Reque
 
 ## Evidence
 - Kotlin 1.9 standalone compile/run of locally mirrored policy + sector enum: 21/21 smoke assertions passed.
-- Seven JUnit test methods committed but **not executed** in Android Gradle.
+- Seven JUnit methods and four Compose Android UI methods committed, **not yet proven passing** in Android Gradle or emulator at time of this update.
 - No emulator, Firebase or physical-device verification for this branch.
-- No PR opened: PR creation blocked by connector safety checks.
+- A draft PR targets `qa/mahallem-test-suite`; check its latest CI/checks before integration.
 - No merge or deployment; `main` unchanged.
 
 ## Next action
-Wire `requestSectorLabel(request.sector)` into the card title and use `requestDetailsKind(request.sector)` for the details branch. Re-run Gradle unit/lint/debug, Android UI, and QA CI. Do not mark fixed until the rendered screen is verified.
+Run Gradle unit/lint/debug and instrumented Compose UI, fix any failures, and verify latest PR SHA in QA CI. Do not mark release-ready until rendered screen and release P0 gates are verified.
