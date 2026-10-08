@@ -7,6 +7,7 @@ import com.batuhanduran.burada.data.local.QuoteEntity
 import com.batuhanduran.burada.data.local.ServiceProviderEntity
 import com.batuhanduran.burada.data.remote.FirebaseServices
 import com.batuhanduran.burada.data.repository.MarketplaceRepository
+import com.batuhanduran.burada.validation.RequestSchedules
 import com.google.android.gms.tasks.Tasks
 import com.google.firebase.firestore.Source
 import com.google.firebase.firestore.FirebaseFirestoreException
@@ -43,12 +44,17 @@ class AuthMarketplaceInstrumentedTest {
         val customer = await(auth.createUserWithEmailAndPassword(customerEmail, password)).user!!
         val customerUid = customer.uid
         val customerRepo = MarketplaceRepository()
+        val emergencySchedule = RequestSchedules.now()
         val requestId = customerRepo.createJobRequest(JobRequestEntity(title = "Android test boya",
-            sector = "HOME_REPAIR", categoryId = "boyaci", district = "Buca", urgencyMode = "PLANNED",
-            eventOrJobDate = "2026-10-10", eventTime = "12:00", address = "Özel adres", status = "PENDING",
+            sector = "HOME_REPAIR", categoryId = "boyaci", district = "Buca", urgencyMode = "EMERGENCY",
+            eventOrJobDate = emergencySchedule.date, eventTime = emergencySchedule.time, address = "Özel adres", status = "PENDING",
             customerName = "Customer", customerPhone = "05551234567",
             provinceId="tr_35",districtId="tr_35_buca",neighborhoodId="pilot_tr_35_buca_efeler",neighborhoodName="Efeler"))
         assertEquals(customerUid, await(db.collection("requests").document(requestId).get(Source.SERVER)).getString("ownerUid"))
+        val savedRequest = await(db.collection("requests").document(requestId).get(Source.SERVER))
+        assertEquals("EMERGENCY", savedRequest.getString("data.urgencyMode"))
+        assertEquals(emergencySchedule.date, savedRequest.getString("data.eventOrJobDate"))
+        assertEquals(emergencySchedule.time, savedRequest.getString("data.eventTime"))
         assertEquals("", await(db.collection("requests").document(requestId).get(Source.SERVER)).getString("data.address"))
         auth.signOut()
         assertNull(auth.currentUser)

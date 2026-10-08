@@ -95,17 +95,28 @@ service cloud.firestore {
         && d.name.size() >= 2
         && d.title.size() >= 2;
     }
+    function validRequestDate(value) {
+      let parts = value.split('-');
+      let year = int(parts[0]);
+      let month = int(parts[1]);
+      let day = int(parts[2]);
+      let leap = year % 400 == 0 || (year % 4 == 0 && year % 100 != 0);
+      let lastDay = month == 2 ? (leap ? 29 : 28) : (month in [4,6,9,11] ? 30 : 31);
+      return value.matches('[0-9]{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])')
+        && year >= 100 && day <= lastDay;
+    }
     function validRequest(d) {
       return d.keys().hasAll(["id", "title", "sector", "categoryId", "district", "urgencyMode", "eventOrJobDate", "eventTime", "address", "status", "customerName", "customerPhone", "phoneVerified", "daysRemaining", "isReported", "escrowStatus", "escrowAmount", "areaSquareMeters", "roomCount", "isFurnished", "materialsIncluded", "renovationNotes", "eventType", "durationHours", "targetAgeGroup", "selectedCostumeOrCharacter", "extraServicesRequested", "budgetEstimate", "createdAt", "ownerUid", "provinceId", "districtId", "neighborhoodId", "neighborhoodName", "publicGeoHash"])
         && d.keys().hasOnly(["id", "title", "sector", "categoryId", "district", "urgencyMode", "eventOrJobDate", "eventTime", "address", "status", "customerName", "customerPhone", "phoneVerified", "daysRemaining", "isReported", "escrowStatus", "escrowAmount", "areaSquareMeters", "roomCount", "isFurnished", "materialsIncluded", "renovationNotes", "eventType", "durationHours", "targetAgeGroup", "selectedCostumeOrCharacter", "extraServicesRequested", "budgetEstimate", "createdAt", "ownerUid", "provinceId", "districtId", "neighborhoodId", "neighborhoodName", "publicGeoHash"])
         && d.id is string && d.id.size() <= 5000
-        && d.title is string && d.title.size() <= 5000
+        && d.title is string && d.title.size() > 0 && d.title.size() <= 120
+        && d.title.matches('.*[^[:space:]].*')
         && d.sector is string && d.sector.size() <= 5000
         && d.categoryId is string && d.categoryId.size() <= 5000
         && d.district is string && d.district.size() <= 5000
         && d.urgencyMode is string && d.urgencyMode.size() <= 5000
-        && d.eventOrJobDate is string && d.eventOrJobDate.size() <= 5000
-        && d.eventTime is string && d.eventTime.size() <= 5000
+        && d.eventOrJobDate is string && validRequestDate(d.eventOrJobDate)
+        && d.eventTime is string && d.eventTime.matches('([01][0-9]|2[0-3]):[0-5][0-9]')
         && d.address is string && d.address.size() <= 5000
         && d.status is string && d.status.size() <= 5000
         && d.customerName is string && d.customerName.size() <= 5000

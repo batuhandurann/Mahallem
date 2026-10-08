@@ -31,6 +31,8 @@ import com.batuhanduran.burada.ui.components.CurrentLocationSelector
 import com.batuhanduran.burada.ui.components.NeighborhoodSelector
 import com.batuhanduran.burada.ui.components.getCategoryIcon
 import com.batuhanduran.burada.ui.theme.*
+import com.batuhanduran.burada.validation.RequestSchedule
+import com.batuhanduran.burada.validation.RequestSchedules
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
@@ -80,8 +82,14 @@ fun CreateJobRequestScreen(
     var selectedCoordinate by remember { mutableStateOf<GeoCoordinate?>(null) }
 
     var title by remember { mutableStateOf("") }
-    var date by remember { mutableStateOf(if (isEmergencyPreselected) "Hemen / Bugün" else "2026-10-18") }
-    var time by remember { mutableStateOf(if (isEmergencyPreselected) "En geç 1 saat içinde" else "14:00") }
+    val initialSchedule = remember { RequestSchedules.now() }
+    var date by remember { mutableStateOf(initialSchedule.date) }
+    var time by remember { mutableStateOf(initialSchedule.time) }
+    var formError by remember { mutableStateOf<String?>(null) }
+    val formScrollState = rememberScrollState()
+    LaunchedEffect(formError) {
+        if (formError != null) formScrollState.animateScrollTo(formScrollState.maxValue)
+    }
     var address by remember { mutableStateOf("") }
     var customerName by remember { mutableStateOf("") }
     var customerPhone by remember { mutableStateOf("") }
@@ -145,15 +153,19 @@ fun CreateJobRequestScreen(
                     enabled = selectedNeighborhood != null,
                     onClick = {
                         val neighborhood = selectedNeighborhood ?: return@Button
+                        val computedTitle = title.trim()
+                        val schedule = if (selectedUrgency == UrgencyMode.EMERGENCY) {
+                            RequestSchedules.now()
+                        } else RequestSchedule(date, time)
+                        try {
+                            RequestSchedules.requireValid(computedTitle, schedule.date, schedule.time)
+                        } catch (error: IllegalArgumentException) {
+                            formError = error.message
+                            return@Button
+                        }
+                        formError = null
                         onNeighborhoodSelected(neighborhood)
                         selectedCoordinate?.let(onCoordinateSelected)
-                        val computedTitle = if (title.isNotBlank()) title else {
-                            if (isPhysicalService) {
-                                "${selectedDistrict}'da ${selectedRoomCount} ${selectedCategory.name} Talebi"
-                            } else {
-                                "${selectedEventType} İçin ${selectedCategory.name} ($selectedCostume)"
-                            }
-                        }
 
                         onSubmitRequest(
                             computedTitle,
@@ -161,8 +173,8 @@ fun CreateJobRequestScreen(
                             selectedCategory,
                             selectedDistrict,
                             selectedUrgency,
-                            date,
-                            time,
+                            schedule.date,
+                            schedule.time,
                             address,
                             customerName.ifBlank { "Mahalle Sakini" },
                             customerPhone.ifBlank { "0532 000 00 00" },
@@ -204,7 +216,7 @@ fun CreateJobRequestScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
-                .verticalScroll(rememberScrollState())
+                .verticalScroll(formScrollState)
                 .padding(16.dp)
         ) {
             // Sector Picker
@@ -214,6 +226,16 @@ fun CreateJobRequestScreen(
                 color = MaterialTheme.colorScheme.onSurface
             )
             Spacer(modifier = Modifier.height(8.dp))
+
+            OutlinedTextField(
+                value = title,
+                onValueChange = { title = it },
+                label = { Text("İlan başlığı") },
+                placeholder = { Text("Örn: Acil su kaçağı için tesisatçı aranıyor") },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth().testTag("input_job_title")
+            )
+            Spacer(modifier = Modifier.height(12.dp))
 
             StableChipRows(items = SectorType.values().filter { it != SectorType.ALL }, spacing = 6.dp) { sec ->
                     FilterChip(
@@ -515,18 +537,20 @@ fun CreateJobRequestScreen(
             )
             Spacer(modifier = Modifier.height(8.dp))
 
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            if (selectedUrgency == UrgencyMode.EMERGENCY) {
+                Text("Acil talebiniz gönderildiği tarih ve saatle yayınlanır.")
+            } else Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 OutlinedTextField(
                     value = date,
                     onValueChange = { date = it },
-                    label = { Text("Tarih") },
+                    label = { Text("Tarih (YYYY-AA-GG)") },
                     singleLine = true,
                     modifier = Modifier.weight(1f).testTag("input_date")
                 )
                 OutlinedTextField(
                     value = time,
                     onValueChange = { time = it },
-                    label = { Text("Saat") },
+                    label = { Text("Saat (SS:DD)") },
                     singleLine = true,
                     modifier = Modifier.weight(1f).testTag("input_time")
                 )
@@ -575,6 +599,10 @@ fun CreateJobRequestScreen(
                 modifier = Modifier.fillMaxWidth().testTag("input_budget")
             )
 
+            formError?.let {
+                Text(it, color = MaterialTheme.colorScheme.error,
+                    modifier = Modifier.fillMaxWidth().testTag("form_error"))
+            }
             Spacer(modifier = Modifier.height(30.dp))
         }
     }

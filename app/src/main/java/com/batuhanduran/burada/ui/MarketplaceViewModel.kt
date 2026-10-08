@@ -448,11 +448,12 @@ class MarketplaceViewModel(application: Application) : AndroidViewModel(applicat
         budget: String
     ) {
         action {
+            com.batuhanduran.burada.validation.RequestSchedules.requireValid(title, date, time)
             val area = requiredNeighborhood()
             val entity = JobRequestEntity(
                 provinceId = area.provinceId, districtId = area.districtId,
                 neighborhoodId = area.neighborhoodId, neighborhoodName = area.neighborhoodName, publicGeoHash = publicGeoHash(),
-                title = title,
+                title = title.trim(),
                 sector = sector.name,
                 categoryId = category.id,
                 district = district,

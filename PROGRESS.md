@@ -3,6 +3,39 @@
 Updated: 2026-10-08 (Europe/Istanbul). Read `AGENTS.md` and git status before work;
 fetch current remote state because other sessions may advance the repository.
 
+## Urgent listing follow-up (2026-10-08)
+
+- Continued from PR #37: its legacy QA run #719 passed unit/lint, emulator,
+  backend/Rules and debug + unsigned release APK/AAB. That branch predates the
+  current Firebase-only architecture and must not be merged into canonical main.
+- Based the new `fix/canonical-urgent-schedule-20261008` branch on main `85e8677`.
+  Main already removed Room, uses UID-bound repositories and clears session
+  ViewModels on logout/account switch; those working guards are preserved.
+- Added explicit required request title, strict calendar/time checks and actual
+  submission-time YYYY-MM-DD/HH:mm for urgent requests. Validation also runs in
+  the repository and Firestore Rules. Calendar leap-year rules reject impossible
+  dates; the existing minimum two-character title requirement is preserved.
+- Added Kotlin and Compose regressions, direct Firestore invalid-input tests and
+  actual Android SDK urgent-request server read-back in the existing account
+  isolation integration test.
+- [PR #45](https://github.com/batuhandurann/Mahallem/pull/45), application source
+  `df8417a23f52815e1dd0cbac1f54f6c2aede3977`, passed Android Quality
+  [#136](https://github.com/batuhandurann/Mahallem/actions/runs/37816260461)
+  and Security [#594](https://github.com/batuhandurann/Mahallem/actions/runs/37816260502).
+  Verified debug APK, unit/lint, clean unsigned release APK/AAB, 14 Android
+  instrumentation tests (zero failures/skips), account isolation and actual
+  urgent-request server read-back. ADB foreground/rotation/process-death/cold
+  relaunch smoke passed. Backend/Auth/Rules/media and all required status aliases
+  passed; both CodeQL languages and secret scan passed. Artifacts were uploaded.
+- Local `npm run test:rules`: 24/24 passed using demo-mahallem Auth/Firestore
+  emulators; `git diff --check` passed. PR #37 was closed as superseded by #45.
+  This evidence is for the stated application source, before this record-only
+  documentation update; do not reuse it for later application changes.
+- Real phone and production Firebase/config/attestation remain unavailable.
+  Next: provide protected production inputs and a real phone/Test Lab to verify
+  the signed build and live account/notification/attestation flows. Emulator
+  success does not establish production deployment or physical-device evidence.
+
 ## Completed and verified
 
 - PR #10 merged into `main`, merge commit `ae70278c4424fb45a1fad4b3bc5e7a90bbca7cce`.
