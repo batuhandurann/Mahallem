@@ -67,6 +67,22 @@ test('trusted photo lifecycle: real Auth emulator, server sanitization, UID isol
   assert.equal(imageInfo.exif, undefined);
   assert.equal((await call('readConversationPhoto', eve, { conversationId, mediaId: photo.mediaId })).status, 403);
   assert.equal((await call('readConversationPhoto', null, { conversationId, mediaId: photo.mediaId })).status, 401);
+  // Revoke the original participant while retaining the same validated private image.
+  // Old upload-time ACLs must not authorize Bob after the conversation is updated.
+  await db.doc(`conversations/${conversationId}`).update({ participantUids: [alice.uid, eve.uid] });
+  assert.equal((await call('readConversationPhoto', bob, { conversationId, mediaId: photo.mediaId })).status, 403);
+  assert.equal((await call('readConversationPhoto', alice, { conversationId, mediaId: photo.mediaId })).status, 200);
+  await db.doc(`conversations/${conversationId}`).update({ participantUids: [alice.uid, bob.uid] });
+
+  // A cached signed-in token cannot bypass server-side account disablement.
+  await adminAuth(admin).updateUser(bob.uid, { disabled: true });
+  assert.equal((await call('readConversationPhoto', bob, { conversationId, mediaId: photo.mediaId })).status, 403);
+  await adminAuth(admin).updateUser(bob.uid, { disabled: false });
+
+  // Deletion-state revocation also fails closed without Storage rule lookups.
+  await db.doc(`users/${bob.uid}`).set({ deletionStatus: 'REQUESTED' }, { merge: true });
+  assert.equal((await call('readConversationPhoto', bob, { conversationId, mediaId: photo.mediaId })).status, 403);
+  await db.doc(`users/${bob.uid}`).update({ deletionStatus: 'ACTIVE' });
   assert.equal((await call('readConversationPhoto', bob, { conversationId, mediaId: '../path' })).status, 400);
   for (const user of [alice, bob, eve]) {
     const storage = getStorage(user.app);
