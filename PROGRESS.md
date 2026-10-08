@@ -19,7 +19,8 @@ fetch current remote state because other sessions may advance the repository.
 - Production follow-up: signed APK/AAB signature validation, configurable upload
   alias, main-only protected signing, temporary-secret cleanup; authorized live
   Firebase audit/deploy; USB physical Auth/Rules/lifecycle runner. The combined
-  Python suite passed 31 tests, including real fixture JAR signing checks.
+  Python suite passed 32 tests, including real fixture JAR signing checks and
+  rejection of API restrictions that omit FCM registration/Installations.
   Fixtures do not prove production signing or live Firebase configuration.
 - Physical-device preflight observed zero attached phones and returned `NOT_RUN`.
   Local Firebase preflight rejected the old Android registration before Cloud

@@ -57,6 +57,10 @@ API allowlist'te kullanılan Firebase API'leri kalmalı; gereksiz ücretli Googl
 anahtarları bu Android anahtarıyla birleştirilmemeli. Auth ve token yenileme dahil
 SDK işlemlerini kısıtlardan sonra gerçek cihazda tekrar deneyin. Firebase API key
 kullanıcı yetkilendirmesi yerine geçmez; Auth, Rules ve App Check birlikte gerekir.
+Push için `firebaseinstallations.googleapis.com` ve `fcmregistrations.googleapis.com`
+allowlist'te zorunludur; denetim bunlardan biri eksikse başarısız olur. Diğer kullanılan
+Firebase API'lerini de [resmî ürün tablosuyla](https://firebase.google.com/docs/projects/api-keys)
+karşılaştırın; bildirim teslimini ayrıca gerçek cihazda doğrulayın.
 
 Auth tarafında e-posta enumeration korumasını ve password policy'yi açın. SMS Auth
 henüz kullanılmıyorsa SMS sağlayıcısını açmayın; açılırsa region policy'yi hedef
