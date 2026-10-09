@@ -10,6 +10,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
@@ -30,8 +31,8 @@ fun MarketplaceMapView(
     onChatForJobRequest: (JobRequestEntity) -> Unit
 ) {
     BackHandler { onBackClick() }
-    var selectedFilter by remember { mutableStateOf("ALL") }
-    var selectedNeighborhoodId by remember { mutableStateOf<String?>(null) }
+    var selectedFilter by rememberSaveable { mutableStateOf("ALL") }
+    var selectedNeighborhoodId by rememberSaveable { mutableStateOf<String?>(null) }
     val neighborhoodIds = (providers.map { it.neighborhoodId } + requests.map { it.neighborhoodId }).distinct().sorted()
     fun labelFor(id: String): String = PilotNeighborhoodCatalog.findById(id)?.displayLabel
         ?: providers.firstOrNull { it.neighborhoodId == id }?.let { "${it.neighborhoodName.ifBlank { "Mahalle belirtilmemiş" }}, ${it.district}" }
