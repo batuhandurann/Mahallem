@@ -32,4 +32,38 @@ class BackupPrivacyConfigurationTest {
                     node.attributes.getNamedItem("path")?.nodeValue == "."
             })
     }
+
+    @Test
+    fun android12BackupAndTransferExcludeLocalData() {
+        val doc = xml("src/main/res/xml/data_extraction_rules.xml")
+        val privateDomains = setOf("root", "file", "database", "sharedpref", "external")
+        for (sectionName in listOf("cloud-backup", "device-transfer")) {
+            val sections = doc.getElementsByTagName(sectionName)
+            assertTrue("Missing $sectionName rules", sections.length == 1)
+            val children = sections.item(0).childNodes
+            val excluded = (0 until children.length).map { children.item(it) }
+                .filter { it.nodeName == "exclude" }
+                .mapNotNull { child ->
+                    val domain = child.attributes?.getNamedItem("domain")?.nodeValue
+                    val path = child.attributes?.getNamedItem("path")?.nodeValue
+                    if (path == ".") domain else null
+                }.toSet()
+            assertTrue("$sectionName must exclude all local data domains: $excluded",
+                excluded.containsAll(privateDomains))
+            assertTrue("$sectionName must not include private data",
+                (0 until children.length).none { children.item(it).nodeName == "include" })
+        }
+    }
+
+    @Test
+    fun manifestReferencesBothBackupRuleFiles() {
+        val attrs = xml("src/main/AndroidManifest.xml")
+            .getElementsByTagName("application").item(0).attributes
+        assertTrue("Android 12+ extraction rules must be wired",
+            attrs.getNamedItem("android:dataExtractionRules")?.nodeValue ==
+                "@xml/data_extraction_rules")
+        assertTrue("Legacy backup rules must be wired",
+            attrs.getNamedItem("android:fullBackupContent")?.nodeValue ==
+                "@xml/backup_rules")
+    }
 }

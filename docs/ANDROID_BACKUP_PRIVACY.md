@@ -6,11 +6,13 @@ The app caches account-scoped marketplace information locally. A device backup o
 
 - AndroidManifest.xml sets `android:allowBackup="false"`.
 - The pre-Android-12 backup XML explicitly excludes the app-private root.
-- A local JVM regression test checks both settings.
+- Local JVM regression tests check manifest settings, legacy exclusions, and Android 12+ cloud/device transfer exclusions.
 
-## Important remaining gap (do not merge yet)
+## Android 12+ backup and transfer safeguards
 
-The Android 12+ `data_extraction_rules.xml` currently contains only the template rules. Explicit exclusions are still needed in **both** `cloud-backup` and `device-transfer`, for example `<exclude domain="root" path="." />` in each. The connector rejected the file update, so this branch is incomplete. In particular, `allowBackup="false"` alone is not a sufficient guarantee against device-to-device transfer on every supported device.
+The Android 12+ `data_extraction_rules.xml` excludes app-local `root`, `file`, `database`, `sharedpref`, and `external` domains under **both** `cloud-backup` and `device-transfer`. The manifest references this XML as well as the pre-Android-12 backup rules. JVM regression tests verify both transport sections, the exclusions, and the manifest references.
+
+These source-code protections are **not evidence of actual Android restore / device-transfer behavior**. Before merge, validate backup and device migration on representative Android 11 and 12+ devices or emulators, including account switching, and record the outputs.
 
 ## UX and operations trade-offs
 
@@ -18,7 +20,7 @@ Disabling backup can mean that locally stored drafts, cached messages, and offli
 
 ## Verification before merge
 
-1. Add the Android 12+ exclusions and a regression test that parses both transport sections.
-2. Run debug and unsigned CI release builds, JVM tests and instrumentation smoke tests.
-3. Verify restore/transfer behavior on Android 11 and Android 12+ devices or emulators, including account switch.
-4. Confirm no unexpected local-only customer data is required for recovery.
+1. Confirm Android Quality / Security CI for the **latest PR head SHA**, including JVM tests, build, lint and UI tests.
+2. Verify actual backup/restore and device transfer behavior on Android 11 and Android 12+ devices or emulators, including account switching.
+3. Confirm no unexpected local-only customer data is required for recovery; warn users about unsynced drafts.
+4. Obtain owner approval before integration; do not merge solely based on source-level regressions.
