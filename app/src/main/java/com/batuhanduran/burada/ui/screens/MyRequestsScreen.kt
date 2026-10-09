@@ -178,9 +178,14 @@ private fun RequestItemCard(
                     }
                 ) {
                     Text(
-                        text = when (request.status) {
-                            "ACCEPTED" -> "Usta Onaylandı"
-                            "QUOTED" -> "${quotes.size} Teklif Geldi"
+                        text = when {
+                            request.visibility == "archived" -> "Kaldırıldı"
+                            request.visibility == "closed" -> "Kapalı"
+                            request.visibility != "published" -> "Gizli"
+                            request.status == "COMPLETED" -> "Tamamlandı"
+                            request.status == "CANCELLED" -> "İptal edildi"
+                            request.status == "ACCEPTED" -> "Usta Onaylandı"
+                            request.status == "QUOTED" -> "${quotes.size} Teklif Geldi"
                             else -> "Teklif Bekleniyor"
                         },
                         fontSize = 11.sp,
@@ -234,6 +239,11 @@ private fun RequestItemCard(
             }
 
             // Quotes Section
+            if (request.visibility != "published") {
+                Spacer(modifier = Modifier.height(10.dp))
+                Text("Bu ilan yeni teklif ve kabul işlemlerine kapalı. Geçmiş teklifler aşağıda korunur.",
+                    style = MaterialTheme.typography.bodySmall, color = Slate600)
+            }
             if (quotes.isNotEmpty()) {
                 Spacer(modifier = Modifier.height(14.dp))
                 HorizontalDivider(color = SurfaceCardBorder)
@@ -249,7 +259,7 @@ private fun RequestItemCard(
                 quotes.forEach { quote ->
                     QuoteCardView(
                         quote = quote,
-                        isRequestAccepted = request.status == "ACCEPTED",
+                        isRequestAccepted = request.visibility != "published" || request.status !in listOf("PENDING", "QUOTED"),
                         onAccept = { onAcceptQuote(quote.id, quote.providerName) },
                         onAcceptWithEscrow = { onAcceptWithEscrow(quote) },
                         onViewReceipt = { onViewReceipt(quote) },

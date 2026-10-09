@@ -31,7 +31,7 @@ fun AccountManagementScreen(model: AccountManagementViewModel,providers: List<Se
     Scaffold(topBar = { TopAppBar(title = { Text("Profil ve hesap") },navigationIcon = {
         TextButton(onClick = onClose,enabled = !state.busy) { Text("Geri") }
     }) }) { padding ->
-        LazyColumn(Modifier.fillMaxSize().padding(padding),contentPadding = PaddingValues(20.dp),verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        LazyColumn(Modifier.fillMaxSize().padding(padding).testTag("account_management_list"),contentPadding = PaddingValues(20.dp),verticalArrangement = Arrangement.spacedBy(12.dp)) {
             item { Text("Sana ait bilgiler",style = MaterialTheme.typography.headlineSmall) }
             item { Text("Hesap profilin özeldir. Keşfette hizmet ilanındaki adın ve açıklaman görünür; bunları ilan yönetiminden düzenleyebilirsin.") }
             if (state.busy) item { LinearProgressIndicator(Modifier.fillMaxWidth()) }
@@ -85,7 +85,7 @@ private fun ListingManagementDialog(listing: ManagedListing,busy: Boolean,error:
         if (confirmRemove) Column {
             Text("İlan keşfetten kaldırılır ve yeni teklif alamaz. Teklif ve sohbet geçmişi hesap silinmediği sürece korunur.")
             error?.let { Text(it,color = MaterialTheme.colorScheme.error) }
-        } else LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        } else LazyColumn(Modifier.testTag("listing_management_list"),verticalArrangement = Arrangement.spacedBy(10.dp)) {
             item { Text("Durum: ${when(listing.visibility) { "published" -> "Yayında"; "archived" -> "Kaldırıldı"; "closed" -> "Kapalı"; else -> "Gizli" }}") }
             if (!listing.editable) item { Text("Teklif alınmış, anlaşılmış veya kaldırılmış ilan düzenlenemez. İş anlaşması varsa iş yönetimini kullan.") }
             items(draft.keys.toList()) { field -> OutlinedTextField(draft[field].orEmpty(),{ value -> draft = draft + (field to value) },

@@ -25,3 +25,10 @@ test("historical accepted offers can close only after terminal undisputed job",(
   assert.equal(terminalJob({data:{status:"CANCELLED",escrowStatus:"NONE"}}),true);
   for(const data of [null,{data:{status:"ACCEPTED"}},{data:{status:"COMPLETED",escrowStatus:"DISPUTED"}},{data:{status:"COMPLETED",escrowStatus:"LOCKED"}}]) assert.equal(terminalJob(data),false);
 });
+
+test("single-line names, titles and displayed prices reject control characters",()=>{
+  assert.throws(()=>profilePatch({displayName:"Bad\nName",bio:"",revision:""}));
+  for(const field of ["name","title","hourlyOrBasePrice"]) assert.throws(()=>listingPatch("providers",{[field]:"Bad\nInput"}));
+  assert.equal(listingPatch("providers",{bio:"Line one\nLine two"}).bio,"Line one\nLine two");
+  assert.throws(()=>listingPatch("providers",JSON.parse('{"__proto__":"forged"}')));
+});

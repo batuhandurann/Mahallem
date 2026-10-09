@@ -1,6 +1,8 @@
 package com.batuhanduran.burada.data.repository
 
 import com.batuhanduran.burada.data.local.ServiceProviderEntity
+import com.batuhanduran.burada.data.local.JobRequestEntity
+import com.squareup.moshi.Moshi
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -55,5 +57,23 @@ class ProviderOwnershipPolicyTest {
     @Test fun ownershipComparisonIsExactNotFuzzy() {
         assertTrue(ownedProviderProfiles(publicListings, "UID-A").isEmpty())
         assertTrue(ownedProviderProfiles(publicListings, "uid").isEmpty())
+    }
+
+    @Test fun listingVisibilityIsEnvelopeMetadataAndCannotEnterWireData() {
+        val moshi = Moshi.Builder().build()
+        val providerAdapter = moshi.adapter(ServiceProviderEntity::class.java)
+        val provider = provider("archived-provider", "uid-a").copy(visibility = "archived")
+        val providerData = providerAdapter.toJsonValue(provider) as Map<*, *>
+        assertTrue("Provider wire data must preserve the Rules field allowlist", !providerData.containsKey("visibility"))
+        assertEquals("published", providerAdapter.fromJsonValue(providerData + ("visibility" to "archived"))!!.visibility)
+
+        val requestAdapter = moshi.adapter(JobRequestEntity::class.java)
+        val request = JobRequestEntity(title = "Test", sector = "HOME_REPAIR", categoryId = "repair",
+            district = "Buca", urgencyMode = "PLANNED", eventOrJobDate = "2026-10-11",
+            eventTime = "12:00", address = "", status = "PENDING", customerName = "Test",
+            customerPhone = "", visibility = "archived")
+        val requestData = requestAdapter.toJsonValue(request) as Map<*, *>
+        assertTrue("Request wire data must preserve the Rules field allowlist", !requestData.containsKey("visibility"))
+        assertEquals("published", requestAdapter.fromJsonValue(requestData + ("visibility" to "archived"))!!.visibility)
     }
 }

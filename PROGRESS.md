@@ -13,14 +13,22 @@ fetch current remote state because other sessions may advance the repository.
 - Added reauthenticated deletion, durable tombstone/access revocation and
   retry-enabled Auth/private-data/chat-media cleanup. Late uploads serialize
   against deletion. Accepted historical quotes consult terminal job status.
-- Reconstructed local backend 12/12 and Python configuration 59/59 passed.
-  Full Rules suite including deletion/archive regressions passed 47/47.
-  Local Functions runtime could not bind Unix sockets (EPERM); callable/media
-  evidence must come from current CI. Android CI is running. Do not claim device/production success.
+- Local backend 13/13 and Python configuration 59/59 passed. Full Rules suite
+  including deletion/archive/provider-offer regressions passed 48/48.
+- CI on `1ab58d33eb3abc33097c0592bf17cd9b7533014f`: debug and unsigned
+  release APK/AAB, unit tests/lint, backend 12/12, Rules 47/47, real emulator
+  callable/media 5/5, Java/Kotlin + JS CodeQL and secret scan passed. Android
+  instrumentation: 24/25 passed; new profile test waited for an offscreen lazy
+  item. Fixed explicit list scrolling; final commit must rerun required checks.
+- Archived visibility now comes from the envelope, stays out of Moshi wire data,
+  and closes Android provider dashboard/quote actions while preserving history.
+  Added actual Android listing edit/removal and archived quote UI regressions.
+  Local Functions runtime could not bind Unix sockets (EPERM); use CI callable
+  evidence. Do not claim physical-device or production success.
 - Product scope, primary reference URLs, privacy boundaries and coordinated
   rollout: PROFILE_ACCOUNT_MANAGEMENT.md. Pending job/review feature branches
   still require combined retention and concurrency validation before release.
-- Next: resolve current CI/Rules/callable failures before marking ready. No
+- Next: verify final commit CI before marking ready. No
   production deployment, signed release or real-account deletion performed.
 
 ## Report authority and production/device compatibility (2026-10-09)

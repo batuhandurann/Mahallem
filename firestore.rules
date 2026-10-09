@@ -379,6 +379,7 @@ service cloud.firestore {
         && activeUid(request.resource.data.customerUid)
         && notBlocked(request.resource.data.providerUid, request.resource.data.customerUid)
         && providerDoc(request.resource.data.data.providerId).ownerUid == request.auth.uid
+        && providerDoc(request.resource.data.data.providerId).visibility == 'published'
         && hasWriteBudget('quote', /databases/$(database)/documents/quotes/$(id));
       allow update: if signed() && resource.data.status == 'PENDING'
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status','updatedAt'])

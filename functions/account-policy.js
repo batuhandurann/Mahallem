@@ -9,11 +9,15 @@ function text(value,min,max) {
 }
 function profilePatch(input) {
   if(!input || Object.keys(input).some(k=>!["displayName","bio","revision"].includes(k)) || typeof input.revision!=="string") throw Error("Geçersiz profil alanı.");
-  return {displayName:text(input.displayName,2,80),bio:text(input.bio,0,1000)};
+  const displayName=text(input.displayName,2,80);
+  if(/[\u0000-\u001f\u007f-\u009f]/.test(displayName)) throw Error("Ad tek satır olmalı.");
+  return {displayName,bio:text(input.bio,0,1000)};
 }
 function listingPatch(kind,input) {
-  if(!fields[kind] || !input || !Object.keys(input).length || Object.keys(input).some(k=>!fields[kind][k])) throw Error("Geçersiz ilan alanı.");
+  if(!fields[kind] || !input || !Object.keys(input).length || Object.keys(input).some(k=>!Object.hasOwn(fields[kind],k))) throw Error("Geçersiz ilan alanı.");
   const patch=Object.fromEntries(Object.entries(input).map(([k,v])=>[k,text(v,...fields[kind][k])]));
+  for(const key of ["title","name","hourlyOrBasePrice","budgetEstimate"])
+    if(patch[key] && /[\u0000-\u001f\u007f-\u009f]/.test(patch[key])) throw Error("Bu alan tek satır olmalı.");
   if(patch.eventOrJobDate) {
     const value=patch.eventOrJobDate,date=new Date(`${value}T00:00:00.000Z`);
     if(!/^\d{4}-\d{2}-\d{2}$/.test(value) || !Number.isFinite(date.getTime()) || date.toISOString().slice(0,10)!==value) throw Error("Geçersiz tarih.");

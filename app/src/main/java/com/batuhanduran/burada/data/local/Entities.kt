@@ -1,5 +1,6 @@
 package com.batuhanduran.burada.data.local
 
+import com.squareup.moshi.Json
 import com.squareup.moshi.JsonClass
 
 @JsonClass(generateAdapter = true)
@@ -37,7 +38,9 @@ data class ServiceProviderEntity(
     val districtId: String = "",
     val neighborhoodId: String = "",
     val neighborhoodName: String = "",
-    val publicGeoHash: String = ""
+    val publicGeoHash: String = "",
+    // Envelope metadata, never part of client-authored listing data.
+    @Json(ignore = true) val visibility: String = "published"
 )
 
 @JsonClass(generateAdapter = true)
@@ -79,7 +82,8 @@ data class JobRequestEntity(
     val districtId: String = "",
     val neighborhoodId: String = "",
     val neighborhoodName: String = "",
-    val publicGeoHash: String = ""
+    val publicGeoHash: String = "",
+    @Json(ignore = true) val visibility: String = "published"
 )
 
 @JsonClass(generateAdapter = true)

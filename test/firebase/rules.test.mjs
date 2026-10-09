@@ -502,3 +502,8 @@ test('acceptance cannot race against deleting provider; direct scope edits remai
   await assertFails(batch.commit());
   await assertFails(updateDoc(doc(a,'requests/r'),{'data.title':'Changed scope',updatedAt:serverTimestamp()}));
 });
+
+test('archived provider service cannot be used to create a new customer offer',async () => {
+  await env.withSecurityRulesDisabled(async c => { await updateDoc(doc(c.firestore(),'providers/p'),{visibility:'archived'}); });
+  await assertFails(budgetedSet(doc(db('bob'),'quotes/new'),quote({data:{...f.quote,id:'new'}})));
+});
