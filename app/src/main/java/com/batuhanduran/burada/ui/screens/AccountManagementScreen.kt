@@ -4,7 +4,9 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -71,7 +73,7 @@ fun AccountManagementScreen(model: AccountManagementViewModel,providers: List<Se
         var password by remember { mutableStateOf("") }
         var confirmation by remember { mutableStateOf("") }
         AlertDialog(onDismissRequest = { if (!state.busy) deleteDialog = false },title = { Text("Hesabını kalıcı olarak sil") },text = {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Column(Modifier.verticalScroll(rememberScrollState()),verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text("Onaylandıktan sonra oturumun kapanır ve sunucudaki silme işlemi başlar. Bu işlem geri alınamaz.")
                 OutlinedTextField(password,{ password = it },label = { Text("Mevcut şifren") },enabled = !state.busy,
                     visualTransformation = PasswordVisualTransformation(),keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),

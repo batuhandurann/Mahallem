@@ -99,8 +99,12 @@ class AccountManagementInstrumentedTest {
             compose.onNodeWithTag("open_account_deletion").performClick()
             compose.waitUntil(30_000) { compose.onAllNodesWithTag("confirm_account_deletion").fetchSemanticsNodes().isNotEmpty() }
             compose.onNodeWithTag("confirm_account_deletion").assertIsNotEnabled()
+            compose.onNodeWithTag("delete_account_password").performScrollTo().performTextInput(password)
+            compose.onNodeWithTag("delete_account_confirmation").performScrollTo()
             compose.onNodeWithTag("delete_account_confirmation").performTextInput("WRONG")
             compose.onNodeWithTag("confirm_account_deletion").assertIsNotEnabled()
+            compose.onNodeWithTag("delete_account_confirmation").performTextReplacement("HESABIMI SİL")
+            compose.onNodeWithTag("confirm_account_deletion").assertIsEnabled()
             compose.onNodeWithText("Vazgeç").performClick()
             auth.signOut()
             compose.waitUntil(30_000) { compose.onAllNodesWithTag("auth_email").fetchSemanticsNodes().isNotEmpty() }
