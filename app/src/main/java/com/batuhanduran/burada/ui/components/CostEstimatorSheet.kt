@@ -200,7 +200,7 @@ fun CostEstimatorSheet(
                     price = "$avgPrice ₺",
                     subtitle = "Yalnızca örnek",
                     color = TealPrimary,
-                    isPopular = true,
+                    isPopular = false,
                     modifier = Modifier.weight(1.2f)
                 )
 
