@@ -33,7 +33,8 @@ https://support.taskrabbit.com/hc/en-gb/articles/46260446684571
   The callable only acknowledges REQUESTED. A retry-enabled worker disables and
   deletes Auth, own listings/contacts/quotes, own messages/media and private user
   subcollections. Other accounts/messages remain; shared names/previews anonymize.
-  Late photo commits check the tombstone transactionally and clean failed files.
+  Late photo commits check the tombstone transactionally. A retry-enabled Storage
+  finalization trigger erases late objects even after a process crash or completed purge.
 
 ## Data retention and limits
 
@@ -52,10 +53,11 @@ policy; do not claim their cleanup is covered by this main-based implementation.
 Deploy Rules and trusted Functions together before shipping the Android screen.
 New App Check enforced callables: getAccountProfile, updateAccountProfile,
 getListingManagement, manageListing, requestAccountDeletion. New named-database
-retry trigger: purgeDeletedAccount. Production verifier checks all six.
+retry trigger: purgeDeletedAccount; Storage retry trigger: purgeDeletedAccountPhoto.
+Production verifier checks all seven and the exact Storage bucket.
 Existing Admin Auth/Firestore/Storage service permissions are required.
-Monitor _accountDeletions jobs stuck REQUESTED/PURGING and retry failures; large
-accounts may require a checkpointed queue beyond this pilot cleanup worker.
+Monitor _accountDeletions jobs stuck REQUESTED/PURGING and retry failures; shared
+conversation cleanup is paginated and checkpoints progress for timeout retries.
 
 Tests run only on demo-mahallem: input policy, Rules stale-token and archived
 listing/acceptance gates, actual callables and triggered deletion with real Auth,

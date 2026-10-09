@@ -24,7 +24,7 @@ HOSTS = {"firebase.googleapis.com", "firebaseappcheck.googleapis.com", "apikeys.
          "firebaserules.googleapis.com", "cloudfunctions.googleapis.com"}
 FUNCTIONS = {"getModerationQueue", "reviewReport", "uploadConversationPhoto",
              "readConversationPhoto", "notifyConversationMessage", "getListingTrust", "getAccountProfile", "updateAccountProfile",
-             "getListingManagement", "manageListing", "requestAccountDeletion", "purgeDeletedAccount"}
+             "getListingManagement", "manageListing", "requestAccountDeletion", "purgeDeletedAccount", "purgeDeletedAccountPhoto"}
 
 
 class VerificationError(Exception):
@@ -238,6 +238,8 @@ def verify_deployed(reader, project_id, bucket, root):
                 "Production function has an unobservable secret emulator/database override")
         if function in {"notifyConversationMessage", "purgeDeletedAccount"}:
             require(live.get("eventTrigger", {}).get("eventFilters", {}).get("database") == "mahallem", "Push trigger targets the wrong Firestore database")
+        if function == "purgeDeletedAccountPhoto":
+            require(live.get("eventTrigger", {}).get("eventFilters", {}).get("bucket") == bucket, "Deletion photo cleanup targets the wrong Storage bucket")
     return digests
 
 

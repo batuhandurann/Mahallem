@@ -13,9 +13,10 @@ fetch current remote state because other sessions may advance the repository.
 - Added reauthenticated deletion, durable tombstone/access revocation and
   retry-enabled Auth/private-data/chat-media cleanup. Late uploads serialize
   against deletion. Accepted historical quotes consult terminal job status.
-- Reconstructed local backend 12/12 and Python configuration 58/58 passed.
-  Initial Rules run 44/44 passed; newly added regression and callable/media
-  results pending. Android CI is running. Do not claim device/production success.
+- Reconstructed local backend 12/12 and Python configuration 59/59 passed.
+  Full Rules suite including deletion/archive regressions passed 47/47.
+  Local Functions runtime could not bind Unix sockets (EPERM); callable/media
+  evidence must come from current CI. Android CI is running. Do not claim device/production success.
 - Product scope, primary reference URLs, privacy boundaries and coordinated
   rollout: PROFILE_ACCOUNT_MANAGEMENT.md. Pending job/review feature branches
   still require combined retention and concurrency validation before release.

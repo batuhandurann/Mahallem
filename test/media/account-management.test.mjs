@@ -87,4 +87,11 @@ test('actual deletion trigger purges Auth/private data/own media while preservin
   assert.equal((await getStorage(admin).bucket().file(path).exists())[0],false);
   await assert.rejects(adminAuth(admin).getUser(leaving.uid),e=>e.code==='auth/user-not-found');
   assert.ok(await adminAuth(admin).getUser(other.uid));
+  // Simulate a trusted upload finishing after the durable purge is already complete.
+  const late=`conversationMedia/${id}/${leaving.uid}/late.jpg`;
+  await getStorage(admin).bucket().file(late).save(Buffer.from('late-upload'),{metadata:{metadata:{uploaderUid:leaving.uid}}});
+  const lateDeadline=Date.now()+30_000;
+  while((await getStorage(admin).bucket().file(late).exists())[0] && Date.now()<lateDeadline) await new Promise(r=>setTimeout(r,500));
+  assert.equal((await getStorage(admin).bucket().file(late).exists())[0],false);
+
 });

@@ -1,6 +1,7 @@
 "use strict";
 const {onCall,HttpsError}=require("firebase-functions/v2/https");
 const {onDocumentCreated}=require("firebase-functions/v2/firestore");
+const {onObjectFinalized}=require("firebase-functions/v2/storage");
 const {FieldValue,FieldPath}=require("firebase-admin/firestore");
 const {getAuth}=require("firebase-admin/auth");
 const {getStorage}=require("firebase-admin/storage");
@@ -106,6 +107,17 @@ module.exports=function install(db,database,options,reserve) {
     });
     return {status:"REQUESTED"};
   });
+  // Retryable late-upload cleanup closes the crash window between object save
+  // and Firestore media registration, including when the main purge completed.
+  exports.purgeDeletedAccountPhoto=onObjectFinalized({region:options.region,retry:true,
+    timeoutSeconds:60,memory:"256MiB",maxInstances:5,concurrency:2},async event=>{
+    const object=event.data,path=object.name || "";
+    const match=/^conversationMedia\/([^/]+)\/([^/]+)\/([^/]+)\.jpg$/.exec(path);
+    if(!match || object.metadata?.uploaderUid!==match[2]) return;
+    const uid=segment(match[2]);
+    if((await jobs.doc(uid).get()).exists)
+      await getStorage().bucket(object.bucket).file(path).delete({ignoreNotFound:true});
+  });
   exports.purgeDeletedAccount=onDocumentCreated({region:options.region,database,document:"_accountDeletions/{uid}",retry:true,
     timeoutSeconds:540,memory:"512MiB",maxInstances:5,concurrency:1},async event=>{
     const uid=segment(event.params.uid),jobRef=jobs.doc(uid);
@@ -120,12 +132,22 @@ module.exports=function install(db,database,options,reserve) {
       await erase(db.collection(kind==="providers"?"providerContacts":"requestContacts").where("ownerUid","==",uid));
     }
     for(const field of ["providerUid","customerUid"]) await erase(db.collection("quotes").where(field,"==",uid));
-    const conversations=await db.collection("conversations").where("participantUids","array-contains",uid).get();
-    for(const convo of conversations.docs) {
-      await erase(convo.ref.collection("messages").where("senderUid","==",uid));
-      await getStorage().bucket().deleteFiles({prefix:`conversationMedia/${convo.id}/${uid}/`});
-      await erase(convo.ref.collection("media").where("uploaderUid","==",uid));
-      await convo.ref.update(new FieldPath("names",uid),"Silinmiş hesap","lastMessage","","relatedItemTitle","","updatedAt",FieldValue.serverTimestamp());
+    // Persist progress so a timeout/retry resumes instead of repeatedly revisiting
+    // the same shared conversations on accounts with long histories.
+    let cursor=(await jobRef.get()).data()?.conversationCursor || "";
+    while(true) {
+      let query=db.collection("conversations").where("participantUids","array-contains",uid).orderBy(FieldPath.documentId()).limit(100);
+      if(cursor) query=query.startAfter(cursor);
+      const conversations=await query.get();
+      if(conversations.empty) break;
+      for(const convo of conversations.docs) {
+        await erase(convo.ref.collection("messages").where("senderUid","==",uid));
+        await getStorage().bucket().deleteFiles({prefix:`conversationMedia/${convo.id}/${uid}/`});
+        await erase(convo.ref.collection("media").where("uploaderUid","==",uid));
+        await convo.ref.update(new FieldPath("names",uid),"Silinmiş hesap","lastMessage","","relatedItemTitle","","updatedAt",FieldValue.serverTimestamp());
+        cursor=convo.id;
+        await jobRef.update({conversationCursor:cursor,lastProgressAt:FieldValue.serverTimestamp()});
+      }
     }
     await db.recursiveDelete(db.doc(`users/${uid}`));
     await getAuth().deleteUser(uid).catch(e=>{if(e.code!=="auth/user-not-found") throw e;});
