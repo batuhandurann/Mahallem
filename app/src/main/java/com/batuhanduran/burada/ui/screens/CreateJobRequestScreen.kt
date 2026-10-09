@@ -163,6 +163,11 @@ fun CreateJobRequestScreen(
                             formError = error.message
                             return@Button
                         }
+                        val parsedArea = areaSquareMeters.trim().takeIf { it.isNotEmpty() }?.toIntOrNull()
+                        if (isPhysicalService && areaSquareMeters.isNotBlank() && (parsedArea == null || parsedArea <= 0)) {
+                            formError = "Alan (m²) pozitif bir tam sayı olmalıdır."
+                            return@Button
+                        }
                         formError = null
                         onNeighborhoodSelected(neighborhood)
                         selectedCoordinate?.let(onCoordinateSelected)
@@ -178,7 +183,7 @@ fun CreateJobRequestScreen(
                             address,
                             customerName.trim(),
                             customerPhone.trim(),
-                            areaSquareMeters.toIntOrNull() ?: 0,
+                            parsedArea ?: 0,
                             selectedRoomCount,
                             isFurnished,
                             materialsIncluded,
