@@ -39,9 +39,10 @@ fun MarketplaceMapView(
         ?: requests.firstOrNull { it.neighborhoodId == id }?.let { "${it.neighborhoodName.ifBlank { "Mahalle belirtilmemiş" }}, ${it.district}" }
         ?: "Mahalle belirtilmemiş"
 
-    // A realtime deletion must not leave an orphaned filter hiding all surviving results.
+    // Empty backend snapshots may be transient during refresh or state restoration.
+    // Clear orphaned selections only after a non-empty neighborhood snapshot arrives.
     LaunchedEffect(neighborhoodIds) {
-        if (selectedNeighborhoodId != null && selectedNeighborhoodId !in neighborhoodIds) selectedNeighborhoodId = null
+        if (neighborhoodIds.isNotEmpty() && selectedNeighborhoodId != null && selectedNeighborhoodId !in neighborhoodIds) selectedNeighborhoodId = null
     }
     val filteredProviders = providers.filter {
         selectedFilter != "REQUESTS" && (selectedFilter != "EMERGENCY" || it.isEmergencyAvailable) &&
