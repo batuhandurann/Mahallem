@@ -314,6 +314,29 @@ class MarketplaceViewModel(application: Application) : AndroidViewModel(applicat
         }
     }
 
+    /** Clear the draft only after Firestore acknowledges the message write. */
+    suspend fun sendChatTextConfirmed(conversationId: String, text: String): Boolean {
+        if (text.isBlank()) return false
+        return try {
+            repository.sendChatMessage(
+                conversationId = conversationId,
+                senderName = "Ben",
+                text = text,
+                isFromMe = true
+            )
+            true
+        } catch (e: kotlinx.coroutines.TimeoutCancellationException) {
+            _toastMessage.value = "Gönderim doğrulanamadı. Tekrar göndermeden önce sohbeti kontrol edin."
+            false
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            _toastMessage.value = "Mesaj gönderilemedi. Metniniz korunuyor: " +
+                (e.message ?: "Bağlantınızı kontrol edin.")
+            false
+        }
+    }
+
     fun sendVoiceNote(conversationId: String, durationSeconds: Int) {
         _toastMessage.value = "Sesli mesaj yükleme henüz kullanılamıyor. Metin mesajı gönderebilirsiniz."
     }
