@@ -1,5 +1,7 @@
 package com.batuhanduran.burada.data.repository
 
+import com.batuhanduran.burada.validation.quoteDraftError
+
 import com.batuhanduran.burada.data.local.*
 import com.batuhanduran.burada.data.model.SectorType
 import com.batuhanduran.burada.data.model.UrgencyMode
@@ -213,6 +215,8 @@ class MarketplaceRepository(
     fun getQuotesForRequest(requestId: String) = getAllQuotes().map { list -> list.filter { it.requestId == requestId } }
     suspend fun sendQuote(quote: QuoteEntity): String {
         requireAccount()
+        val validationError = quoteDraftError(quote.price, quote.durationOrArrival, quote.notes)
+        require(validationError == null) { validationError ?: "Teklif bilgileri geçersiz." }
         val request = db.collection("requests").document(quote.requestId).get(Source.SERVER).awaitRemote()
         val customerUid = requireNotNull(request.getString("ownerUid"))
         check(customerUid != uid) { "Kendi ilanınıza teklif veremezsiniz." }
