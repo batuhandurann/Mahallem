@@ -4,6 +4,7 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.hasScrollAction
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.performScrollToNode
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -54,7 +55,7 @@ class ProviderTrustCopyTest {
         compose.onNodeWithText("Çocuk Dostu").assertDoesNotExist()
         compose.onNodeWithTag("btn_detail_chat").assertIsDisplayed()
         compose.onNodeWithTag("btn_detail_request_quote").assertIsDisplayed()
-        compose.onNodeWithTag("provider_detail_list")
+        compose.onNode(hasScrollAction())
             .performScrollToNode(hasTestTag("provider_portfolio_empty"))
         compose.onNodeWithText(
             "Bu profilde doğrulanmış çalışma fotoğrafı veya videosu henüz gösterilmiyor."
