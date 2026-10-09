@@ -1,6 +1,6 @@
 # Progress — Burada / Mahallem
 
-Updated: 2026-10-09 (Europe/Istanbul). Read `AGENTS.md` and git status before work;
+Updated: 2026-10-10 (Europe/Istanbul). Read `AGENTS.md` and git status before work;
 fetch current remote state because other sessions may advance the repository.
 
 ## Job completion and cancellation (2026-10-09)
@@ -23,29 +23,55 @@ fetch current remote state because other sessions may advance the repository.
   filters, role-specific controls, confirmation, reason/explanation validation,
   busy/error/retry states and private timeline. Removed misleading acceptance
   guarantee/receipt claims from the changed quote card.
-- Local backend policy/security unit tests 18/18 passed and syntax checks passed.
-  Updated production audit requires `manageJob`; merged configuration/device
-  fixture suite 59/59 passed (not a live Cloud verification).
-  Local Gradle cannot download its distribution (network unreachable), so this
-  is not Android build evidence. Local emulator execution requires JDK 21;
-  this environment has JDK 17 and no Android SDK. New Rules, real callable,
-  Android SDK and Compose tests are committed for real GitHub CI execution.
-- CI source `630f238a`: debug build/unit/lint, clean unsigned release, backend
-  18/18, Auth/Rules 45/45, trusted integration 8/8 and both CodeQL languages /
-  secret scan passed. Android ran 27 tests: 26 passed, one failed because the
-  Functions SDK's IID context rejected `fake-emulator-key` syntax before sending
-  the job callable. Emulator-only options now use an explicitly nonfunctional
-  39-character SDK-compatible placeholder; production options are unchanged.
-- Corrected an incomplete GitHub source-tree transfer after the emulator key
-  fix: restored all 188 tracked files, verified against local Git tree
-  `a0fd55486fe38fa41e879587ef912a2d6becc66b`, source commit `e98732b`.
-  Fresh Android/security CI is required for the restored source; the earlier
-  partial-tree commit is not build evidence.
-- PR #75 records the current CI outcome; merge only after required checks pass.
-  Production needs protected
-  Rules + trusted-backend deployment and real-device App Check verification.
-  Payments/refunds, job-specific push, staffed disputes and reviews are separate
-  work; no automatic completion/cancellation timeout or financial claims added.
+- Fixed the Android Functions SDK emulator API-key syntax with an explicitly
+  nonfunctional SDK-compatible placeholder; production options are unchanged.
+  Restored and checked the complete tracked source after a transfer error.
+- [PR #75](https://github.com/batuhandurann/Mahallem/pull/75) merged into `main`
+  as `30da563b63f6a55c873dbeac934a830b936cf5ce`. Tested application source:
+  `f99c5265512da3acf60efe28ebb9e8bfb9b5d249`. Merge and tested source share Git
+  tree `fe5287234662f93789231ceb5634ce6e3e7cf0b1`; no application changes were
+  introduced during merge.
+- Android Quality [run 37989060489](https://github.com/batuhandurann/Mahallem/actions/runs/37989060489)
+  passed all nine jobs: debug build/unit/lint, clean unsigned release APK/AAB,
+  backend 18/18, Auth/Firestore Rules 45/45, actual callable integration 8/8,
+  Android instrumentation 27/27 with zero failures/skips, and ADB foreground,
+  rotation, actual process-death and cold-relaunch smoke.
+- Security [run 37989060456](https://github.com/batuhandurann/Mahallem/actions/runs/37989060456)
+  passed JavaScript and Java/Kotlin CodeQL and secret scan. All 22 check runs
+  on the tested source passed. Local configuration/device fixtures: 59/59;
+  these fixtures are not live Cloud or physical-device evidence.
+- Main source `30da563b` subsequently passed Android Quality
+  [run 37991083423](https://github.com/batuhandurann/Mahallem/actions/runs/37991083423)
+  and Security [run 37989969504](https://github.com/batuhandurann/Mahallem/actions/runs/37989969504).
+  An earlier Android run on this SHA failed; use the later successful run as
+  the current result rather than treating every historical run as successful.
+- Production still needs protected Rules + trusted-backend deployment including
+  `manageJob`, production App Check verification and a real phone/authorized
+  Test Lab. Payments/refunds, job-specific push, staffed disputes and reviews
+  remain separate work. No automatic completion/cancellation timeout or
+  financial guarantee was introduced.
+
+## GitHub checkpoint (2026-10-10, Europe/Istanbul)
+
+- Main observed at `30da563b63f6a55c873dbeac934a830b936cf5ce`. This record is a
+  documentation-only checkpoint; prior source-specific results do not claim
+  fresh Android execution for this documentation commit.
+- PR #74 report authority / release-device safeguards and PR #75 job lifecycle
+  are merged. PR #78 was closed as an identical temporary verification attempt;
+  PR #75 remains the canonical lifecycle implementation and evidence record.
+- Other recent work is already saved on GitHub but is still OPEN, not merged:
+
+| PR | Saved development | Observed head |
+|---|---|---|
+| [#76](https://github.com/batuhandurann/Mahallem/pull/76) | Verified customer reviews | `ba942fdced0f653006b5e167c9bd06bac0d89f9a` |
+| [#79](https://github.com/batuhandurann/Mahallem/pull/79) | Profile, listings and account deletion | `9f9047ede1b58b56662cfc88fb199f77e17cf381` |
+| [#77](https://github.com/batuhandurann/Mahallem/pull/77) | Discovery filter state restoration | `dd0cdd83673b3638ded32607eb14f739fa8438d5` |
+| [#73](https://github.com/batuhandurann/Mahallem/pull/73) | Sector UI regression checks | `afcaf33e428e05565745779cf36064c3c84daa60` |
+| [#70](https://github.com/batuhandurann/Mahallem/pull/70) | UX, chat and quote-rule integration proposal | `0d0f4b0f1bc87c8bb7e54d53dbbfa8abe7360509` |
+
+- These are observed snapshots, not completion or merge claims. Preserve each
+  branch and inspect its current source, overlap and required checks before any
+  later integration. User paused development; this request only records work.
 
 ## Report authority and production/device compatibility (2026-10-09)
 
@@ -221,8 +247,10 @@ fetch current remote state because other sessions may advance the repository.
 
 ## Next concrete task
 
-Preserve normal main protection and verify the current content quota follow-up's
-actual checks/merge state. Supply the protected inputs described in
-`PRODUCTION_EXECUTION.md` / `FIREBASE_PRODUCTION_DEPLOY.md`, run the signed build,
-phone tests and authorized live audit/deployment, and record their real result
-IDs here. Do not repeat existing successful integration work.
+Work is paused at the user's request. All lifecycle application changes are
+saved in merged PR #75; this checkpoint records the final evidence and pending
+work. Resume development only when requested. Before resuming, fetch current
+main and the relevant open PRs, preserve existing tests/account guards, and
+check current branch results before merging. Live deployment, signing and
+physical-device verification require the protected inputs documented in
+`PRODUCTION_EXECUTION.md` and `FIREBASE_PRODUCTION_DEPLOY.md`.
