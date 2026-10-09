@@ -30,7 +30,14 @@ fetch current remote state because other sessions may advance the repository.
   is not Android build evidence. Local emulator execution requires JDK 21;
   this environment has JDK 17 and no Android SDK. New Rules, real callable,
   Android SDK and Compose tests are committed for real GitHub CI execution.
-- Next: verify CI on this branch before merging; production needs protected
+- CI source `630f238a`: debug build/unit/lint, clean unsigned release, backend
+  18/18, Auth/Rules 45/45, trusted integration 8/8 and both CodeQL languages /
+  secret scan passed. Android ran 27 tests: 26 passed, one failed because the
+  Functions SDK's IID context rejected `fake-emulator-key` syntax before sending
+  the job callable. Emulator-only options now use an explicitly nonfunctional
+  39-character SDK-compatible placeholder; production options are unchanged.
+- PR #75 records the current CI outcome; merge only after required checks pass.
+  Production needs protected
   Rules + trusted-backend deployment and real-device App Check verification.
   Payments/refunds, job-specific push, staffed disputes and reviews are separate
   work; no automatic completion/cancellation timeout or financial claims added.
