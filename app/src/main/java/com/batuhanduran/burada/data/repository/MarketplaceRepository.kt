@@ -329,6 +329,7 @@ class MarketplaceRepository(
             val request = tx.get(reqRef)
             val quote = tx.get(quoteRef)
             check(request.getString("ownerUid") == uid && quote.getString("customerUid") == uid)
+            check(request.getString("data.status") == "PENDING") { "Bu talep artık teklif kabul etmiyor." }
             check(quote.getString("requestId") == requestId && quote.getString("status") == "PENDING")
             check(request.getString("acceptedQuoteId") == "") { "Bu ilan için zaten teklif kabul edildi." }
             tx.update(quoteRef, mapOf("status" to "ACCEPTED", "updatedAt" to FieldValue.serverTimestamp()))

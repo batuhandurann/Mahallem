@@ -229,7 +229,7 @@ test('device tokens and structured reports owner scoped; moderator fields cannot
   await assertSucceeds(budgetedSet(doc(db('alice'),`users/alice/devices/${id}`),{token:'device-token-for-testing-123',platform:'android',updatedAt:serverTimestamp()}));
   await assertFails(getDoc(doc(db('bob'),`users/alice/devices/${id}`)));
   await assertFails(budgetedSet(doc(db('alice'),'users/bob/devices/'+id),{token:'device-token-for-testing-123',platform:'android',updatedAt:serverTimestamp()}));
-  const report={reporterUid:'alice',targetType:'listing',targetId:'provider:p',targetUid:'bob',reason:'fraud',details:'Kontrol edin',status:'pending',createdAt:serverTimestamp()};
+  const report=reportPayload(db('alice'));
   await assertSucceeds(budgetedSet(doc(db('alice'),'reports/r'),report));
   await assertSucceeds(getDoc(doc(db('alice'),'reports/r')));
   await assertFails(getDoc(doc(db('bob'),'reports/r')));
@@ -259,14 +259,94 @@ test('only server can write photo metadata; photo attachment requires own author
 });
 
 const budgets = {listing:10, quote:60, conversation:30, message:240, report:10};
-const reportPayload = () => ({reporterUid:'alice',targetType:'listing',targetId:'provider:p',targetUid:'bob',reason:'fraud',details:'Kontrol edin',status:'pending',createdAt:serverTimestamp()});
+const reportPayload = (d = db('alice'), overrides = {}) => ({reporterUid:'alice',targetType:'listing',targetId:'provider:p',targetUid:'bob',
+  targetRef:doc(d,'providers/p'),conversationId:'',reason:'fraud',details:'Kontrol edin',status:'pending',createdAt:serverTimestamp(),...overrides});
 const creations = (d, suffix) => [
   {operation:'listing', uid:'bob', ref:doc(d,`providers/${suffix}`), payload:provider({id:suffix})},
   {operation:'quote', uid:'bob', ref:doc(d,`quotes/${suffix}`), payload:quote({data:{...f.quote,id:suffix}})},
   {operation:'conversation', uid:'alice', ref:doc(d,`conversations/${suffix}`), payload:conversation()},
   {operation:'message', uid:'alice', ref:doc(d,`conversations/c/messages/${suffix}`), payload:message({id:suffix})},
-  {operation:'report', uid:'alice', ref:doc(d,`reports/${suffix}`), payload:reportPayload()},
+  {operation:'report', uid:'alice', ref:doc(d,`reports/${suffix}`), payload:reportPayload(d)},
 ];
+test('listing reports require an existing published target and its authoritative owner', async () => {
+  const d=db('alice');
+  await assertSucceeds(budgetedSet(doc(d,'reports/listing'),reportPayload(d)));
+  const legacy = reportPayload(d);
+  delete legacy.targetRef;
+  await assertFails(budgetedSet(doc(d,'reports/missing-reference'),legacy));
+  for (const override of [
+    {targetUid:'eve'}, {targetId:'request:p'}, {targetRef:doc(d,'requests/r')},
+    {targetId:'provider:missing',targetRef:doc(d,'providers/missing')},
+    {targetRef:'providers/p'}, {conversationId:'c'}, {targetRef:doc(d,'providers/p/private/nested')}
+  ]) await assertFails(budgetedSet(doc(d,'reports/forged-listing'),reportPayload(d,override)));
+  await env.withSecurityRulesDisabled(c=>updateDoc(doc(c.firestore(),'providers/p'),{visibility:'hidden'}));
+  await assertFails(budgetedSet(doc(d,'reports/hidden'),reportPayload(d)));
+  assert.equal((await getDoc(doc(d,'users/alice/writeBudgets/report'))).data().count,1);
+});
+test('request listing reports bind the request owner and distinguish listing collections', async () => {
+  const d=db('bob');
+  const payload=reportPayload(d,{reporterUid:'bob',targetId:'request:r',targetUid:'alice',targetRef:doc(d,'requests/r')});
+  await assertSucceeds(budgetedSet(doc(d,'reports/request'),payload));
+  await assertFails(budgetedSet(doc(d,'reports/wrong-collection'),{...payload,targetId:'provider:r'}));
+});
+test('conversation reports require both reporter and claimed target to be existing participants', async () => {
+  const d=db('alice');
+  const payload=reportPayload(d,{targetType:'conversation',targetId:'c',targetRef:doc(d,'conversations/c')});
+  await assertSucceeds(budgetedSet(doc(d,'reports/chat'),payload));
+  await assertFails(budgetedSet(doc(d,'reports/wrong-user'),{...payload,targetUid:'eve'}));
+  await assertFails(budgetedSet(doc(d,'reports/wrong-ref'),{...payload,targetRef:doc(d,'conversations/other')}));
+  await assertFails(budgetedSet(doc(d,'reports/missing-chat'),{...payload,targetId:'other',targetRef:doc(d,'conversations/other')}));
+  const eve=db('eve');
+  await assertFails(budgetedSet(doc(eve,'reports/outsider-chat'),{...payload,reporterUid:'eve',targetRef:doc(eve,'conversations/c')}));
+  assert.equal((await getDoc(doc(eve,'users/eve/writeBudgets/report'))).exists(),false);
+});
+test('message reports require its actual sender, participant visibility and exact parent reference', async () => {
+  await env.withSecurityRulesDisabled(c=>setDoc(doc(c.firestore(),'conversations/c/messages/m'),message({id:'m'})));
+  const d=db('bob');
+  const payload=reportPayload(d,{reporterUid:'bob',targetType:'message',targetId:'m',targetUid:'alice',
+    targetRef:doc(d,'conversations/c/messages/m'),conversationId:'c'});
+  await assertSucceeds(budgetedSet(doc(d,'reports/message'),payload));
+  for (const override of [{targetUid:'eve'},{conversationId:''},{conversationId:'other'},{targetId:'missing'},
+    {targetRef:doc(d,'conversations/c')},{targetRef:doc(d,'conversations/c/messages/m/extra/ref')}])
+    await assertFails(budgetedSet(doc(d,'reports/forged-message'),{...payload,...override}));
+  const eve=db('eve');
+  await assertFails(budgetedSet(doc(eve,'reports/outsider-message'),{...payload,reporterUid:'eve',targetRef:doc(eve,'conversations/c/messages/m')}));
+  assert.equal((await getDoc(doc(eve,'users/eve/writeBudgets/report'))).exists(),false);
+  assert.equal((await getDoc(doc(d,'users/bob/writeBudgets/report'))).data().count,1);
+  const alice=db('alice');
+  await assertFails(budgetedSet(doc(alice,'reports/blame-other-sender'),{...payload,reporterUid:'alice',targetUid:'bob',targetRef:doc(alice,'conversations/c/messages/m')}));
+  await assertFails(budgetedSet(doc(d,'reports/missing-message'),{...payload,targetId:'missing',targetRef:doc(d,'conversations/c/messages/missing')}));
+});
+test('blocked chat participants can still report existing evidence including colon-containing IDs', async () => {
+  const id='alice:bob:provider:p';
+  await env.withSecurityRulesDisabled(async c=>{
+    const admin=c.firestore();
+    await setDoc(doc(admin,`conversations/${id}`),conversation());
+    await setDoc(doc(admin,`conversations/${id}/messages/m:1`),message({id:'m:1',conversationId:id}));
+  });
+  const alice=db('alice'), bob=db('bob');
+  await setDoc(doc(alice,'users/alice/blocks/bob'),{blockedUid:'bob',createdAt:serverTimestamp()});
+  await assertSucceeds(budgetedSet(doc(alice,'reports/blocked-chat'),reportPayload(alice,{targetType:'conversation',targetId:id,targetRef:doc(alice,`conversations/${id}`)})));
+  await assertSucceeds(budgetedSet(doc(bob,'reports/blocked-message'),reportPayload(bob,{reporterUid:'bob',targetType:'message',
+    targetId:'m:1',targetUid:'alice',targetRef:doc(bob,`conversations/${id}/messages/m:1`),conversationId:id})));
+});
+test('user reports bind a canonical UID reference without requiring a private profile document', async () => {
+  const d=db('alice');
+  const payload=reportPayload(d,{targetType:'user',targetId:'bob',targetUid:'bob',targetRef:doc(d,'users/bob')});
+  await assertSucceeds(budgetedSet(doc(d,'reports/user'),payload)); // Auth existence is a server moderation responsibility.
+  for (const override of [{targetId:'eve'},{targetRef:doc(d,'users/eve')},{targetUid:'bob/other'},{targetId:'bob/other'},
+    {targetRef:doc(d,'providerContacts/bob')}]) await assertFails(budgetedSet(doc(d,'reports/forged-user'),{...payload,...override}));
+});
+test('reports cannot refer to a target created in the same atomic batch', async () => {
+  const d=db('alice');
+  const payload=reportPayload(d,{targetType:'conversation',targetId:'fresh',targetRef:doc(d,'conversations/fresh')});
+  await assertFails(budgetedSet(doc(d,'reports/new-evidence'),payload, tx=>{
+    tx.set(doc(d,'conversations/fresh'),conversation());
+    tx.set(doc(d,'users/alice/writeBudgets/conversation'),{count:1,windowStartedAt:serverTimestamp(),updatedAt:serverTimestamp(),target:doc(d,'conversations/fresh')});
+  }));
+  assert.equal((await getDoc(doc(d,'users/alice/writeBudgets/report'))).exists(),false);
+  assert.equal((await getDoc(doc(d,'users/alice/writeBudgets/conversation'))).exists(),false);
+});
 async function seedBudget(uid, operation, count, ageMs = 0) {
   await env.withSecurityRulesDisabled(c => {
     const d = c.firestore();

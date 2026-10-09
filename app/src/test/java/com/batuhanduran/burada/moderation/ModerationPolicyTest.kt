@@ -18,10 +18,28 @@ class ModerationPolicyTest {
     }
 
     @Test fun reportPreservesStructuredReasonAndTrimsDescription() {
-        val report = ReportDraft(ReportTargetType.MESSAGE, "message-id", "ayse", ReportReason.HARASSMENT, "  tehdit  ")
+        val report = ReportDraft(ReportTargetType.MESSAGE, "message-id", "ayse", ReportReason.HARASSMENT, "  tehdit  ", "a:b:service")
             .validated("batuhan")
         assertEquals("harassment", report.reason.code)
         assertEquals("tehdit", report.details)
+        assertEquals("conversations/a:b:service/messages/message-id", report.targetDocumentPath())
+    }
+
+    @Test fun targetPathsPreserveColonIdsAndRequireMatchingUserOrMessageParent() {
+        assertEquals("providers/id:with:colons", ReportDraft(ReportTargetType.LISTING,
+            "provider:id:with:colons", "ayse", ReportReason.SPAM).validated("batuhan").targetDocumentPath())
+        assertEquals("requests/job", ReportDraft(ReportTargetType.LISTING,
+            "request:job", "ayse", ReportReason.SPAM).validated("batuhan").targetDocumentPath())
+        assertEquals("conversations/batuhan:ayse:title", ReportDraft(ReportTargetType.CONVERSATION,
+            "batuhan:ayse:title", "ayse", ReportReason.SPAM).validated("batuhan").targetDocumentPath())
+        listOf(
+            ReportDraft(ReportTargetType.USER, "cem", "ayse", ReportReason.SPAM),
+            ReportDraft(ReportTargetType.MESSAGE, "message", "ayse", ReportReason.SPAM),
+            ReportDraft(ReportTargetType.MESSAGE, "message", "ayse", ReportReason.SPAM, conversationId="a/messages/b"),
+            ReportDraft(ReportTargetType.LISTING, "provider:", "ayse", ReportReason.SPAM),
+            ReportDraft(ReportTargetType.LISTING, "other:id", "ayse", ReportReason.SPAM),
+            ReportDraft(ReportTargetType.CONVERSATION, "a:b", "ayse", ReportReason.SPAM, conversationId="a:b")
+        ).forEach { draft -> assertThrows(IllegalArgumentException::class.java) { draft.validated("batuhan") } }
     }
 
     @Test fun oversizedReportRejectedBeforeWriting() {

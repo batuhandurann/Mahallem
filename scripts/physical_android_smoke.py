@@ -12,11 +12,26 @@ from pathlib import Path
 import re
 import shlex
 import shutil
+import socket
 import subprocess
 import sys
 from datetime import datetime, timezone
 
 ROOT = Path(__file__).resolve().parents[1]
+EMULATOR_PORTS = (8080, 9099, 5001)
+
+
+def require_demo_emulators():
+    if os.environ.get("GCLOUD_PROJECT") != "demo-mahallem" or not all(os.environ.get(name) for name in
+            ("FIREBASE_AUTH_EMULATOR_HOST", "FIRESTORE_EMULATOR_HOST")):
+        raise ValueError("Refusing tests without the isolated demo Firebase emulator environment")
+    # Phone/trust instrumentation now calls the local callable backend as well.
+    # The CLI does not export a standard Functions host variable for this SDK.
+    try:
+        with socket.create_connection(("127.0.0.1", 5001), timeout=3):
+            pass
+    except OSError:
+        raise ValueError("Functions emulator on localhost:5001 is required for phone/trust tests") from None
 
 
 def choose_device(output, requested=None):
@@ -88,12 +103,13 @@ def main():
             return 0
         if not args.child:
             execute(["npm", "ci"])
+            execute(["npm", "ci", "--prefix", "functions"])
             child = [sys.executable, str(Path(__file__).resolve()), "--child", "--adb", adb,
                      "--serial", serial, "--output", str(output)]
             # Firebase sets emulator-host variables only within this subprocess.
             output.unlink(missing_ok=True)
             result = subprocess.run(["npx", "--no-install", "firebase", "emulators:exec", "--project", "demo-mahallem",
-                                     "--only", "auth,firestore", shlex.join(child)], cwd=ROOT)
+                                     "--only", "auth,firestore,functions", shlex.join(child)], cwd=ROOT)
             if not output.exists():
                 report.update(status="FAILED", reason="Emulator runner failed before Android tests started")
             else:
@@ -102,16 +118,14 @@ def main():
                 report.update(status="FAILED", reason=report.get("reason", "Physical Android test runner failed"))
                 return 1
             return 0
-        if os.environ.get("GCLOUD_PROJECT") != "demo-mahallem" or not all(os.environ.get(name) for name in
-                ("FIREBASE_AUTH_EMULATOR_HOST", "FIRESTORE_EMULATOR_HOST")):
-            raise ValueError("Refusing tests without the isolated demo Firebase emulator environment")
+        require_demo_emulators()
         # Restrict every adb operation, including the existing lifecycle script, to this phone.
         os.environ["ANDROID_SERIAL"] = serial
         os.environ["PATH"] = str(Path(adb).resolve().parent) + os.pathsep + os.environ.get("PATH", "")
         mappings = device("reverse", "--list").splitlines()
         added = []
         try:
-            for port in (8080, 9099):
+            for port in EMULATOR_PORTS:
                 local = f"tcp:{port}"
                 existing = [line.split() for line in mappings if local in line.split()[1:2]]
                 if existing and any(row[-1] != local for row in existing):
