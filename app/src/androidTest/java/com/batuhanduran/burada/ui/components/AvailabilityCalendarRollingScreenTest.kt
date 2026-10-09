@@ -1,10 +1,7 @@
 package com.batuhanduran.burada.ui.components
 
-import androidx.compose.ui.test.assertDoesNotExist
-import androidx.compose.ui.test.assertExists
+import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createComposeRule
-import androidx.compose.ui.test.onNodeWithTag
-import androidx.compose.ui.test.performClick
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.batuhanduran.burada.ui.theme.BuradaTheme
 import java.util.Calendar
@@ -35,7 +32,7 @@ class AvailabilityCalendarRollingScreenTest {
                 )
             }
         }
-        compose.onNodeWithTag("calendar_day_2026-10-09").assertDoesNotExist()
+        compose.onAllNodesWithTag("calendar_day_2026-10-09").assertCountEquals(0)
         compose.onNodeWithTag("calendar_day_2026-10-10").assertExists().performClick()
         compose.onNodeWithTag("calendar_day_2026-10-19").assertExists()
         compose.runOnIdle { assertEquals("2026-10-10", selected) }
