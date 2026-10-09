@@ -25,6 +25,7 @@ import com.batuhanduran.burada.data.local.JobRequestEntity
 import com.batuhanduran.burada.data.local.ServiceProviderEntity
 import com.batuhanduran.burada.ui.components.AvailabilityCalendarView
 import com.batuhanduran.burada.ui.theme.*
+import com.batuhanduran.burada.validation.quoteDraftError
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -45,6 +46,7 @@ fun ProviderDashboardScreen(
     var quotePriceInput by remember { mutableStateOf("") }
     var quoteArrivalInput by remember { mutableStateOf("") }
     var quoteNoteInput by remember { mutableStateOf("") }
+    val quoteError = quoteDraftError(quotePriceInput, quoteArrivalInput, quoteNoteInput)
 
     Scaffold(
         topBar = {
@@ -249,13 +251,13 @@ fun ProviderDashboardScreen(
                             color = Slate600
                         )
 
-                        if (req.sector == "HOME_RENOVATION") {
+                        if (req.sector == "HOME_REPAIR") {
                             Text(
                                 text = "Alan: ${req.areaSquareMeters} m² • ${req.roomCount} • ${if (req.isFurnished) "Eşyalı" else "Boş"}",
                                 style = MaterialTheme.typography.labelSmall,
                                 color = Slate500
                             )
-                        } else {
+                        } else if (req.sector == "EVENT_ENTERTAINMENT") {
                             Text(
                                 text = "Etkinlik: ${req.eventType} • ${req.durationHours} Saat • ${req.targetAgeGroup} • Kostüm: ${req.selectedCostumeOrCharacter}",
                                 style = MaterialTheme.typography.labelSmall,
@@ -268,9 +270,9 @@ fun ProviderDashboardScreen(
                         Button(
                             onClick = {
                                 showQuoteDialogForRequest = req
-                                quotePriceInput = if (req.sector == "HOME_RENOVATION") "9.500 ₺" else "2.800 ₺"
-                                quoteArrivalInput = if (req.urgencyMode == "EMERGENCY") "45 dakikada kapınızdayım" else "Belirtilen gün ve saatte hazırım"
-                                quoteNoteInput = "Merhabalar, işinizi özenle ve garantili yapabilirim."
+                                quotePriceInput = ""
+                                quoteArrivalInput = ""
+                                quoteNoteInput = ""
                             },
                             shape = RoundedCornerShape(10.dp),
                             modifier = Modifier.fillMaxWidth().testTag("btn_give_quote_${req.id}")
@@ -293,13 +295,21 @@ fun ProviderDashboardScreen(
             title = { Text("Teklif Ver: ${prov.name}") },
             text = {
                 Column {
-                    Text("Müşteri: ${req.customerName}", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                    if (req.customerName.isNotBlank()) {
+                        Text("Müşteri: ${req.customerName}", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                    }
+                    Text(
+                        "Fiyatı ve sağlayabileceğiniz süreyi kendiniz belirleyin; varsayılan bir taahhüt oluşturulmaz.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Slate600
+                    )
                     Spacer(modifier = Modifier.height(10.dp))
 
                     OutlinedTextField(
                         value = quotePriceInput,
                         onValueChange = { quotePriceInput = it },
                         label = { Text("Teklif Fiyatınız") },
+                        placeholder = { Text("Örn. 1.250,50 TL") },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth().testTag("input_quote_price")
                     )
@@ -310,6 +320,7 @@ fun ProviderDashboardScreen(
                         value = quoteArrivalInput,
                         onValueChange = { quoteArrivalInput = it },
                         label = { Text("Varış Süresi / Süre") },
+                        placeholder = { Text("Örn. Yarın 14.00") },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth().testTag("input_quote_arrival")
                     )
@@ -322,20 +333,31 @@ fun ProviderDashboardScreen(
                         label = { Text("Açıklama & Dahil Olanlar") },
                         modifier = Modifier.fillMaxWidth().testTag("input_quote_notes")
                     )
+                    if (quoteError != null) {
+                        Text(
+                            text = quoteError,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.error,
+                            modifier = Modifier.testTag("quote_validation_error")
+                        )
+                    }
                 }
             },
             confirmButton = {
                 Button(
                     onClick = {
-                        onSubmitQuote(
-                            req.id,
-                            prov,
-                            quotePriceInput,
-                            quoteArrivalInput,
-                            quoteNoteInput
-                        )
-                        showQuoteDialogForRequest = null
+                        if (quoteError == null) {
+                            onSubmitQuote(
+                                req.id,
+                                prov,
+                                quotePriceInput.trim(),
+                                quoteArrivalInput.trim(),
+                                quoteNoteInput.trim()
+                            )
+                            showQuoteDialogForRequest = null
+                        }
                     },
+                    enabled = quoteError == null,
                     modifier = Modifier.testTag("btn_confirm_send_quote")
                 ) {
                     Text("Teklifi Gönder")
