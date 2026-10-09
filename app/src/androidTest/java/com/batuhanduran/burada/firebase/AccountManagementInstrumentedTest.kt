@@ -75,6 +75,7 @@ class AccountManagementInstrumentedTest {
         try {
             Tasks.await(user.updateProfile(UserProfileChangeRequest.Builder().setDisplayName("Original Name").build()),30,TimeUnit.SECONDS)
             compose.waitUntil(30_000) { compose.onAllNodesWithTag("open_account_management").fetchSemanticsNodes().isNotEmpty() }
+            compose.waitUntil(30_000) { compose.onAllNodesWithText("Profiliniz buluta kaydedildi.").fetchSemanticsNodes().isNotEmpty() }
             compose.onNodeWithTag("open_account_management").performClick()
             val list = compose.onNodeWithTag("account_management_list")
             list.performScrollToNode(hasTestTag("account_name"))
@@ -84,8 +85,10 @@ class AccountManagementInstrumentedTest {
             compose.onNodeWithTag("account_bio").performTextReplacement("Local services")
             list.performScrollToNode(hasTestTag("save_account_profile"))
             compose.onNodeWithTag("save_account_profile").performScrollTo().performClick()
-            list.performScrollToIndex(0)
-            compose.waitUntil(30_000) { compose.onAllNodesWithTag("account_message").fetchSemanticsNodes().isNotEmpty() }
+            compose.waitUntil(30_000) {
+                runCatching { list.performScrollToNode(hasTestTag("account_message") or hasTestTag("account_error")) }.isSuccess
+            }
+            compose.onNodeWithTag("account_error").assertDoesNotExist()
             compose.onNodeWithTag("account_message").assertTextEquals("Profiliniz kaydedildi.")
             val ref = FirebaseServices.firestore.collection("users").document(user.uid)
             val doc = Tasks.await(ref.get(Source.SERVER),30,TimeUnit.SECONDS)
@@ -98,8 +101,10 @@ class AccountManagementInstrumentedTest {
             compose.onNodeWithTag("confirm_account_deletion").assertIsNotEnabled()
             compose.onNodeWithText("Vazgeç").performClick()
             auth.signOut()
+            compose.waitUntil(30_000) { compose.onAllNodesWithTag("auth_email").fetchSemanticsNodes().isNotEmpty() }
             Tasks.await(auth.signInWithEmailAndPassword(email,password),30,TimeUnit.SECONDS)
             compose.waitUntil(30_000) { compose.onAllNodesWithTag("open_account_management").fetchSemanticsNodes().isNotEmpty() }
+            compose.waitUntil(30_000) { compose.onAllNodesWithText("Profiliniz buluta kaydedildi.").fetchSemanticsNodes().isNotEmpty() }
             val persisted = Tasks.await(ref.get(Source.SERVER),30,TimeUnit.SECONDS)
             assertEquals("Updated Name",persisted.getString("displayName"))
         } finally {

@@ -82,8 +82,9 @@ test('actual deletion trigger purges Auth/private data/own media while preservin
   await getStorage(admin).bucket().file(path).save(Buffer.from('private-photo'));
   await convo.collection('media').doc('media').set({uploaderUid:leaving.uid,storagePath:path});
   const otherPath=`conversationMedia/${id}/${other.uid}/retained.jpg`;
-  await getStorage(admin).bucket().file(otherPath).save(Buffer.from('keep-other-media'),{metadata:{contentType:'image/jpeg'}});
-  await convo.collection('media').doc('retained').set({uploaderUid:other.uid,storagePath:otherPath});
+  const retainedPhoto=await require('sharp')({create:{width:2,height:2,channels:3,background:'#14b8a6'}}).jpeg().toBuffer();
+  await getStorage(admin).bucket().file(otherPath).save(retainedPhoto,{metadata:{contentType:'image/jpeg',metadata:{uploaderUid:other.uid,conversationId:id,mediaId:'retained'}}});
+  await convo.collection('media').doc('retained').set({uploaderUid:other.uid,storagePath:otherPath,contentType:'image/jpeg',sizeBytes:retainedPhoto.length});
   assert.equal((await call('requestAccountDeletion',leaving,{confirmation:'WRONG'})).status,400);
   const started=await call('requestAccountDeletion',leaving,{confirmation:'HESABIMI SİL'});assert.equal(started.status,200,JSON.stringify(started.body));
   assert.equal(started.result.status,'REQUESTED');assert.equal((await call('getAccountProfile',leaving,{})).status,403);
@@ -99,7 +100,9 @@ test('actual deletion trigger purges Auth/private data/own media while preservin
   assert.equal(retainedEvent.note,'');assert.equal(retainedEvent.privacyRedacted,true);
   assert.equal((await getStorage(admin).bucket().file(path).exists())[0],false);
   assert.equal((await getStorage(admin).bucket().file(otherPath).exists())[0],true);
-  assert.equal((await call('readConversationPhoto',other,{conversationId:id,mediaId:'retained'})).status,200);
+  const retainedRead=await call('readConversationPhoto',other,{conversationId:id,mediaId:'retained'});
+  assert.equal(retainedRead.status,200,JSON.stringify(retainedRead.body));
+  assert.equal(retainedRead.result.base64,retainedPhoto.toString('base64'));
   assert.equal((await call('uploadConversationPhoto',other,{conversationId:id,base64:'aGVsbG8='})).status,403);
   assert.equal((await call('readConversationPhoto',leaving,{conversationId:id,mediaId:'retained'})).status,403);
   assert.equal((await call('getListingTrust',leaving,{kind:'providers',ids:[id]})).status,403);

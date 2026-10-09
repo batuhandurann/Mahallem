@@ -10,6 +10,7 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
@@ -25,12 +26,17 @@ import com.batuhanduran.burada.data.remote.ManagedListing
 fun AccountManagementScreen(model: AccountManagementViewModel,providers: List<ServiceProviderEntity>,
     requests: List<JobRequestEntity>,onClose: () -> Unit) {
     val state by model.state.collectAsStateWithLifecycle()
+    val focus = LocalFocusManager.current
+    val snackbar = remember { SnackbarHostState() }
+    LaunchedEffect(state.message,state.error) {
+        (state.error ?: state.message)?.let { snackbar.showSnackbar(it) }
+    }
     LaunchedEffect(Unit) { model.loadProfile() }
     var name by rememberSaveable(state.displayName) { mutableStateOf(state.displayName) }
     var bio by rememberSaveable(state.bio) { mutableStateOf(state.bio) }
     var deleteDialog by remember { mutableStateOf(false) }
     BackHandler { if (!state.busy) onClose() }
-    Scaffold(topBar = { TopAppBar(title = { Text("Profil ve hesap") },navigationIcon = {
+    Scaffold(snackbarHost = { SnackbarHost(snackbar) },topBar = { TopAppBar(title = { Text("Profil ve hesap") },navigationIcon = {
         TextButton(onClick = onClose,enabled = !state.busy) { Text("Geri") }
     }) }) { padding ->
         LazyColumn(Modifier.fillMaxSize().padding(padding).testTag("account_management_list"),contentPadding = PaddingValues(20.dp),verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -45,7 +51,7 @@ fun AccountManagementScreen(model: AccountManagementViewModel,providers: List<Se
             item { OutlinedTextField(bio,{ bio = it },label = { Text("Hakkımda (isteğe bağlı)") },supportingText = { Text("${bio.length}/1000") },
                 enabled = state.loaded && !state.busy,isError = bio.length > 1000,modifier = Modifier.fillMaxWidth().testTag("account_bio")) }
             item { Text(state.email); Text("Telefonunu doğrulamak için hesap başlığındaki Telefon doğrulaması seçeneğini kullan.",style = MaterialTheme.typography.bodySmall) }
-            item { Button(onClick = { model.saveProfile(name,bio) },enabled = state.loaded && !state.busy && AuthValidation.nameError(name) == null && bio.length <= 1000,
+            item { Button(onClick = { focus.clearFocus(); model.saveProfile(name,bio) },enabled = state.loaded && !state.busy && AuthValidation.nameError(name) == null && bio.length <= 1000,
                 modifier = Modifier.fillMaxWidth().testTag("save_account_profile")) { Text("Değişiklikleri kaydet") } }
             item { HorizontalDivider(); Text("İlanlarım",style = MaterialTheme.typography.titleLarge) }
             if (providers.isEmpty() && requests.isEmpty()) item { Text("Henüz yönetilecek ilan yok.") }

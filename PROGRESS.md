@@ -38,6 +38,15 @@ fetch current remote state because other sessions may advance the repository.
   photo registration reads both participant tombstones transactionally. Regression
   verifies counterpart media survives/readable while new uploads and old deleted
   account tokens fail closed.
+- CI source `c2cee3b`: debug APK, Android unit/lint, unsigned release APK/AAB,
+  Rules 49/49, backend 24/24, both CodeQL languages and secret scan passed.
+  Callable/media 10/11 passed: retained counterpart photo fixture missed required
+  MIME metadata. Fixed with an actual JPEG and full canonical media metadata;
+  final source must rerun that suite. Android screens 29/30 passed including
+  listing edit/removal and archived quote actions. Profile test timed out on
+  offscreen feedback after the real callable finished. Added visible snackbar,
+  focus dismissal on save and explicit test scrolling to success/error; test also
+  awaits completed profile sync and full logout before checking relogin.
 - Product scope, primary reference URLs, privacy boundaries and coordinated
   rollout: PROFILE_ACCOUNT_MANAGEMENT.md. Pending reviews still require separate
   retention and integration validation before release.
