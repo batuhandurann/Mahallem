@@ -49,22 +49,6 @@ fun ProviderDetailScreen(
     val characterList = parseJsonList(provider.charactersOfferedJson)
     val equipmentList = parseJsonList(provider.includedEquipmentsJson)
 
-    // Parse Before-After items
-    val beforeAfterItems = if (isRenovation) {
-        listOf(
-            BeforeAfterItem("3+1 Daire Salon Badana", "Sararmış duvarlar ve tavan çatlakları", "2 kat Jotun Safir Beyazı pürüzsüz boyama"),
-            BeforeAfterItem("Antre ve Koridor Yenileme", "Eski kabarık duvar kağıdı", "Alçı saten tamiratı + Marshall Kumsal Beji")
-        )
-    } else emptyList()
-
-    // Parse Videos
-    val videoItems = if (!isRenovation) {
-        listOf(
-            VideoShowcaseItem("Doğum Günü Mini Disco Dansı", "1:45 dk", "3.8k izlenme"),
-            VideoShowcaseItem("Sosis Balon Kılıç ve Kuğu Yapımı", "0:55 dk", "2.1k izlenme"),
-            VideoShowcaseItem("İnteraktif Çocuk Oyunları", "2:10 dk", "4.5k izlenme")
-        )
-    } else emptyList()
 
     Scaffold(
         topBar = {
@@ -179,7 +163,8 @@ fun ProviderDetailScreen(
         LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(innerPadding),
+                .padding(innerPadding)
+                .testTag("provider_detail_list"),
             contentPadding = PaddingValues(16.dp)
         ) {
             // Profile Card Header
@@ -253,38 +238,8 @@ fun ProviderDetailScreen(
 
                         Spacer(modifier = Modifier.height(14.dp))
 
-                        // Badges Row
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            if (provider.verifiedSafeBadge) {
-                                BadgeChip(
-                                    icon = Icons.Default.Security,
-                                    text = "Adli Sicil Onaylı",
-                                    bgColor = SafeBadgeGreenContainer,
-                                    textColor = SafeBadgeText
-                                )
-                            }
-                            if (provider.mykCertified) {
-                                BadgeChip(
-                                    icon = Icons.Default.WorkspacePremium,
-                                    text = "MYK Usta Belgesi",
-                                    bgColor = TealContainer,
-                                    textColor = OnTealContainer
-                                )
-                            }
-                            if (provider.childSafeCertified) {
-                                BadgeChip(
-                                    icon = Icons.Default.ChildCare,
-                                    text = "Çocuk Dostu",
-                                    bgColor = FestiveAmberLight,
-                                    textColor = Color(0xFF92400E)
-                                )
-                            }
-                        }
-
-                        Spacer(modifier = Modifier.height(14.dp))
+                        // Certification flags are user-supplied; do not imply platform verification.
+                        // Verified badges may return after a server-side verification workflow exists.
 
                         // Bio
                         Text(
@@ -390,20 +345,19 @@ fun ProviderDetailScreen(
                 Spacer(modifier = Modifier.height(16.dp))
             }
 
-            // Showcase Section: Videos or Before/After
-            if (beforeAfterItems.isNotEmpty()) {
-                item {
-                    BeforeAfterSection(beforeAfterItems = beforeAfterItems)
-                    Spacer(modifier = Modifier.height(16.dp))
+            // Never display sample work as if it belonged to this provider.
+            // Real, moderated portfolio media will require provider-scoped backend records.
+            item {
+                DetailSectionCard(title = "Çalışma Örnekleri") {
+                    Text(
+                        text = "Bu profilde doğrulanmış çalışma fotoğrafı veya videosu henüz gösterilmiyor.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = Slate600,
+                        modifier = Modifier.testTag("provider_portfolio_empty")
+                    )
                 }
             }
 
-            if (videoItems.isNotEmpty()) {
-                item {
-                    VideoShowcaseSection(videos = videoItems)
-                    Spacer(modifier = Modifier.height(16.dp))
-                }
-            }
         }
     }
 }
