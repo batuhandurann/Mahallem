@@ -41,7 +41,7 @@ class BuradaMessagingService : FirebaseMessagingService() {
         val notification = NotificationCompat.Builder(this, BuradaNotifications.CHANNEL)
             .setSmallIcon(R.mipmap.ic_launcher)
             .setContentTitle("Yeni mesaj")
-            .setContentText("Burada'da yeni bir mesajınız var.")
+            .setContentText(getString(R.string.chat_new_message_notification))
             .setVisibility(NotificationCompat.VISIBILITY_PRIVATE)
             .setContentIntent(pending).setAutoCancel(true).build()
         // No sender name, text, photo or precise location appears on a lock screen.
