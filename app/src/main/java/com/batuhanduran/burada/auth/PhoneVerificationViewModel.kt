@@ -23,10 +23,8 @@ data class PhoneVerificationState(
 )
 
 /** Retained only in the UID-scoped session store. OTP and verification ID never go to disk. */
-class PhoneVerificationViewModel : ViewModel() {
-    private val auth = FirebaseServices.auth
-    private val uid = requireNotNull(auth.currentUser).uid
-    private val mutable = MutableStateFlow(PhoneVerificationState(linked = auth.currentUser?.phoneNumber != null))
+class PhoneVerificationViewModel(private val uid: String, private val auth: FirebaseAuth = FirebaseServices.auth) : ViewModel() {
+    private val mutable = MutableStateFlow(PhoneVerificationState(linked = auth.currentUser?.takeIf { it.uid == uid }?.phoneNumber != null))
     val state = mutable.asStateFlow()
     private var cleared = false
     private var attempt = 0
@@ -43,7 +41,7 @@ class PhoneVerificationViewModel : ViewModel() {
             mutable.value = PhoneVerificationState()
         }
     }
-    init { auth.addAuthStateListener(listener) }
+    init { require(uid.isNotBlank()); auth.addAuthStateListener(listener) }
 
     fun sendCode(activity: Activity, input: String) {
         if (!active() || linking || state.value.busy || state.value.linked) return

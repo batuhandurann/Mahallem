@@ -130,7 +130,17 @@ private fun AuthenticatedMarketplace(
         factory = profileFactory
     )
     val profileState by profile.state.collectAsStateWithLifecycle()
-    val phone: com.batuhanduran.burada.auth.PhoneVerificationViewModel = viewModel(viewModelStoreOwner = owner)
+    val phoneFactory = remember(user.uid) {
+        object : ViewModelProvider.Factory {
+            @Suppress("UNCHECKED_CAST")
+            override fun <T : ViewModel> create(modelClass: Class<T>): T {
+                require(modelClass == com.batuhanduran.burada.auth.PhoneVerificationViewModel::class.java)
+                return com.batuhanduran.burada.auth.PhoneVerificationViewModel(user.uid) as T
+            }
+        }
+    }
+    val phone: com.batuhanduran.burada.auth.PhoneVerificationViewModel =
+        viewModel(viewModelStoreOwner = owner, factory = phoneFactory)
     var showPhone by remember { mutableStateOf(false) }
     if (showPhone) com.batuhanduran.burada.ui.components.PhoneVerificationDialog(phone) { showPhone = false }
     MarketplaceApp(viewModel = marketplace, accountHeader = {

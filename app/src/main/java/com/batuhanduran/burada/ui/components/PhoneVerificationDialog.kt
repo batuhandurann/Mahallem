@@ -5,6 +5,8 @@ import android.content.Context
 import android.content.ContextWrapper
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
@@ -31,7 +33,7 @@ fun PhoneVerificationDialog(model: PhoneVerificationViewModel, onDismiss: () -> 
         onDismissRequest = onDismiss,
         title = { Text("Telefon doğrulaması") },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Column(modifier = Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text("Numaranız doğrulama ve kötüye kullanım önleme için Google tarafından işlenir. SMS kodunu göndererek bunu kabul edersiniz.")
                 if (!state.linked) {
                     OutlinedTextField(value = phone, onValueChange = { if (it.length <= 40) phone = it },

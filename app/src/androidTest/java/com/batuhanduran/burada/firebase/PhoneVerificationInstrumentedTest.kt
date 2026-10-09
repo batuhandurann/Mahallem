@@ -30,12 +30,12 @@ class PhoneVerificationInstrumentedTest {
         val email = "phone-${UUID.randomUUID()}@example.com"
         val first = Tasks.await(auth.createUserWithEmailAndPassword(email, password), 30, TimeUnit.SECONDS).user!!
         val uid = first.uid
-        val suffix = (System.nanoTime() % 1_000_000_000).toString().padStart(9, '0')
+        val suffix = kotlin.random.Random.nextInt(100_000_000, 1_000_000_000).toString()
         val number = "+905$suffix"
         val store = ViewModelStore()
         lateinit var model: PhoneVerificationViewModel
         InstrumentationRegistry.getInstrumentation().runOnMainSync {
-            model = PhoneVerificationViewModel()
+            model = PhoneVerificationViewModel(uid)
             store.put("phone", model)
         }
         try {

@@ -28,6 +28,14 @@ fetch current remote state because other sessions may advance the repository.
   unreachable. Local Firebase tests stopped before startup: only JDK 17 is
   installed, CLI requires JDK 21. Android SDK/ADB/emulator are absent locally.
   These failures are NOT successful device/Rules/SMS execution evidence.
+- First branch CI `37949884643`, source `e30b8ead`: debug/unit/lint and clean
+  unsigned release passed. Existing Rules passed; new Node phone test revealed
+  the Node SDK PhoneAuthProvider stub. Test now uses documented REST linking.
+  Android test exposed a logout/recomposition race constructing a phone model
+  from a null currentUser; the model now receives the immutable session UID and
+  fails closed until that UID is current, avoiding this constructor crash.
+- Actual local Auth-only emulator smoke passed wrong OTP, valid link, preserved
+  UID, unlink and email re-login. This does not cover Android or Firestore trust.
 - Next: verify this branch's full CI including the added tests. Production Phone
   provider, SHA-256/SHA-1 registration, SMS region policy/billing, App Check and
   callable deployment require protected production access and real-device proof.

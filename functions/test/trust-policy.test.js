@@ -7,7 +7,7 @@ test("badge needs actual active Auth phone provider and exact private contact", 
   assert.equal(phoneMatches(verified, "0555 123 45 67"), true);
   for (const input of ["05551234568", "", "05xx xxx xx xx", "call 05551234567", null])
     assert.equal(!!phoneMatches(verified, input), false);
-  for (const account of [null, { ...verified, disabled: true }, { ...verified, providerData: [] }, { ...verified, phoneNumber: null }])
+  for (const account of [null, { ...verified, disabled: true }, { ...verified, providerData: [] }, { ...verified, providerData: undefined }, { ...verified, phoneNumber: null }])
     assert.equal(!!phoneMatches(account, "05551234567"), false);
   assert.equal(phoneMatches(verified, "05551234567", { deletionStatus: "REQUESTED" }), false);
   assert.equal(mobile("+90 (555) 123-45-67"), "+905551234567");

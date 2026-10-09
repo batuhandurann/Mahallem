@@ -130,7 +130,7 @@ test('moderation queue requires server role; review atomically hides listing and
 });
 
 test('real SMS emulator linking preserves UID; trust uses current Auth and private matching contact, revocation fails closed', async () => {
-  const { linkWithCredential, PhoneAuthProvider, signInWithEmailAndPassword, signOut, unlink } = await import('firebase/auth');
+  const { reload, signInWithEmailAndPassword, signOut, unlink } = await import('firebase/auth');
   const owner = await account('phone-owner');
   const auth = getAuth(owner.app);
   const originalUid = owner.uid;
@@ -145,9 +145,20 @@ test('real SMS emulator linking preserves UID; trust uses current Auth and priva
   const code = codes.verificationCodes.find(entry => entry.sessionInfo === sessionInfo)?.code;
   assert.match(code, /^\d{6}$/);
   const wrong = code === '000000' ? '111111' : '000000';
-  await assert.rejects(linkWithCredential(owner.user, PhoneAuthProvider.credential(sessionInfo, wrong)));
+  // The Node SDK deliberately stubs browser PhoneAuthProvider; use the same
+  // documented link REST operation with the existing ID token, never phone sign-in.
+  const linkPhone = async smsCode => fetch(`http://${host}/identitytoolkit.googleapis.com/v1/accounts:signInWithPhoneNumber?key=fake-emulator-key`, {
+    method: 'POST', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ idToken: owner.token, sessionInfo, code: smsCode })
+  });
+  const rejected = await linkPhone(wrong);
+  assert.equal(rejected.status, 400);
+  assert.match((await rejected.json()).error.message, /INVALID_CODE|INVALID_VERIFICATION_CODE/);
   assert.equal(auth.currentUser.uid, originalUid);
-  await linkWithCredential(owner.user, PhoneAuthProvider.credential(sessionInfo, code));
+  const linked = await linkPhone(code);
+  assert.equal(linked.status, 200);
+  assert.equal((await linked.json()).localId, originalUid);
+  await reload(owner.user);
   assert.equal(auth.currentUser.uid, originalUid);
   assert.equal(auth.currentUser.phoneNumber, phoneNumber);
   owner.token = await auth.currentUser.getIdToken(true);

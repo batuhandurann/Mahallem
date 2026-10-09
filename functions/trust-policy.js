@@ -10,7 +10,7 @@ function mobile(value) {
 }
 function phoneMatches(account, contact, profile) {
   return !!account && !account.disabled && !["REQUESTED", "PURGING"].includes(profile?.deletionStatus)
-    && account.providerData?.some(provider => provider.providerId === "phone")
+    && account.providerData?.some(provider => provider.providerId === "phone") === true
     && mobile(account.phoneNumber) !== null && mobile(account.phoneNumber) === mobile(contact);
 }
 function listingTargets(data) {
