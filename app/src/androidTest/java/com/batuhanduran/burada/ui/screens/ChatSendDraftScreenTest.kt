@@ -2,6 +2,8 @@ package com.batuhanduran.burada.ui.screens
 
 import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.text.AnnotatedString
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.batuhanduran.burada.data.local.ConversationEntity
 import com.batuhanduran.burada.ui.theme.BuradaTheme
@@ -78,7 +80,9 @@ class ChatSendDraftScreenTest {
             result.complete(true)
         }
         compose.waitForIdle()
-        compose.onNodeWithTag("input_chat_message").assertTextEquals("")
+        compose.onNodeWithTag("input_chat_message").assert(
+            SemanticsMatcher.expectValue(SemanticsProperties.EditableText, AnnotatedString(""))
+        )
     }
 
     @Test fun typingNewDraftDuringPendingSendIsNotErased() {
