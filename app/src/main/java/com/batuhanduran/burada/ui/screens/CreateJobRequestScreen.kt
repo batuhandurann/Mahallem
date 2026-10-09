@@ -320,7 +320,7 @@ fun CreateJobRequestScreen(
 
             NeighborhoodSelector(
                 selected = selectedNeighborhood,
-                onSelected = { selectedNeighborhood = it },
+                onSelected = { selectedNeighborhood = it; selectedCoordinate = null },
                 modifier = Modifier.fillMaxWidth()
             )
 
