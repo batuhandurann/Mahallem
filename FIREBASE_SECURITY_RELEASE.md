@@ -62,9 +62,13 @@ allowlist'te zorunludur; denetim bunlardan biri eksikse başarısız olur. Diğe
 Firebase API'lerini de [resmî ürün tablosuyla](https://firebase.google.com/docs/projects/api-keys)
 karşılaştırın; bildirim teslimini ayrıca gerçek cihazda doğrulayın.
 
-Auth tarafında e-posta enumeration korumasını ve password policy'yi açın. SMS Auth
-henüz kullanılmıyorsa SMS sağlayıcısını açmayın; açılırsa region policy'yi hedef
-ülkelerle sınırlayın, SMS quota ve billing alarmı kurun. Identity Toolkit quota'ları,
+Auth tarafında e-posta enumeration korumasını ve password policy'yi açın. Bu sürüm
+SMS ile mevcut hesaba telefon bağlar: Phone provider açık olmalı, SMS region policy
+yalnız Türkiye'yi (`allowlistOnly.allowedRegions: ["TR"]`) kabul etmeli ve üretim
+projesinde test telefon numarası/kodu bulunmamalı. Canlı denetim aksi ayarları
+reddeder; Console ayarlarını değiştirmez. Play App Signing uygulama sertifikasının
+SHA-1 ve SHA-256 değerlerini aynı Android app'e kaydedin; API key kısıtları bu
+dağıtım SHA-1'ini içermeli. SMS quota ve billing alarmı kurun. Identity Toolkit quota'ları,
 App Check geçersiz token oranı, Firestore read/write ve Storage trafiğine uyarı
 kurun. Bütçe alarmı harcamayı otomatik durdurmaz. İstemci cooldown'ı sunucu spam
 kontrolü değildir. İlan, teklif, yeni sohbet, mesaj ve rapor oluşturma işlemlerinde

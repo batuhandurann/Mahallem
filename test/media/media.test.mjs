@@ -104,14 +104,22 @@ test('moderation queue requires server role; review atomically hides listing and
   const reportId = `moderation-report-${Date.now()}`;
   await db.doc(`providers/${listingId}`).set({ ownerUid: bob.uid, data: { isReported: false } });
   await db.doc(`reports/${reportId}`).set({ reporterUid: eve.uid, targetType: 'listing', targetId: `provider:${listingId}`,
-    targetUid: bob.uid, reason: 'fraud', details: 'Test report', status: 'pending', createdAt: FieldValue.serverTimestamp() });
+    targetUid: bob.uid, targetRef: db.doc(`providers/${listingId}`), conversationId: '',
+    reason: 'fraud', details: 'Test report', status: 'pending', createdAt: FieldValue.serverTimestamp() });
+  const legacyReportId = `${reportId}-legacy`;
+  await db.doc(`reports/${legacyReportId}`).set({ reporterUid: eve.uid, targetType: 'user', targetId: bob.uid,
+    targetUid: bob.uid, reason: 'spam', details: 'Legacy report', status: 'pending', createdAt: FieldValue.serverTimestamp() });
   assert.equal((await call('getModerationQueue', alice, { moderator: true })).status, 403);
   assert.equal((await call('reviewReport', alice, { reportId, action: 'hide_listing', note: 'Verified by moderator' })).status, 403);
   await adminAuth(admin).setCustomUserClaims(alice.uid, { moderator: true });
   alice.token = await alice.user.getIdToken(true);
   const queue = await call('getModerationQueue', alice, {});
   assert.equal(queue.status, 200, JSON.stringify(queue.body));
-  assert.ok(queue.result.reports.some(report => report.id === reportId));
+  const queuedReport = queue.result.reports.find(report => report.id === reportId);
+  assert.ok(queuedReport);
+  assert.equal(queuedReport.targetRefPath, `providers/${listingId}`);
+  assert.equal(Object.hasOwn(queuedReport, 'targetRef'), false);
+  assert.equal(queue.result.reports.find(report => report.id === legacyReportId).targetRefPath, null);
   const review = await call('reviewReport', alice, { reportId, action: 'hide_listing', note: 'Verified by moderator' });
   assert.equal(review.status, 200, JSON.stringify(review.body));
   const listing = (await db.doc(`providers/${listingId}`).get()).data();

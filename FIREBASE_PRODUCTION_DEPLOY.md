@@ -23,6 +23,8 @@ veya uzun ömürlü access token koymayın.
 | --- | --- | --- |
 | Variable | `FIREBASE_PRODUCTION_PROJECT_ID` | Gerçek ve açık project ID |
 | Variable | `FIREBASE_ANDROID_API_KEY_ID` | Android config'teki API key'nin kaynak ID'si/UID'si; key string değil |
+| Variable | `FIREBASE_ANDROID_SIGNING_SHA1` | Play App Signing uygulama imzalama sertifikasının SHA-1'i; upload key değil |
+| Variable | `FIREBASE_ANDROID_SIGNING_SHA256` | Aynı Play App Signing sertifikasının SHA-256'sı; upload key değil |
 | Variable | `GCP_WORKLOAD_IDENTITY_PROVIDER` | `projects/NUMBER/locations/global/workloadIdentityPools/POOL/providers/PROVIDER` |
 | Variable | `FIREBASE_DEPLOY_SERVICE_ACCOUNT` | Aynı proje içinde deploy service account e-postası |
 | Secret | `GOOGLE_SERVICES_JSON_BASE64` | `com.batuhanduran.burada` kaydı için yeni config'in base64 değeri |
@@ -44,13 +46,21 @@ Artifact Registry izinlerini mevcut Cloud dağıtım modeline göre daraltın;
 Script, açık `GOOGLE_APPLICATION_CREDENTIALS` olmadan veya başka projeye ait
 principal/config ile çalışmaz. Şunları yetkili Cloud API'den **canlı** okur:
 
-- Aynı project ID/number, aktif canonical Android app, kayıtlı SHA-256 ve Android
-  ile backend'in aynı default Storage bucket kullanması.
+- Aynı project ID/number, aktif canonical Android app, açıkça seçilen dağıtım
+  sertifikasının kayıtlı SHA-1/SHA-256 değerleri ve Android ile backend'in aynı
+  default Storage bucket kullanması. Parmak izleri boş/geçersizse Cloud kimliği
+  alınmadan durur; rastgele başka kayıtlı bir sertifika yeterli değildir.
 - `mahallem` adlı Native Firestore database ve `europe-west3` konumu.
 - Play Integrity kaydı, Auth/Firestore/Storage App Check `ENFORCED`, Android
-  package+SHA-1 API kısıtları ve config ile birebir API key eşleşmesi.
+  package+SHA-1 API kısıtları ve config ile birebir API key eşleşmesi. API key
+  hedef dağıtım SHA-1'ini içermeli; izin verilen her SHA-1 aynı Android app'te
+  kayıtlı olmalı. Her iki beklenen parmak izini aynı gerçek sertifikadan alın;
+  REST kayıtlarının bulunması fiziksel cihaz imzasını kendi başına kanıtlamaz.
 - Email enumeration protection, en az 8 karakterlik zorunlu password policy,
-  email auth açık ve şu anda kullanılmayan SMS auth kapalı.
+  email auth ve Phone provider açık, `smsRegionConfig.allowlistOnly.allowedRegions`
+  yalnız `["TR"]`, `signIn.phoneNumber.testPhoneNumbers` boş/eksik. Geniş SMS
+  politikası, kapalı Phone provider veya üretimde test numarası/kodu başarısızdır.
+  Android telefon bağlama akışı şu anda yalnız Türkiye mobil numaralarını kabul eder.
 - Bucket aynı projede, public access prevention `enforced`, public IAM yok.
 
 Eksik enforcement veya yanlış config'i **otomatik açmaz/düzeltmez**. Önce
@@ -74,11 +84,21 @@ tokenlarını ayrıca kaldırın. Cloud audit bu eski tokenları veya nesne ACL'
 taramaz; bucket IAM/public access prevention kontrolü tek başına bunun kanıtı değildir.
 
 Son kontrol yayımlanan Firestore/Storage Rules içeriğini commit ile birebir
-karşılaştırır; moderasyon index'i `READY`, iki TTL `ACTIVE`, beş Function `ACTIVE`,
+karşılaştırır; moderasyon index'i `READY`, iki TTL `ACTIVE`, `getListingTrust` dahil
+altı Function `ACTIVE`,
 Node 22 ve en fazla 5 instance, push trigger database `mahallem` ister.
 Yeni index henüz oluşturuluyorsa başarı iddia edilmez; Cloud hazır olduğunda
 `audit` işlemini tekrar çalıştırın. Function kaydı App Check tokenının gerçekten
 reddedildiğini veya canlı kodun cihazdan çalıştığını kanıtlamaz.
+Cloud Functions v2 metadata'sında callable `enforceAppCheck` için doğrulanabilir
+bir alan yoktur. Kaynaktaki App Check zorunluluğu ve emulator istisnası korunur;
+denetim üretim function'larında emulator/database environment hatasını reddeder.
+Auth/Firestore/Storage emulator host yönlendirmeleri ve bu koruma değerlerini
+gizleyen `secretEnvironmentVariables` override'ları da reddedilir; audit gizli
+değerleri okumaz veya çıktı olarak yazmaz.
+Canlı geçersiz/eksik token reddi ayrıca cihazdan denenmeli. Rapordaki
+`phoneSmsDeliveryVerified` ve `callableAppCheckRejectionVerified` her zaman
+`false` kalır; ayar kontrolü teslim/attestation başarı kanıtı değildir.
 
 Yalnız timestamp, sonuç, proje/package/database ve Rules SHA-256 gibi izinli
 alanlardan oluşan `firebase-production-redacted-evidence` artifact'i yüklenir.
@@ -89,7 +109,7 @@ yayımlanmaz ve iş sonunda silinir.
 Yerelde, açık yetkili ADC ve gcloud ile aynı salt okunur kontrol:
 
 ```sh
-python3 scripts/verify_firebase_cloud.py --project PROJECT_ID --key-id KEY_RESOURCE_ID --deployed --report /private/firebase-redacted-result.json
+python3 scripts/verify_firebase_cloud.py --project PROJECT_ID --key-id KEY_RESOURCE_ID --signing-sha1 PLAY_APP_SHA1 --signing-sha256 PLAY_APP_SHA256 --deployed --report /private/firebase-redacted-result.json
 python3 -m unittest discover -s test/config -p 'test_*.py'
 ```
 
@@ -101,4 +121,8 @@ Resmi kaynaklar: [Workload Identity Federation](https://github.com/google-github
 [App Check](https://firebase.google.com/docs/reference/appcheck/rest/v1/projects.services),
 [API key kısıtları](https://cloud.google.com/api-keys/docs/reference/rest/v2/projects.locations.keys),
 [Email enumeration](https://cloud.google.com/identity-platform/docs/admin/email-enumeration-protection),
+[Phone/SMS Auth configuration](https://cloud.google.com/identity-platform/docs/reference/rest/v2/Config),
+[SMS region policy](https://cloud.google.com/identity-platform/docs/reference/rest/v2/projects.tenants#SmsRegionConfig),
+[Android certificate registrations](https://firebase.google.com/docs/reference/firebase-management/rest/v1beta1/projects.androidApps.sha),
+[Functions runtime configuration](https://cloud.google.com/functions/docs/reference/rest/v2/projects.locations.functions#ServiceConfig),
 [TTL yönetimi](https://cloud.google.com/sdk/gcloud/reference/firestore/fields/ttls/update).
