@@ -1,11 +1,7 @@
 package com.batuhanduran.burada.ui.screens
 
-import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createComposeRule
-import androidx.compose.ui.test.onNodeWithTag
-import androidx.compose.ui.test.onNodeWithText
-import androidx.compose.ui.test.performClick
-import androidx.compose.ui.test.performScrollTo
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.batuhanduran.burada.data.local.JobRequestEntity
 import com.batuhanduran.burada.data.local.QuoteEntity
@@ -46,6 +42,21 @@ class QuoteAcceptanceWithoutPaymentTest {
         notes = "Örnek teklif"
     )
 
+    // LazyColumn may not expose deeply nested quote buttons in the semantics tree
+    // until the containing request card is scrolled. Do not look up the button first.
+    private fun clickQuoteAction(tag: String) {
+        repeat(10) {
+            if (compose.onAllNodesWithTag(tag).fetchSemanticsNodes().isNotEmpty()) {
+                compose.onNodeWithTag(tag).performScrollTo().performClick()
+                return
+            }
+            compose.onNode(hasScrollAction()).performTouchInput { swipeUp() }
+            compose.waitForIdle()
+        }
+        // Fail with the precise missing tag rather than silently skipping the assertion.
+        compose.onNodeWithTag(tag).performClick()
+    }
+
     @Test fun acceptingQuoteDoesNotTriggerUnavailablePayment() {
         var accepts = 0
         var paymentInfoClicks = 0
@@ -67,7 +78,7 @@ class QuoteAcceptanceWithoutPaymentTest {
                 )
             }
         }
-        compose.onNodeWithTag("btn_accept_quote_quote-1").performScrollTo().performClick()
+        clickQuoteAction("btn_accept_quote_quote-1")
         compose.runOnIdle {
             assertEquals(1, accepts)
             assertEquals(0, paymentInfoClicks)
@@ -90,7 +101,7 @@ class QuoteAcceptanceWithoutPaymentTest {
                 )
             }
         }
-        compose.onNodeWithTag("btn_escrow_info_quote-1").performScrollTo().performClick()
+        clickQuoteAction("btn_escrow_info_quote-1")
         compose.runOnIdle {
             assertEquals(0, accepts)
             assertEquals(1, paymentInfoClicks)
