@@ -128,3 +128,68 @@ test('moderation queue requires server role; review atomically hides listing and
   // Deliberately keep her old token: fresh Auth custom claims must still deny access.
   assert.equal((await call('getModerationQueue', alice, {})).status, 403);
 });
+
+test('real SMS emulator linking preserves UID; trust uses current Auth and private matching contact, revocation fails closed', async () => {
+  const { linkWithCredential, PhoneAuthProvider, signInWithEmailAndPassword, signOut, unlink } = await import('firebase/auth');
+  const owner = await account('phone-owner');
+  const auth = getAuth(owner.app);
+  const originalUid = owner.uid;
+  const phoneNumber = '+905551234567';
+  const host = process.env.FIREBASE_AUTH_EMULATOR_HOST;
+  const sent = await fetch(`http://${host}/identitytoolkit.googleapis.com/v1/accounts:sendVerificationCode?key=fake-emulator-key`, {
+    method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ phoneNumber })
+  });
+  assert.equal(sent.status, 200);
+  const { sessionInfo } = await sent.json();
+  const codes = await (await fetch(`http://${host}/emulator/v1/projects/${projectId}/verificationCodes`)).json();
+  const code = codes.verificationCodes.find(entry => entry.sessionInfo === sessionInfo)?.code;
+  assert.match(code, /^\d{6}$/);
+  const wrong = code === '000000' ? '111111' : '000000';
+  await assert.rejects(linkWithCredential(owner.user, PhoneAuthProvider.credential(sessionInfo, wrong)));
+  assert.equal(auth.currentUser.uid, originalUid);
+  await linkWithCredential(owner.user, PhoneAuthProvider.credential(sessionInfo, code));
+  assert.equal(auth.currentUser.uid, originalUid);
+  assert.equal(auth.currentUser.phoneNumber, phoneNumber);
+  owner.token = await auth.currentUser.getIdToken(true);
+  const listingId = `phone-listing-${Date.now()}`;
+  await db.doc(`providers/${listingId}`).set({ ownerUid: originalUid, visibility: 'published',
+    data: { phoneVerified: true, verifiedSafeBadge: true } });
+  const contact = db.doc(`providerContacts/${listingId}`);
+  await contact.set({ ownerUid: originalUid, phone: '0555 123 45 67' });
+  const payload = { kind: 'providers', ids: [listingId] };
+  const trust = async user => {
+    const result = await call('getListingTrust', user, payload);
+    assert.equal(result.status, 200, JSON.stringify(result.body));
+    return result.result.listings;
+  };
+  assert.equal((await call('getListingTrust', null, payload)).status, 401);
+  assert.equal((await trust(bob))[listingId].phoneVerified, true);
+  assert.deepEqual(Object.keys((await trust(bob))[listingId]), ['phoneVerified']);
+  await contact.update({ phone: '05551234568' });
+  assert.equal((await trust(bob))[listingId].phoneVerified, false);
+  await contact.update({ phone: phoneNumber, ownerUid: bob.uid });
+  assert.equal((await trust(bob))[listingId].phoneVerified, false);
+  await contact.update({ ownerUid: originalUid });
+  await db.doc(`providers/${listingId}`).update({ visibility: 'hidden' });
+  assert.equal((await trust(bob))[listingId], undefined);
+  assert.equal((await trust(owner))[listingId].phoneVerified, true);
+  await db.doc(`providers/${listingId}`).update({ visibility: 'published' });
+  await adminAuth(admin).updateUser(originalUid, { disabled: true });
+  assert.equal((await trust(bob))[listingId].phoneVerified, false);
+  assert.equal((await call('getListingTrust', owner, payload)).status, 403);
+  await adminAuth(admin).updateUser(originalUid, { disabled: false });
+  await db.doc(`users/${originalUid}`).set({ deletionStatus: 'REQUESTED' });
+  assert.equal((await trust(bob))[listingId].phoneVerified, false);
+  await db.doc(`users/${originalUid}`).delete();
+  // Unlink while retaining old caller tokens: the server never trusts their phone claim.
+  await unlink(auth.currentUser, 'phone');
+  assert.equal((await trust(bob))[listingId].phoneVerified, false);
+  assert.equal((await call('getListingTrust', bob, { kind: 'users', ids: [originalUid] })).status, 400);
+  assert.equal((await call('getListingTrust', bob, { kind: 'providers', ids: ['../private'] })).status, 400);
+  assert.equal((await call('getListingTrust', bob, { kind: 'providers', ids: Array(51).fill(listingId) })).status, 400);
+  // Re-login using the original email after linking/unlinking must retain all private UID data.
+  const email = owner.user.email;
+  await signOut(auth);
+  const login = await signInWithEmailAndPassword(auth, email, 'strong-Test-123!');
+  assert.equal(login.user.uid, originalUid);
+});

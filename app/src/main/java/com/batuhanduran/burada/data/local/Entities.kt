@@ -19,7 +19,7 @@ data class ServiceProviderEntity(
     val verifiedSafeBadge: Boolean, // Sabıka Kaydı / Adli Sicil Onayı
     val mykCertified: Boolean, // Ustalık Belgesi
     val childSafeCertified: Boolean, // Çocuklu Aileler İçin Güvenli Rozeti
-    val phoneVerified: Boolean = true, // SMS / Telefon Doğrulaması
+    val phoneVerified: Boolean = false, // SMS / Telefon Doğrulaması
     val daysRemaining: Int = 30, // İlan geçerlilik süresi
     val isReported: Boolean = false,
     val paintBrandsJson: String = "", // Boyacılar için
@@ -54,7 +54,7 @@ data class JobRequestEntity(
     val status: String, // PENDING, QUOTED, ACCEPTED, COMPLETED
     val customerName: String,
     val customerPhone: String,
-    val phoneVerified: Boolean = true,
+    val phoneVerified: Boolean = false,
     val daysRemaining: Int = 7, // İhtiyaç ilanları için bitiş süresi (Örn: 7 gün)
     val isReported: Boolean = false,
     // Escrow & Havuz Güvencesi

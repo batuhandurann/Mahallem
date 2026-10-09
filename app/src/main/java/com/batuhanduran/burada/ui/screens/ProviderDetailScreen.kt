@@ -238,8 +238,12 @@ fun ProviderDetailScreen(
 
                         Spacer(modifier = Modifier.height(14.dp))
 
-                        // Certification flags are user-supplied; do not imply platform verification.
-                        // Verified badges may return after a server-side verification workflow exists.
+                        if (provider.phoneVerified) {
+                            Text("✓ İlan telefonu doğrulandı", color = SafeBadgeText,
+                                modifier = Modifier.testTag("provider_phone_verified"))
+                            Spacer(modifier = Modifier.height(8.dp))
+                        }
+                        // Professional/safety badges remain hidden without reviewed server evidence.
 
                         // Bio
                         Text(
