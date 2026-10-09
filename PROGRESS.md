@@ -1,7 +1,37 @@
 # Progress — Burada / Mahallem
 
-Updated: 2026-10-08 (Europe/Istanbul). Read `AGENTS.md` and git status before work;
+Updated: 2026-10-09 (Europe/Istanbul). Read `AGENTS.md` and git status before work;
 fetch current remote state because other sessions may advance the repository.
+
+## Report authority and production/device compatibility (2026-10-09)
+
+- Started from main `e287fe08b4044dbc37f9c2219ab350b984107694` (PR #71).
+- Report creation now requires a canonical same-database content reference,
+  existing published listing owner or private conversation membership and actual
+  message sender. Forged/nonexistent/private outsider targets fail atomically
+  without consuming the report allowance. Blocked participants can report history.
+  USER paths bind the UID but cannot prove Firebase Auth existence; no new user
+  sanction is introduced. Client/Rules rollout requirements: `REPORT_TARGETS.md`.
+- The moderation queue returns `targetRefPath` strings/null for old reports,
+  avoiding raw Admin SDK reference serialization. Added Rules, Kotlin, real
+  Android SDK and callable integration regression coverage.
+- Production audit now requires Phone enabled with TR-only SMS allowlist, no
+  production test phone numbers, explicitly intended Play signing SHA-1/SHA-256,
+  matching API restrictions and all six functions including `getListingTrust`.
+  Unknown secret emulator/database overrides fail closed. New protected variables
+  and observed-vs-unverified evidence are documented; this is not a live audit.
+- USB runner installs Functions dependencies, starts Auth/Firestore/Functions,
+  reverses port 5001 and refuses Android execution without the callable emulator.
+  Regression fixtures cover startup, conflicts and cleanup; they are not phones.
+- Local Auth/Firestore Rules: 44/44 passed, backend tests 7/7 plus syntax passed,
+  Python configuration/device suite 58/58 passed. First local media run stopped
+  before tests because the Firestore Eventarc registration request failed.
+  Android build/emulator and callable tests must pass current branch CI before
+  merge. The physical preflight observed no attached phone and returned NOT_RUN.
+- Access still required: canonical production Firebase config, signing secrets,
+  protected WIF/Cloud variables including intended Play certificate fingerprints,
+  and a physical phone/authorized Test Lab. SMS delivery, callable App Check
+  rejection, live deployment and actual FCM delivery remain unverified.
 
 ## Phone verification and authoritative listing trust (2026-10-09)
 

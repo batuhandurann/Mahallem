@@ -6,10 +6,17 @@ import com.batuhanduran.burada.data.local.JobRequestEntity
 import com.batuhanduran.burada.data.local.QuoteEntity
 import com.batuhanduran.burada.data.local.ServiceProviderEntity
 import com.batuhanduran.burada.data.remote.FirebaseServices
+import com.batuhanduran.burada.data.remote.AtomicWriteBudget
+import com.batuhanduran.burada.data.remote.WriteOperation
 import com.batuhanduran.burada.data.repository.MarketplaceRepository
+import com.batuhanduran.burada.moderation.ModerationRepository
+import com.batuhanduran.burada.moderation.ReportDraft
+import com.batuhanduran.burada.moderation.ReportReason
+import com.batuhanduran.burada.moderation.ReportTargetType
 import com.batuhanduran.burada.validation.RequestSchedules
 import com.google.android.gms.tasks.Tasks
 import com.google.firebase.firestore.Source
+import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestoreException
 import com.google.firebase.auth.FirebaseAuthInvalidCredentialsException
 import kotlinx.coroutines.flow.first
@@ -39,6 +46,16 @@ class AuthMarketplaceInstrumentedTest {
                 assertEquals(FirebaseFirestoreException.Code.PERMISSION_DENIED,
                     (error.cause as? FirebaseFirestoreException)?.code)
             }
+        }
+        fun reportWrite(reporter: String, type: String, targetId: String, targetUid: String,
+                        targetPath: String, conversationId: String = "") = db.runTransaction { tx ->
+            val reportRef = db.collection("reports").document()
+            val budget = AtomicWriteBudget(db, reporter).plan(tx, WriteOperation.REPORT, reportRef)
+            budget.applyTo(tx)
+            tx.set(reportRef, mapOf("reporterUid" to reporter, "targetType" to type, "targetId" to targetId,
+                "targetUid" to targetUid, "targetRef" to db.document(targetPath), "conversationId" to conversationId,
+                "reason" to "harassment", "details" to "", "status" to "pending", "createdAt" to FieldValue.serverTimestamp()))
+            Unit
         }
         auth.signOut()
         val customer = await(auth.createUserWithEmailAndPassword(customerEmail, password)).user!!
@@ -87,6 +104,10 @@ class AuthMarketplaceInstrumentedTest {
             }
             val sent=withTimeout(30_000) { providerRepo.getMessagesForConversation(convId).first { it.isNotEmpty() } }.single()
             assertEquals(providerUid,sent.senderId); assertTrue(sent.isFromMe)
+            // A valid allowance does not let a sender falsely blame the other participant.
+            assertPermissionDenied(reportWrite(providerUid,"message",sent.id,customerUid,
+                "conversations/$convId/messages/${sent.id}",convId))
+            assertFalse(await(providerBudgets.document("report").get(Source.SERVER)).exists())
             auth.signOut()
             // A third account cannot discover either party's offers or conversations,
             // even with known document IDs and direct SDK calls bypassing the UI.
@@ -105,6 +126,10 @@ class AuthMarketplaceInstrumentedTest {
             assertPermissionDenied(db.collection("conversations").document(convId).get(Source.SERVER))
             assertPermissionDenied(db.collection("conversations").document(convId).collection("messages").get(Source.SERVER))
             assertPermissionDenied(db.collection("requestContacts").document(requestId).get(Source.SERVER))
+            assertPermissionDenied(reportWrite(outsiderUid,"conversation",convId,providerUid,"conversations/$convId"))
+            assertPermissionDenied(reportWrite(outsiderUid,"message",sent.id,providerUid,
+                "conversations/$convId/messages/${sent.id}",convId))
+            assertFalse(await(db.document("users/$outsiderUid/writeBudgets/report").get(Source.SERVER)).exists())
             await(auth.currentUser!!.delete())
             auth.signOut()
             try { await(auth.signInWithEmailAndPassword(customerEmail,"wrong-password")); fail("Wrong password accepted") }
@@ -117,6 +142,14 @@ class AuthMarketplaceInstrumentedTest {
             assertEquals(customerUid,quotes.first { it.id==quoteId }.customerUid)
             val received=withTimeout(30_000) { reloaded.getMessagesForConversation(convId).first { it.isNotEmpty() } }.single()
             assertFalse(received.isFromMe)
+            val moderation = ModerationRepository()
+            val reportId = moderation.submitReport(ReportDraft(ReportTargetType.CONVERSATION,convId,providerUid,ReportReason.HARASSMENT))
+            val savedReport = await(db.document("reports/$reportId").get(Source.SERVER))
+            assertEquals("conversations/$convId", savedReport.getDocumentReference("targetRef")!!.path)
+            moderation.submitReport(ReportDraft(ReportTargetType.MESSAGE,received.id,providerUid,
+                ReportReason.HARASSMENT,conversationId=convId))
+            assertPermissionDenied(reportWrite(customerUid,"conversation",convId,outsiderUid,"conversations/$convId"))
+            assertEquals(2L,await(db.document("users/$customerUid/writeBudgets/report").get(Source.SERVER)).getLong("count"))
             reloaded.acceptQuote(requestId,quoteId)
             assertEquals("ACCEPTED",await(db.collection("quotes").document(quoteId).get(Source.SERVER)).getString("status"))
             await(auth.currentUser!!.delete())

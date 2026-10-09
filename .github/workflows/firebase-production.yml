@@ -35,6 +35,8 @@ jobs:
       PROJECT_ID: ${{ inputs.project_id }}
       EXPECTED_PROJECT_ID: ${{ vars.FIREBASE_PRODUCTION_PROJECT_ID }}
       KEY_ID: ${{ vars.FIREBASE_ANDROID_API_KEY_ID }}
+      SIGNING_SHA1: ${{ vars.FIREBASE_ANDROID_SIGNING_SHA1 }}
+      SIGNING_SHA256: ${{ vars.FIREBASE_ANDROID_SIGNING_SHA256 }}
       WIF_PROVIDER: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
       DEPLOY_SERVICE_ACCOUNT: ${{ vars.FIREBASE_DEPLOY_SERVICE_ACCOUNT }}
       CI: 'true'
@@ -53,6 +55,8 @@ jobs:
           : "${PROJECT_ID:?Missing project input}"
           : "${EXPECTED_PROJECT_ID:?Missing production project variable}"
           : "${KEY_ID:?Missing Android API key resource ID}"
+          : "${SIGNING_SHA1:?Missing intended distribution SHA-1 fingerprint}"
+          : "${SIGNING_SHA256:?Missing intended distribution SHA-256 fingerprint}"
           : "${WIF_PROVIDER:?Missing Workload Identity provider}"
           : "${DEPLOY_SERVICE_ACCOUNT:?Missing deploy service account}"
           : "${FIREBASE_CONFIG_B64:?Missing protected Firebase Android configuration}"
@@ -62,9 +66,11 @@ jobs:
           python3 - <<'PY'
           import json, os, sys
           sys.path.insert(0, 'scripts')
-          from verify_firebase_cloud import validate_inputs
+          from verify_firebase_cloud import fingerprint, validate_inputs
           validate_inputs(json.load(open('app/google-services.json')), json.load(open('firebase.json')),
                           os.environ['PROJECT_ID'], os.environ['KEY_ID'])
+          fingerprint(os.environ['SIGNING_SHA1'], 20)
+          fingerprint(os.environ['SIGNING_SHA256'], 32)
           PY
       - name: Set up Node 22
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
@@ -101,6 +107,7 @@ jobs:
       - name: Verify live project, App Check, Play Integrity, API restrictions, Auth and private bucket
         run: >-
           python3 scripts/verify_firebase_cloud.py --project "$PROJECT_ID" --key-id "$KEY_ID"
+          --signing-sha1 "$SIGNING_SHA1" --signing-sha256 "$SIGNING_SHA256"
           --report "$RUNNER_TEMP/firebase-preflight.json"
       - name: Deploy named Firestore Rules/indexes, private Storage Rules and trusted Functions
         if: inputs.operation == 'deploy'
@@ -121,6 +128,7 @@ jobs:
         # explicitly; rerun audit when Cloud has finished building the index.
         run: >-
           python3 scripts/verify_firebase_cloud.py --project "$PROJECT_ID" --key-id "$KEY_ID"
+          --signing-sha1 "$SIGNING_SHA1" --signing-sha256 "$SIGNING_SHA256"
           --deployed --report "$RUNNER_TEMP/firebase-postflight.json"
       - name: Upload only redacted live evidence
         if: always()
