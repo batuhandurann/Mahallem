@@ -18,8 +18,10 @@ fetch current remote state because other sessions may advance the repository.
 - CI on `1ab58d33eb3abc33097c0592bf17cd9b7533014f`: debug and unsigned
   release APK/AAB, unit tests/lint, backend 12/12, Rules 47/47, real emulator
   callable/media 5/5, Java/Kotlin + JS CodeQL and secret scan passed. Android
-  instrumentation: 24/25 passed; new profile test waited for an offscreen lazy
-  item. Fixed explicit list scrolling; final commit must rerun required checks.
+  instrumentation: 24/25 passed; profile test timed out waiting for Save.
+  Fixed explicit lazy-list scrolling and preserved main's emulator SDK key-shape
+  correction. Source `5141f14` exposed an invalid test assertion import; removed
+  it. Final commit must rerun required checks.
 - Archived visibility now comes from the envelope, stays out of Moshi wire data,
   and closes Android provider dashboard/quote actions while preserving history.
   Added actual Android listing edit/removal and archived quote UI regressions.
@@ -29,8 +31,9 @@ fetch current remote state because other sessions may advance the repository.
   features. Job commands now check persistent deletion tombstones; worker redacts
   own terminal-job notes with checkpointed event pages, preserving counterpart
   notes and minimal shared audit state. Added actual completion/cancellation
-  followed by deletion integration regressions. Combined backend 24/24 passed;
-  Rules/configuration and complete Android/callable CI must verify this merge.
+  followed by deletion integration regressions. Combined backend 24/24,
+  Rules 49/49 and Python configuration 60/60 passed locally. Complete Android
+  and actual callable/trigger CI must verify the final source.
 - Product scope, primary reference URLs, privacy boundaries and coordinated
   rollout: PROFILE_ACCOUNT_MANAGEMENT.md. Pending reviews still require separate
   retention and integration validation before release.

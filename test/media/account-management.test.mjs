@@ -58,6 +58,7 @@ test('real callable profile/listing ownership, conflict, scope and moderation bo
   const removable=(await call('getListingManagement',owner,{kind:'requests',id})).result;
   assert.equal((await call('manageListing',owner,{...input,revision:removable.revision,action:'remove'})).status,200);
   assert.equal((await ref.get()).data().visibility,'archived');
+  assert.equal((await call('manageJob',owner,{requestId:id,actionId:randomUUID(),action:'CANCEL_OPEN',version:0,note:'Archived request must remain unchanged',reasonCode:'OTHER'})).status,400);
   const hiddenId=`hidden-${owner.uid}`;await db.doc(`providers/${hiddenId}`).set({...listing('providers',hiddenId,owner.uid),visibility:'hidden',moderationStatus:'hidden'});
   const hidden=(await call('getListingManagement',owner,{kind:'providers',id:hiddenId})).result;assert.equal(hidden.editable,false);
   assert.equal((await call('manageListing',owner,{kind:'providers',id:hiddenId,revision:hidden.revision,action:'edit',fields:{title:'Republish'}})).status,400);
