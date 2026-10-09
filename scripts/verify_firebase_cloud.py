@@ -23,7 +23,8 @@ HOSTS = {"firebase.googleapis.com", "firebaseappcheck.googleapis.com", "apikeys.
          "identitytoolkit.googleapis.com", "firestore.googleapis.com", "storage.googleapis.com",
          "firebaserules.googleapis.com", "cloudfunctions.googleapis.com"}
 FUNCTIONS = {"getModerationQueue", "reviewReport", "uploadConversationPhoto",
-             "readConversationPhoto", "notifyConversationMessage", "getListingTrust"}
+             "readConversationPhoto", "notifyConversationMessage", "getListingTrust", "getAccountProfile", "updateAccountProfile",
+             "getListingManagement", "manageListing", "requestAccountDeletion", "purgeDeletedAccount"}
 
 
 class VerificationError(Exception):
@@ -235,7 +236,7 @@ def verify_deployed(reader, project_id, bucket, root):
                 "Production function points to an emulator service")
         require(not any(secret.get("key") in guard_keys for secret in service.get("secretEnvironmentVariables", [])),
                 "Production function has an unobservable secret emulator/database override")
-        if function == "notifyConversationMessage":
+        if function in {"notifyConversationMessage", "purgeDeletedAccount"}:
             require(live.get("eventTrigger", {}).get("eventFilters", {}).get("database") == "mahallem", "Push trigger targets the wrong Firestore database")
     return digests
 

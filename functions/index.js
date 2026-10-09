@@ -17,6 +17,8 @@ const db = getFirestore(DATABASE);
 const callableOptions = { region: "europe-west3", enforceAppCheck: process.env.FUNCTIONS_EMULATOR !== "true", memory: "512MiB", timeoutSeconds: 60,
   maxInstances: 5, concurrency: 2 };
 
+Object.assign(exports, require("./account-management")(db, DATABASE, callableOptions, reserve));
+
 // No client-controlled trust booleans, phone numbers or owner UIDs are accepted.
 // Return only a boolean for visible listings; private contact values never leave the server.
 exports.getListingTrust = onCall(callableOptions, async request => {
@@ -175,8 +177,12 @@ exports.uploadConversationPhoto = onCall(callableOptions, async request => {
   await file.save(image, { resumable: false, metadata: { contentType: "image/jpeg", cacheControl: "private, no-store",
     metadata: { uploaderUid: uid, conversationId, mediaId } } });
   try {
-    await db.doc(`conversations/${conversationId}/media/${mediaId}`).create({ uploaderUid: uid, storagePath,
-      contentType: "image/jpeg", sizeBytes: image.length, createdAt: FieldValue.serverTimestamp() });
+    await db.runTransaction(async tx => {
+      const job = await tx.get(db.doc(`_accountDeletions/${uid}`));
+      if (job.exists) throw new HttpsError("permission-denied", "Hesap silinme sürecinde.");
+      tx.create(db.doc(`conversations/${conversationId}/media/${mediaId}`), { uploaderUid: uid, storagePath,
+        contentType: "image/jpeg", sizeBytes: image.length, createdAt: FieldValue.serverTimestamp() });
+    });
   } catch (error) { await file.delete().catch(() => {}); throw error; }
   return { mediaId, storagePath };
 });

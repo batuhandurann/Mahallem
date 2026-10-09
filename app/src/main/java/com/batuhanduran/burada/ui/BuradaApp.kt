@@ -19,6 +19,7 @@ import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.rememberCoroutineScope
@@ -30,6 +31,7 @@ import android.content.pm.PackageManager
 import androidx.core.content.ContextCompat
 import com.batuhanduran.burada.data.remote.PushTokenLifecycle
 import kotlinx.coroutines.launch
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -147,10 +149,31 @@ private fun AuthenticatedMarketplace(
     }
     val phone: com.batuhanduran.burada.auth.PhoneVerificationViewModel =
         viewModel(viewModelStoreOwner = owner, factory = phoneFactory)
+    val accountFactory = remember(user.uid) {
+        object : ViewModelProvider.Factory {
+            @Suppress("UNCHECKED_CAST")
+            override fun <T : ViewModel> create(modelClass: Class<T>): T {
+                require(modelClass == com.batuhanduran.burada.data.remote.AccountManagementViewModel::class.java)
+                return com.batuhanduran.burada.data.remote.AccountManagementViewModel(user.uid) as T
+            }
+        }
+    }
+    var showAccount by rememberSaveable(user.uid) { mutableStateOf(false) }
+    if (showAccount) {
+        val accountModel: com.batuhanduran.burada.data.remote.AccountManagementViewModel =
+            viewModel(viewModelStoreOwner = owner, factory = accountFactory)
+        val ownProviders by marketplace.ownedProviders.collectAsStateWithLifecycle()
+        val ownRequests by marketplace.myRequests.collectAsStateWithLifecycle()
+        com.batuhanduran.burada.ui.screens.AccountManagementScreen(accountModel, ownProviders, ownRequests) {
+            showAccount = false
+            profile.retry()
+        }
+        return
+    }
     var showPhone by remember { mutableStateOf(false) }
     if (showPhone) com.batuhanduran.burada.ui.components.PhoneVerificationDialog(phone) { showPhone = false }
     MarketplaceApp(viewModel = marketplace, accountHeader = {
-        AccountHeader(user, profileState, notice, onDismissNotice, profile::retry, onSignOut, { showPhone = true }) {
+        AccountHeader(user, profileState, notice, onDismissNotice, profile::retry, onSignOut, { showPhone = true }, { showAccount = true }) {
             if (Build.VERSION.SDK_INT >= 33 && ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED)
                 notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
             else PushTokenLifecycle.start(context.applicationContext)
@@ -167,6 +190,7 @@ private fun AccountHeader(
     onRetry: () -> Unit,
     onSignOut: () -> Unit,
     onVerifyPhone: () -> Unit,
+    onManageAccount: () -> Unit,
     onEnableNotifications: () -> Unit
 ) {
     Surface(color = MaterialTheme.colorScheme.surface, tonalElevation = 2.dp) {
@@ -176,13 +200,16 @@ private fun AccountHeader(
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(modifier = Modifier.weight(1f)) {
-                    Text(user.displayName, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(profile.displayName.ifBlank { user.displayName }, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     Text(user.email, style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
-                TextButton(onClick = onEnableNotifications) { Text("Bildirimleri aç") }
                 TextButton(onClick = onSignOut) { Text("Çıkış yap") }
             }
-            TextButton(onClick = onVerifyPhone) { Text("Telefon doğrulaması") }
+            TextButton(onClick = onManageAccount, modifier = Modifier.testTag("open_account_management")) { Text("Profil ve hesap") }
+            Row {
+                TextButton(onClick = onVerifyPhone) { Text("Telefon doğrulaması") }
+                TextButton(onClick = onEnableNotifications) { Text("Bildirimleri aç") }
+            }
             Text(
                 text = when {
                     profile.busy -> "Profil buluta kaydediliyor…"
