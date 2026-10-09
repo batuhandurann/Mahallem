@@ -262,6 +262,18 @@ class LiveCloudTests(unittest.TestCase):
                 with self.assertRaisesRegex(cloud.VerificationError, message):
                     cloud.verify_deployed(reader, self.project, self.bucket, ROOT)
 
+    def test_job_lifecycle_function_is_required_and_checked(self):
+        self.assertIn("manageJob", cloud.FUNCTIONS)
+        key = f"https://cloudfunctions.googleapis.com/v2/projects/{self.project}/locations/europe-west3/functions/manageJob"
+        reader = self.deployed_reader()
+        reader.responses[key]["state"] = "FAILED"
+        with self.assertRaisesRegex(cloud.VerificationError, "missing/inactive"):
+            cloud.verify_deployed(reader, self.project, self.bucket, ROOT)
+        reader = self.deployed_reader()
+        reader.responses[key]["serviceConfig"]["environmentVariables"] = {"FUNCTIONS_EMULATOR": "true"}
+        with self.assertRaisesRegex(cloud.VerificationError, "unsafe"):
+            cloud.verify_deployed(reader, self.project, self.bucket, ROOT)
+
     def test_function_emulator_hosts_and_secret_guard_overrides_fail_closed(self):
         key = f"https://cloudfunctions.googleapis.com/v2/projects/{self.project}/locations/europe-west3/functions/getListingTrust"
         for name in ("FIREBASE_AUTH_EMULATOR_HOST", "FIRESTORE_EMULATOR_HOST", "FIREBASE_STORAGE_EMULATOR_HOST"):

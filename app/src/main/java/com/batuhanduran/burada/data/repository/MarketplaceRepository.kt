@@ -5,6 +5,9 @@ import com.batuhanduran.burada.validation.quoteDraftError
 import com.batuhanduran.burada.data.local.*
 import com.batuhanduran.burada.data.model.SectorType
 import com.batuhanduran.burada.data.model.UrgencyMode
+import com.batuhanduran.burada.data.model.JobLifecycle
+import com.batuhanduran.burada.data.model.JobEvent
+import com.batuhanduran.burada.data.model.JobAction
 import com.batuhanduran.burada.data.remote.FirebaseServices
 import com.batuhanduran.burada.data.remote.AtomicWriteBudget
 import com.batuhanduran.burada.data.remote.WriteOperation
@@ -210,10 +213,40 @@ class MarketplaceRepository(
 
     fun getAllRequests(): Flow<List<JobRequestEntity>> = requestTrust(observe(db.collection("requests").whereEqualTo("visibility", "published")) {
         decode(it, JobRequestEntity::class.java).copy(createdAt = it.getTimestamp("createdAt")?.toDate()?.time ?: 0)
-    })
+    }.map { rows -> rows.filter { it.status == "PENDING" } })
     fun getMyRequests(): Flow<List<JobRequestEntity>> = requestTrust(observe(db.collection("requests").whereEqualTo("ownerUid", uid)) {
         decode(it, JobRequestEntity::class.java).copy(createdAt = it.getTimestamp("createdAt")?.toDate()?.time ?: 0)
     })
+    fun getAssignedRequests(): Flow<List<JobRequestEntity>> = observe(
+        db.collection("requests").whereEqualTo("acceptedProviderUid", uid)
+    ) { decode(it, JobRequestEntity::class.java) }
+
+    fun getJobLifecycles(): Flow<List<JobLifecycle>> = observe(
+        db.collection("jobs").whereArrayContains("participantUids", uid)
+    ) { JobLifecycle(it.id, requireNotNull(it.getString("status")), requireNotNull(it.getLong("version")).toInt(),
+        it.getString("cancellationByUid") ?: "", it.getString("previousStatus") ?: "",
+        it.getString("note") ?: "", it.getString("reasonCode") ?: "") }
+
+    fun getJobEvents(requestId: String): Flow<List<JobEvent>> = observe(
+        db.collection("jobs").document(requestId).collection("events")
+            .orderBy("version", Query.Direction.DESCENDING).limit(50)
+    ) { JobEvent(it.id, requestId, requireNotNull(it.getString("action")), requireNotNull(it.getString("actorRole")),
+        requireNotNull(it.getString("toStatus")), it.getString("note") ?: "", it.getString("reasonCode") ?: "",
+        requireNotNull(it.getLong("version")).toInt(), it.getTimestamp("createdAt")?.toDate()?.time ?: 0) }
+
+    suspend fun manageJob(requestId: String, action: JobAction, version: Int, note: String,
+        reasonCode: String, actionId: String) {
+        requireAccount()
+        val functions = FirebaseFunctions.getInstance(FirebaseServices.app, "europe-west3").apply {
+            if (BuildConfig.USE_FIREBASE_EMULATORS) useEmulator(BuildConfig.EMULATOR_HOST, 5001)
+        }
+        withTimeout(30_000) {
+            functions.getHttpsCallable("manageJob").call(mapOf("requestId" to requestId,
+                "actionId" to actionId, "action" to action.name, "version" to version,
+                "note" to note, "reasonCode" to reasonCode)).awaitResult()
+        }
+        requireAccount()
+    }
     fun getProviderById(id: String) = getAllProviders().map { list -> list.find { it.id == id } }
     fun getRequestById(id: String) = getAllRequests().map { list -> list.find { it.id == id } }
     suspend fun publishProviderListing(provider: ServiceProviderEntity) {
@@ -296,6 +329,7 @@ class MarketplaceRepository(
             val request = tx.get(reqRef)
             val quote = tx.get(quoteRef)
             check(request.getString("ownerUid") == uid && quote.getString("customerUid") == uid)
+            check(request.getString("data.status") == "PENDING") { "Bu talep artık teklif kabul etmiyor." }
             check(quote.getString("requestId") == requestId && quote.getString("status") == "PENDING")
             check(request.getString("acceptedQuoteId") == "") { "Bu ilan için zaten teklif kabul edildi." }
             tx.update(quoteRef, mapOf("status" to "ACCEPTED", "updatedAt" to FieldValue.serverTimestamp()))

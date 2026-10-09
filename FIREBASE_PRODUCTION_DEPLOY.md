@@ -84,8 +84,8 @@ tokenlarını ayrıca kaldırın. Cloud audit bu eski tokenları veya nesne ACL'
 taramaz; bucket IAM/public access prevention kontrolü tek başına bunun kanıtı değildir.
 
 Son kontrol yayımlanan Firestore/Storage Rules içeriğini commit ile birebir
-karşılaştırır; moderasyon index'i `READY`, iki TTL `ACTIVE`, `getListingTrust` dahil
-altı Function `ACTIVE`,
+karşılaştırır; moderasyon index'i `READY`, iki TTL `ACTIVE`, `getListingTrust` ve
+`manageJob` dahil yedi Function `ACTIVE`,
 Node 22 ve en fazla 5 instance, push trigger database `mahallem` ister.
 Yeni index henüz oluşturuluyorsa başarı iddia edilmez; Cloud hazır olduğunda
 `audit` işlemini tekrar çalıştırın. Function kaydı App Check tokenının gerçekten

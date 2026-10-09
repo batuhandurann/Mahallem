@@ -17,6 +17,8 @@ const db = getFirestore(DATABASE);
 const callableOptions = { region: "europe-west3", enforceAppCheck: process.env.FUNCTIONS_EMULATOR !== "true", memory: "512MiB", timeoutSeconds: 60,
   maxInstances: 5, concurrency: 2 };
 
+exports.manageJob = onCall(callableOptions, require("./job-handler").createJobHandler({ db, auth: getAuth(), reserve }));
+
 // No client-controlled trust booleans, phone numbers or owner UIDs are accepted.
 // Return only a boolean for visible listings; private contact values never leave the server.
 exports.getListingTrust = onCall(callableOptions, async request => {
