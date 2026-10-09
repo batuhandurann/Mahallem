@@ -4,6 +4,8 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.ui.test.junit4.StateRestorationTester
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.assertIsSelected
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performClick
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.batuhanduran.burada.data.local.ServiceProviderEntity
@@ -69,12 +71,14 @@ class NeighborhoodDiscoveryInstrumentedTest {
         restoration.setContent {
             MaterialTheme { MarketplaceMapView(providers, emptyList(), {}, {}, {}, {}) }
         }
-        compose.onNodeWithTag("discovery_neighborhood_$secondId").performClick()
+        compose.onNodeWithTag("discovery_neighborhood_$secondId").performScrollTo().performClick()
+        compose.onNodeWithTag("discovery_neighborhood_$secondId").assertIsSelected()
         compose.onNodeWithTag("discovery_provider_first").assertDoesNotExist()
         compose.onNodeWithTag("discovery_provider_second").assertExists()
 
         restoration.emulateSavedInstanceStateRestore()
 
+        compose.onNodeWithTag("discovery_neighborhood_$secondId").assertIsSelected()
         compose.onNodeWithTag("discovery_provider_first").assertDoesNotExist()
         compose.onNodeWithTag("discovery_provider_second").assertExists()
     }
@@ -85,12 +89,14 @@ class NeighborhoodDiscoveryInstrumentedTest {
         restoration.setContent {
             MaterialTheme { MarketplaceMapView(providers, emptyList(), {}, {}, {}, {}) }
         }
-        compose.onNodeWithTag("discovery_filter_REQUESTS").performClick()
+        compose.onNodeWithTag("discovery_filter_REQUESTS").performScrollTo().performClick()
+        compose.onNodeWithTag("discovery_filter_REQUESTS").assertIsSelected()
         compose.onNodeWithTag("discovery_provider_first").assertDoesNotExist()
         compose.onNodeWithTag("neighborhood_discovery_empty").assertExists()
 
         restoration.emulateSavedInstanceStateRestore()
 
+        compose.onNodeWithTag("discovery_filter_REQUESTS").assertIsSelected()
         compose.onNodeWithTag("discovery_provider_first").assertDoesNotExist()
         compose.onNodeWithTag("neighborhood_discovery_empty").assertExists()
     }
