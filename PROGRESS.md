@@ -25,7 +25,11 @@ fetch current remote state because other sessions may advance the repository.
   real provider-submit/customer-confirm lifecycle. Initial run is not evidence
   for the subsequent integration. New Android SDK review read-back added.
 - Current local backend 20/20 and configuration/device fixtures 60/60 passed.
-  Final Rules/callable/Android CI outcomes are recorded in the validation update.
+  Current Auth/Firestore 46/46 and focused review HTTP integration 3/3 passed,
+  exercising real Auth, private lifecycle/confirmation events and transactions.
+  Provider summary remains before reviews, and unrated providers show "Yeni"
+  instead of an apparent zero-star score; actual averages render one decimal.
+  Exact-head Android/security CI results are recorded in the validation update.
   Native Functions emulator workers cannot bind Unix sockets locally (EPERM);
   a TCP harness exercises the actual onCall HTTP wrappers with Auth/Firestore
   emulators without replacing authorization or transaction code.

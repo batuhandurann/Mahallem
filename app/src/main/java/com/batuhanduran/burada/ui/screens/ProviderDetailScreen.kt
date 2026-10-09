@@ -171,10 +171,6 @@ fun ProviderDetailScreen(
                 .testTag("provider_detail_list"),
             contentPadding = PaddingValues(16.dp)
         ) {
-            item {
-                ProviderReviews(reviews, provider.reviewCount, onMoreReviews, onReportReview)
-                Spacer(Modifier.height(16.dp))
-            }
             // Profile Card Header
             item {
                 Card(
@@ -231,7 +227,7 @@ fun ProviderDetailScreen(
                                         modifier = Modifier.size(18.dp)
                                     )
                                     Text(
-                                        text = " ${provider.rating}",
+                                        text = if (provider.reviewCount == 0) " Yeni" else " " + String.format(java.util.Locale.forLanguageTag("tr-TR"), "%.1f", provider.rating),
                                         fontWeight = FontWeight.Bold,
                                         fontSize = 14.sp
                                     )
@@ -370,6 +366,10 @@ fun ProviderDetailScreen(
                 }
             }
 
+            item {
+                Spacer(Modifier.height(16.dp))
+                ProviderReviews(reviews, provider.reviewCount, onMoreReviews, onReportReview)
+            }
         }
     }
 }
