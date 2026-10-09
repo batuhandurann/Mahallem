@@ -96,7 +96,7 @@ fun CreateJobRequestScreen(
     var budget by remember { mutableStateOf("") }
 
     // --- Dynamic Tadilat / Hizmet Grubu State ---
-    var areaSquareMeters by remember { mutableStateOf("95") }
+    var areaSquareMeters by remember { mutableStateOf("") }
     var selectedRoomCount by remember { mutableStateOf("") }
     var isFurnished by remember { mutableStateOf(true) }
     var materialsIncluded by remember { mutableStateOf(false) }
@@ -107,7 +107,7 @@ fun CreateJobRequestScreen(
     var durationHours by remember { mutableStateOf(2) }
     var selectedAgeGroup by remember { mutableStateOf("") }
     var selectedCostume by remember { mutableStateOf("") }
-    var extraServices by remember { mutableStateOf("Yüz Boyama + Sosis Balon") }
+    var extraServices by remember { mutableStateOf("") }
 
     val isPhysicalService = selectedSector == SectorType.HOME_REPAIR ||
             selectedSector == SectorType.CLEANING ||
