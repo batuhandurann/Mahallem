@@ -20,27 +20,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.batuhanduran.burada.ui.theme.*
-
-data class CalendarDay(
-    val dateIso: String,
-    val dayName: String,
-    val dayNumber: String,
-    val isWeekend: Boolean
-)
-
-// Sample days for the upcoming 2 weeks
-val UPCOMING_CALENDAR_DAYS = listOf(
-    CalendarDay("2026-10-09", "Cum", "9", false),
-    CalendarDay("2026-10-10", "Cmt", "10", true),
-    CalendarDay("2026-10-11", "Paz", "11", true),
-    CalendarDay("2026-10-12", "Pzt", "12", false),
-    CalendarDay("2026-10-13", "Sal", "13", false),
-    CalendarDay("2026-10-14", "Çar", "14", false),
-    CalendarDay("2026-10-15", "Per", "15", false),
-    CalendarDay("2026-10-16", "Cum", "16", false),
-    CalendarDay("2026-10-17", "Cmt", "17", true),
-    CalendarDay("2026-10-18", "Paz", "18", true)
-)
+import java.util.Date
 
 @Composable
 fun AvailabilityCalendarView(
@@ -48,9 +28,11 @@ fun AvailabilityCalendarView(
     isOpenForOffers: Boolean,
     isEditable: Boolean = false,
     onDateToggle: (String) -> Unit = {},
-    onToggleOpenForOffers: () -> Unit = {}
+    onToggleOpenForOffers: () -> Unit = {},
+    today: Date = Date()
 ) {
     val bookedList = parseJsonList(bookedDatesJson)
+    val upcomingDays = generateUpcomingCalendarDays(today)
 
     Card(
         shape = RoundedCornerShape(16.dp),
@@ -112,7 +94,7 @@ fun AvailabilityCalendarView(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                UPCOMING_CALENDAR_DAYS.take(5).forEach { day ->
+                upcomingDays.take(5).forEach { day ->
                     DaySlotItem(
                         day = day,
                         isBooked = bookedList.contains(day.dateIso) || !isOpenForOffers,
@@ -128,7 +110,7 @@ fun AvailabilityCalendarView(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                UPCOMING_CALENDAR_DAYS.drop(5).take(5).forEach { day ->
+                upcomingDays.drop(5).take(5).forEach { day ->
                     DaySlotItem(
                         day = day,
                         isBooked = bookedList.contains(day.dateIso) || !isOpenForOffers,

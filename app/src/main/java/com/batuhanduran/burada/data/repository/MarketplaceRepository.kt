@@ -1,5 +1,7 @@
 package com.batuhanduran.burada.data.repository
 
+import com.batuhanduran.burada.validation.quoteDraftError
+
 import com.batuhanduran.burada.data.local.*
 import com.batuhanduran.burada.data.model.SectorType
 import com.batuhanduran.burada.data.model.UrgencyMode
@@ -145,6 +147,12 @@ class MarketplaceRepository(
         observe(db.collection("providers").whereEqualTo("visibility", "published")) { decode(it, ServiceProviderEntity::class.java) },
         observe(db.collection("users").document(uid).collection("favorites")) { it.id }
     ) { providers, favorites -> providers.map { it.copy(isFavorite = it.id in favorites) } }
+    // Own listings are a separate owner-scoped stream: never depend on public feed search/category/area filters.
+    fun getOwnedProviders(): Flow<List<ServiceProviderEntity>> =
+        observe(db.collection("providers").whereEqualTo("ownerUid", uid)) {
+            decode(it, ServiceProviderEntity::class.java)
+        }.map { profiles -> ownedProviderProfiles(profiles, uid) }
+
     fun getAllRequests(): Flow<List<JobRequestEntity>> = observe(db.collection("requests").whereEqualTo("visibility", "published")) {
         decode(it, JobRequestEntity::class.java).copy(createdAt = it.getTimestamp("createdAt")?.toDate()?.time ?: 0)
     }
@@ -207,6 +215,8 @@ class MarketplaceRepository(
     fun getQuotesForRequest(requestId: String) = getAllQuotes().map { list -> list.filter { it.requestId == requestId } }
     suspend fun sendQuote(quote: QuoteEntity): String {
         requireAccount()
+        val validationError = quoteDraftError(quote.price, quote.durationOrArrival, quote.notes)
+        require(validationError == null) { validationError ?: "Teklif bilgileri geçersiz." }
         val request = db.collection("requests").document(quote.requestId).get(Source.SERVER).awaitRemote()
         val customerUid = requireNotNull(request.getString("ownerUid"))
         check(customerUid != uid) { "Kendi ilanınıza teklif veremezsiniz." }

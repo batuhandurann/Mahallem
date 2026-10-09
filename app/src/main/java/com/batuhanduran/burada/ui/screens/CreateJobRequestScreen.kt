@@ -176,8 +176,8 @@ fun CreateJobRequestScreen(
                             schedule.date,
                             schedule.time,
                             address,
-                            customerName.ifBlank { "Mahalle Sakini" },
-                            customerPhone.ifBlank { "0532 000 00 00" },
+                            customerName.trim(),
+                            customerPhone.trim(),
                             areaSquareMeters.toIntOrNull() ?: 0,
                             selectedRoomCount,
                             isFurnished,
@@ -188,7 +188,7 @@ fun CreateJobRequestScreen(
                             selectedAgeGroup,
                             selectedCostume,
                             extraServices,
-                            budget.ifBlank { if (isPhysicalService) "3.000 - 6.000 ₺" else "2.000 - 3.500 ₺" }
+                            budget.trim()
                         )
                     },
                     shape = RoundedCornerShape(14.dp),
@@ -320,7 +320,12 @@ fun CreateJobRequestScreen(
 
             NeighborhoodSelector(
                 selected = selectedNeighborhood,
-                onSelected = { selectedNeighborhood = it },
+                onSelected = { neighborhood ->
+                    if (selectedNeighborhood != neighborhood) {
+                        selectedCoordinate = null
+                    }
+                    selectedNeighborhood = neighborhood
+                },
                 modifier = Modifier.fillMaxWidth()
             )
 
