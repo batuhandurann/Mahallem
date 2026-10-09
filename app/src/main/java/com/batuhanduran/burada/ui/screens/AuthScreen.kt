@@ -44,6 +44,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.liveRegion
@@ -56,6 +57,7 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.batuhanduran.burada.R
 import com.batuhanduran.burada.auth.AuthViewModel
 
 private enum class AuthMode { SIGN_IN, REGISTER, RESET_PASSWORD }
@@ -132,14 +134,14 @@ fun AuthScreen(viewModel: AuthViewModel) {
                     )
                 }
                 Text(
-                    text = "Burada",
+                    text = stringResource(R.string.app_name),
                     style = MaterialTheme.typography.headlineLarge,
                     fontWeight = FontWeight.Bold
                 )
                 Text(
                     text = when (mode) {
-                        AuthMode.SIGN_IN -> "Mahallene bağlan, ihtiyaçlarını komşularınla çöz."
-                        AuthMode.REGISTER -> "Mahallene katılmak için hesabını oluştur."
+                        AuthMode.SIGN_IN -> "Yakınındaki hizmet verenleri keşfet, ihtiyacın için teklif al."
+                        AuthMode.REGISTER -> "Hizmet bulmak veya teklif vermek için hesabını oluştur."
                         AuthMode.RESET_PASSWORD -> "Şifreni yenilemek için e-posta adresini yaz."
                     },
                     style = MaterialTheme.typography.bodyMedium,

@@ -98,15 +98,15 @@ fun CostEstimatorSheet(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Column {
-                    Text("Akıllı Piyasa Fiyat Hesaplayıcı", fontWeight = FontWeight.Bold, fontSize = 18.sp)
-                    Text("Armut & Mahalle Fiyat İndeksi (2026)", fontSize = 11.5.sp, color = Slate500)
+                    Text("Örnek Maliyet Hesaplayıcı", fontWeight = FontWeight.Bold, fontSize = 18.sp)
+                    Text("Sabit örnek katsayılar; canlı piyasa verisi değildir.", fontSize = 11.5.sp, color = Slate500)
                 }
                 Surface(
                     shape = RoundedCornerShape(8.dp),
                     color = TealContainer
                 ) {
                     Text(
-                        text = "📊 Canlı Piyasa",
+                        text = "Temsili hesap",
                         fontSize = 11.sp,
                         fontWeight = FontWeight.Bold,
                         color = OnTealContainer,
@@ -188,61 +188,39 @@ fun CostEstimatorSheet(
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 PriceTierCard(
-                    title = "Ekonomik",
+                    title = "Düşük örnek",
                     price = "$lowPrice ₺",
-                    subtitle = "İşçilik Odaklı",
+                    subtitle = "Tahmini alt değer",
                     color = Slate600,
                     modifier = Modifier.weight(1f)
                 )
 
                 PriceTierCard(
-                    title = "Piyasa Ortalaması",
+                    title = "Orta örnek",
                     price = "$avgPrice ₺",
-                    subtitle = "En Çok Tercih",
+                    subtitle = "Yalnızca örnek",
                     color = TealPrimary,
-                    isPopular = true,
+                    isPopular = false,
                     modifier = Modifier.weight(1.2f)
                 )
 
                 PriceTierCard(
-                    title = "Premium / Garantili",
+                    title = "Yüksek örnek",
                     price = "$highPrice ₺",
-                    subtitle = "Malzeme Dahil",
+                    subtitle = "Tahmini üst değer",
                     color = FestiveCoral,
                     modifier = Modifier.weight(1f)
                 )
             }
 
-            // Distribution Breakdown Bar
-            Surface(
-                shape = RoundedCornerShape(10.dp),
-                color = Slate100,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Column(modifier = Modifier.padding(10.dp)) {
-                    Text("Maliyet Dağılımı Tahmini", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Slate700)
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(8.dp)
-                            .clip(RoundedCornerShape(4.dp))
-                    ) {
-                        Box(modifier = Modifier.weight(0.65f).fillMaxHeight().background(TealPrimary))
-                        Box(modifier = Modifier.weight(0.35f).fillMaxHeight().background(FestiveCoral))
-                    }
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Text("• %65 Usta İşçilik & Zaman", fontSize = 9.5.sp, color = TealDark)
-                        Text("• %35 Malzeme & Yol", fontSize = 9.5.sp, color = FestiveCoral)
-                    }
-                }
-            }
+            Text(
+                text = "Fiyatlar yalnızca örnek hesaplamadır; doğrulanmış teklif, güncel piyasa ortalaması veya garanti değildir. Talep formuna geçmek ilan yayımlamaz; bütçe otomatik aktarılmaz.",
+                style = MaterialTheme.typography.bodySmall,
+                color = Slate700,
+                modifier = Modifier.testTag("estimator_illustrative_notice")
+            )
 
-            // CTA Button: "Bu Fiyat Aralığından Talep Aç"
+            // This only navigates to a request form; it does not publish a listing or carry a budget.
             Button(
                 onClick = {
                     val budgetStr = "$lowPrice - $avgPrice ₺"
@@ -259,7 +237,7 @@ fun CostEstimatorSheet(
             ) {
                 Icon(Icons.Default.Send, contentDescription = null, modifier = Modifier.size(16.dp))
                 Spacer(modifier = Modifier.width(8.dp))
-                Text("Bu Fiyattan Talep Yayınla ($avgPrice ₺)", fontWeight = FontWeight.Bold)
+                Text("Talep formuna geç", fontWeight = FontWeight.Bold)
             }
 
             Spacer(modifier = Modifier.height(10.dp))

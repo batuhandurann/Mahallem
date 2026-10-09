@@ -152,6 +152,11 @@ service cloud.firestore {
         && d.title.size() >= 2
         && d.status in ["PENDING", "ACCEPTED"];
     }
+    // Untrusted clients can bypass Android form validation, so validate server-side.
+    function validQuotePrice(value) {
+      return value is string && value.size() > 0 && value.size() <= 32
+        && value.matches('^((0,(0[1-9]|[1-9][0-9]|[1-9]))|(([1-9][0-9]{0,8}|[1-9][0-9]{0,2}([.][0-9]{3}){1,2})(,[0-9]{1,2})?))([ ]{0,2}([Tt][Ll]|₺))?$');
+    }
     function validQuote(d) {
       return d.keys().hasAll(["id", "requestId", "providerId", "providerName", "providerTitle", "providerRating", "price", "durationOrArrival", "notes", "status", "escrowFunded", "receiptCode", "warrantyDuration", "createdAt", "providerUid", "customerUid"])
         && d.keys().hasOnly(["id", "requestId", "providerId", "providerName", "providerTitle", "providerRating", "price", "durationOrArrival", "notes", "status", "escrowFunded", "receiptCode", "warrantyDuration", "createdAt", "providerUid", "customerUid"])
@@ -161,9 +166,10 @@ service cloud.firestore {
         && d.providerName is string && d.providerName.size() <= 5000
         && d.providerTitle is string && d.providerTitle.size() <= 5000
         && d.providerRating is number && d.providerRating >= 0
-        && d.price is string && d.price.size() <= 5000
-        && d.durationOrArrival is string && d.durationOrArrival.size() <= 5000
-        && d.notes is string && d.notes.size() <= 5000
+        && validQuotePrice(d.price)
+        && d.durationOrArrival is string && d.durationOrArrival.size() > 0
+        && d.durationOrArrival.size() <= 120 && d.durationOrArrival.matches('.*[^ ].*')
+        && d.notes is string && d.notes.size() <= 1000
         && d.status is string && d.status.size() <= 5000
         && d.escrowFunded is bool
         && d.receiptCode is string && d.receiptCode.size() <= 5000
