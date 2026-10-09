@@ -121,7 +121,9 @@ private fun RequestItemCard(
     onViewReceipt: (QuoteEntity) -> Unit,
     onRejectQuote: (String) -> Unit
 ) {
-    val isRenovation = request.sector == "HOME_REPAIR"
+    val detailsKind = requestDetailsKind(request.sector)
+    val isRenovation = detailsKind == RequestDetailsKind.RENOVATION
+    val isEvent = detailsKind == RequestDetailsKind.EVENT
     val isEmergency = request.urgencyMode == "EMERGENCY"
 
     Card(
@@ -140,16 +142,20 @@ private fun RequestItemCard(
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(
-                        imageVector = if (isRenovation) Icons.Default.Handyman else Icons.Default.Celebration,
+                        imageVector = when (detailsKind) {
+                        RequestDetailsKind.RENOVATION -> Icons.Default.Handyman
+                        RequestDetailsKind.EVENT -> Icons.Default.Celebration
+                        RequestDetailsKind.GENERAL -> Icons.Default.Category
+                    },
                         contentDescription = null,
-                        tint = if (isRenovation) TealPrimary else FestiveCoral,
+                        tint = if (isEvent) FestiveCoral else TealPrimary,
                         modifier = Modifier.size(18.dp)
                     )
                     Spacer(modifier = Modifier.width(6.dp))
                     Text(
-                        text = if (isRenovation) "Ev & Tadilat" else "Eğlence & Organizasyon",
+                        text = requestSectorLabel(request.sector),
                         style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
-                        color = if (isRenovation) TealPrimary else FestiveCoral
+                        color = if (isEvent) FestiveCoral else TealPrimary
                     )
 
                     if (isEmergency) {
@@ -214,7 +220,7 @@ private fun RequestItemCard(
                     style = MaterialTheme.typography.bodySmall,
                     color = Slate600
                 )
-            } else {
+            } else if (isEvent) {
                 Text(
                     text = "🎪 ${request.eventType} • ${request.durationHours} Saat • ${request.targetAgeGroup} • Kostüm: ${request.selectedCostumeOrCharacter}",
                     style = MaterialTheme.typography.bodySmall,
