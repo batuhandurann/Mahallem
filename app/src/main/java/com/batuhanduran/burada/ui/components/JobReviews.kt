@@ -1,6 +1,8 @@
 package com.batuhanduran.burada.ui.components
 
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.StarBorder
@@ -29,7 +31,7 @@ fun JobReviewActions(
     }
     if (editing && !reviewed) AlertDialog(
         onDismissRequest = { if (!busy) editing = false }, title = { Text("Deneyiminizi paylaşın") },
-        text = { Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        text = { Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text("Yalnızca tamamladığınız hizmeti değerlendirin. Gönderimden sonra puan değiştirilemez. Tamamlanmadan itibaren 30 gününüz var.")
             Row {
                 (1..5).forEach { score ->
