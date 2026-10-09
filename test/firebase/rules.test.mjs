@@ -467,3 +467,38 @@ test('conversation preview requires a fresh charged message with matching text i
   assert.equal((await getDoc(doc(d,'users/alice/writeBudgets/message'))).data().count,1);
   assert.equal((await getDoc(chat)).data().lastMessage,'Fresh preview');
 });
+
+test('deletion tombstone revokes cached-token access after profile removal; client cannot reset it', async () => {
+  await env.withSecurityRulesDisabled(async c => { await setDoc(doc(c.firestore(),'_accountDeletions/alice'),{status:'REQUESTED'}); });
+  const a=db('alice');
+  await assertFails(getDoc(doc(a,'requests/r')));
+  await assertFails(budgetedSet(doc(a,'requests/new'),request({id:'new'})));
+  await assertFails(setDoc(doc(a,'users/alice'),{uid:'alice',displayName:'Alice',email:'alice@example.com',...stamp()}));
+  await assertFails(deleteDoc(doc(a,'_accountDeletions/alice')));
+  await assertFails(getDoc(doc(a,'_accountDeletions/alice')));
+  await assertFails(budgetedSet(doc(db('bob'),'quotes/new'),quote({data:{...f.quote,id:'new'}})));
+  await assertFails(budgetedSet(doc(db('bob'),'conversations/c/messages/new'),{senderUid:'bob',data:{...f.message,id:'new',senderId:'bob'},...stamp()}));
+  await env.withSecurityRulesDisabled(async c => { await updateDoc(doc(c.firestore(),'_accountDeletions/alice'),{status:'COMPLETED'}); });
+  await assertFails(getDoc(doc(a,'providers/p')));
+});
+test('archived listings reject new offers, acceptance and direct republishing', async () => {
+  await env.withSecurityRulesDisabled(async c => {
+    await updateDoc(doc(c.firestore(),'requests/r'),{visibility:'archived'});
+    await updateDoc(doc(c.firestore(),'providers/p'),{visibility:'archived'});
+  });
+  await assertFails(budgetedSet(doc(db('bob'),'quotes/new'),quote({data:{...f.quote,id:'new'}})));
+  await assertFails(updateDoc(doc(db('bob'),'providers/p'),{'data.isOpenForOffers':false,updatedAt:serverTimestamp()}));
+  await assertFails(updateDoc(doc(db('bob'),'providers/p'),{visibility:'published',updatedAt:serverTimestamp()}));
+  const a=db('alice'),batch=writeBatch(a);
+  batch.update(doc(a,'quotes/q'),{status:'ACCEPTED',updatedAt:serverTimestamp()});
+  batch.update(doc(a,'requests/r'),{'data.status':'ACCEPTED',acceptedQuoteId:'q',acceptedProviderUid:'bob',updatedAt:serverTimestamp()});
+  await assertFails(batch.commit());
+});
+test('acceptance cannot race against deleting provider; direct scope edits remain denied',async () => {
+  await env.withSecurityRulesDisabled(async c => { await setDoc(doc(c.firestore(),'_accountDeletions/bob'),{status:'REQUESTED'}); });
+  const a=db('alice'),batch=writeBatch(a);
+  batch.update(doc(a,'quotes/q'),{status:'ACCEPTED',updatedAt:serverTimestamp()});
+  batch.update(doc(a,'requests/r'),{'data.status':'ACCEPTED',acceptedQuoteId:'q',acceptedProviderUid:'bob',updatedAt:serverTimestamp()});
+  await assertFails(batch.commit());
+  await assertFails(updateDoc(doc(a,'requests/r'),{'data.title':'Changed scope',updatedAt:serverTimestamp()}));
+});

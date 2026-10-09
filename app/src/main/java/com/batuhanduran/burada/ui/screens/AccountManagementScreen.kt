@@ -86,7 +86,7 @@ private fun ListingManagementDialog(listing: ManagedListing,busy: Boolean,error:
             Text("İlan keşfetten kaldırılır ve yeni teklif alamaz. Teklif ve sohbet geçmişi hesap silinmediği sürece korunur.")
             error?.let { Text(it,color = MaterialTheme.colorScheme.error) }
         } else LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            item { Text("Durum: ${when(listing.visibility) { "published" -> "Yayında"; "archived" -> "Kaldırıldı"; else -> "Gizli" }}") }
+            item { Text("Durum: ${when(listing.visibility) { "published" -> "Yayında"; "archived" -> "Kaldırıldı"; "closed" -> "Kapalı"; else -> "Gizli" }}") }
             if (!listing.editable) item { Text("Teklif alınmış, anlaşılmış veya kaldırılmış ilan düzenlenemez. İş anlaşması varsa iş yönetimini kullan.") }
             items(draft.keys.toList()) { field -> OutlinedTextField(draft[field].orEmpty(),{ value -> draft = draft + (field to value) },
                 label = { Text(labels[field] ?: field) },enabled = listing.editable && !busy,modifier = Modifier.fillMaxWidth().testTag("listing_edit_$field")) }

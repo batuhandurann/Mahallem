@@ -1,0 +1,90 @@
+import {test,before,after} from 'node:test';
+import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
+import {createRequire} from 'node:module';
+import {initializeApp,deleteApp} from 'firebase/app';
+import {getAuth,connectAuthEmulator,createUserWithEmailAndPassword} from 'firebase/auth';
+const require=createRequire(new URL('../../functions/package.json',import.meta.url));
+const {initializeApp:adminApp,deleteApp:deleteAdminApp}=require('firebase-admin/app');
+const {getFirestore,FieldValue}=require('firebase-admin/firestore');
+const {getAuth:adminAuth}=require('firebase-admin/auth');
+const {getStorage}=require('firebase-admin/storage');
+const f=JSON.parse(readFileSync(new URL('../firebase/fixtures.json',import.meta.url)));
+const projectId='demo-mahallem';let admin,db,owner,other;const apps=[];
+async function account(label) {
+  const app=initializeApp({projectId,apiKey:'fake-emulator-key'},`account-${label}-${Date.now()}`);apps.push(app);
+  const auth=getAuth(app);connectAuthEmulator(auth,`http://${process.env.FIREBASE_AUTH_EMULATOR_HOST}`,{disableWarnings:true});
+  const user=(await createUserWithEmailAndPassword(auth,`${label}-${Date.now()}@example.com`,'Strong-password123!')).user;
+  return {uid:user.uid,token:await user.getIdToken()};
+}
+async function call(name,user,data) {
+  const r=await fetch(`http://127.0.0.1:5001/${projectId}/europe-west3/${name}`,{method:'POST',headers:{'content-type':'application/json',...(user?{authorization:`Bearer ${user.token}`}:{})},body:JSON.stringify({data})});
+  const body=await r.json();return {status:r.status,body,result:body.result || body.data};
+}
+function listing(kind,id,uid,patch={}) {return {ownerUid:uid,visibility:'published',createdAt:FieldValue.serverTimestamp(),updatedAt:FieldValue.serverTimestamp(),...(kind==='requests'?{acceptedQuoteId:'',acceptedProviderUid:''}:{}),data:{...(kind==='requests'?f.request:f.provider),id,ownerUid:uid,...patch}};}
+before(async()=>{
+  assert.ok(process.env.FIRESTORE_EMULATOR_HOST && process.env.FIREBASE_AUTH_EMULATOR_HOST && process.env.FIREBASE_STORAGE_EMULATOR_HOST,'Emulators required');
+  admin=adminApp({projectId,storageBucket:`${projectId}.appspot.com`},`account-admin-${Date.now()}`);db=getFirestore(admin,'mahallem');
+  [owner,other]=await Promise.all(['owner','other'].map(account));
+});
+after(async()=>{await Promise.all(apps.map(deleteApp));if(admin)await deleteAdminApp(admin);});
+test('real callable profile/listing ownership, conflict, scope and moderation boundaries',async()=>{
+  assert.equal((await call('getAccountProfile',null,{})).status,401);
+  const profile=(await call('getAccountProfile',owner,{})).result;
+  const update={displayName:'Batuhan Duran',bio:'Software developer',revision:profile.revision};
+  const saved=await call('updateAccountProfile',owner,update);assert.equal(saved.status,200,JSON.stringify(saved.body));
+  assert.equal((await db.doc(`users/${owner.uid}`).get()).data().displayName,'Batuhan Duran');
+  assert.equal((await adminAuth(admin).getUser(owner.uid)).displayName,'Batuhan Duran');
+  assert.equal((await call('updateAccountProfile',owner,update)).status,409);
+  assert.equal((await call('updateAccountProfile',owner,{...update,revision:saved.result.revision,role:'admin'})).status,400);
+  const id=`managed-${owner.uid}`,ref=db.doc(`requests/${id}`);await ref.set(listing('requests',id,owner.uid,{status:'PENDING'}));
+  assert.equal((await call('getListingManagement',other,{kind:'requests',id})).status,403);
+  const opened=await call('getListingManagement',owner,{kind:'requests',id});assert.equal(opened.status,200,JSON.stringify(opened.body));
+  const input={kind:'requests',id,revision:opened.result.revision,action:'edit',fields:{title:'Updated job title'}};
+  assert.equal((await call('manageListing',other,input)).status,403);
+  assert.equal((await call('manageListing',owner,{...input,fields:{ownerUid:other.uid}})).status,400);
+  assert.equal((await call('manageListing',owner,input)).status,200);
+  assert.equal((await ref.get()).data().data.title,'Updated job title');
+  assert.equal((await call('manageListing',owner,input)).status,409);
+  await db.doc(`quotes/${id}`).set({requestId:id,customerUid:owner.uid,providerUid:other.uid,status:'PENDING'});
+  const quoted=(await call('getListingManagement',owner,{kind:'requests',id})).result;assert.equal(quoted.editable,false);assert.equal(quoted.removable,true);
+  assert.equal((await call('manageListing',owner,{...input,revision:quoted.revision})).status,400);
+  await ref.update({'data.status':'ACCEPTED',acceptedQuoteId:id,acceptedProviderUid:other.uid});
+  const agreed=(await call('getListingManagement',owner,{kind:'requests',id})).result;assert.equal(agreed.removable,false);
+  assert.equal((await call('requestAccountDeletion',owner,{confirmation:'HESABIMI SİL'})).status,400);
+  assert.equal((await call('manageListing',owner,{...input,revision:agreed.revision,action:'remove'})).status,400);
+  await ref.update({'data.status':'PENDING',acceptedQuoteId:'',acceptedProviderUid:''});
+  const removable=(await call('getListingManagement',owner,{kind:'requests',id})).result;
+  assert.equal((await call('manageListing',owner,{...input,revision:removable.revision,action:'remove'})).status,200);
+  assert.equal((await ref.get()).data().visibility,'archived');
+  const hiddenId=`hidden-${owner.uid}`;await db.doc(`providers/${hiddenId}`).set({...listing('providers',hiddenId,owner.uid),visibility:'hidden',moderationStatus:'hidden'});
+  const hidden=(await call('getListingManagement',owner,{kind:'providers',id:hiddenId})).result;assert.equal(hidden.editable,false);
+  assert.equal((await call('manageListing',owner,{kind:'providers',id:hiddenId,revision:hidden.revision,action:'edit',fields:{title:'Republish'}})).status,400);
+});
+test('actual deletion trigger purges Auth/private data/own media while preserving other account',async()=>{
+  const leaving=await account('leaving'),id=`delete-${leaving.uid}`;
+  await db.doc(`users/${leaving.uid}`).set({uid:leaving.uid,displayName:'Leaving',email:'private@example.com'});
+  await db.doc(`users/${leaving.uid}/devices/device`).set({token:'sensitive-token'});
+  await db.doc(`users/${leaving.uid}/favorites/p`).set({});
+  await db.doc(`providers/${id}`).set(listing('providers',id,leaving.uid));
+  await db.doc(`providerContacts/${id}`).set({ownerUid:leaving.uid,phone:'+905551234567'});
+  const convo=db.doc(`conversations/${id}`);
+  await convo.set({participantUids:[leaving.uid,other.uid],names:{[leaving.uid]:'Leaving',[other.uid]:'Other'},lastMessage:'Private text',relatedItemTitle:'Private title'});
+  await convo.collection('messages').doc('mine').set({senderUid:leaving.uid,data:{text:'Private'}});
+  await convo.collection('messages').doc('theirs').set({senderUid:other.uid,data:{text:'Keep'}});
+  const path=`conversationMedia/${id}/${leaving.uid}/media.jpg`;
+  await getStorage(admin).bucket().file(path).save(Buffer.from('private-photo'));
+  await convo.collection('media').doc('media').set({uploaderUid:leaving.uid,storagePath:path});
+  assert.equal((await call('requestAccountDeletion',leaving,{confirmation:'WRONG'})).status,400);
+  const started=await call('requestAccountDeletion',leaving,{confirmation:'HESABIMI SİL'});assert.equal(started.status,200,JSON.stringify(started.body));
+  assert.equal(started.result.status,'REQUESTED');assert.equal((await call('getAccountProfile',leaving,{})).status,403);
+  const deadline=Date.now()+90_000;
+  while((await db.doc(`_accountDeletions/${leaving.uid}`).get()).data()?.status!=='COMPLETED' && Date.now()<deadline)await new Promise(r=>setTimeout(r,500));
+  assert.equal((await db.doc(`_accountDeletions/${leaving.uid}`).get()).data().status,'COMPLETED');
+  for(const p of [`users/${leaving.uid}`,`users/${leaving.uid}/devices/device`,`providers/${id}`,`providerContacts/${id}`,`conversations/${id}/messages/mine`,`conversations/${id}/media/media`])assert.equal((await db.doc(p).get()).exists,false,p);
+  assert.equal((await convo.collection('messages').doc('theirs').get()).data().data.text,'Keep');
+  assert.equal((await convo.get()).data().names[leaving.uid],'Silinmiş hesap');
+  assert.equal((await getStorage(admin).bucket().file(path).exists())[0],false);
+  await assert.rejects(adminAuth(admin).getUser(leaving.uid),e=>e.code==='auth/user-not-found');
+  assert.ok(await adminAuth(admin).getUser(other.uid));
+});

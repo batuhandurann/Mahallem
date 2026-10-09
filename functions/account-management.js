@@ -43,7 +43,7 @@ module.exports=function install(db,database,options,reserve) {
     // Firestore is canonical; an old Auth snapshot must never overwrite profile edits.
     await getAuth().updateUser(uid,{displayName:patch.displayName});
     const current=(await db.doc(`users/${uid}`).get()).data();
-    return {...patch,revision:revision(current?.updatedAt)};
+    return {displayName:current?.displayName || patch.displayName,bio:current?.bio || "",revision:revision(current?.updatedAt)};
   });
   exports.getListingManagement=onCall(options,async request=>{
     const {uid}=await account(request),{kind,id}=target(request.data);
@@ -96,11 +96,11 @@ module.exports=function install(db,database,options,reserve) {
       if((await tx.get(jobs.doc(uid))).exists) return;
       const owned=await tx.get(db.collection("requests").where("ownerUid","==",uid));
       const offered=await tx.get(db.collection("quotes").where("providerUid","==",uid));
-      const active=owned.docs.some(d=>d.data().acceptedQuoteId && !terminalJob(d.data()));
+      const active=owned.docs.some(d=>!terminalJob(d.data()) && (d.data().acceptedQuoteId || d.data().data?.status!=="PENDING" || ["LOCKED","DISPUTED"].includes(d.data().data?.escrowStatus)));
       // ACCEPTED quote status remains historical after job completion: consult its job.
       const accepted=offered.docs.filter(d=>d.data().status==="ACCEPTED");
       const related=await Promise.all(accepted.map(d=>tx.get(db.doc(`requests/${segment(d.data().requestId)}`))));
-      if(active || related.some(d=>!d.exists || !terminalJob(d.data()))) fail("failed-precondition","Devam eden işinizi tamamlayın veya iş yönetiminden iptal edin; ardından hesap silmeyi tekrar deneyin.");
+      if(active || related.some((d,i)=>!d.exists || !terminalJob(d.data()) || d.data().acceptedProviderUid!==uid || d.data().acceptedQuoteId!==accepted[i].id || d.data().ownerUid!==accepted[i].data().customerUid)) fail("failed-precondition","Devam eden işinizi tamamlayın veya iş yönetiminden iptal edin; ardından hesap silmeyi tekrar deneyin.");
       tx.create(jobs.doc(uid),{status:"REQUESTED",requestedAt:FieldValue.serverTimestamp()});
       tx.set(db.doc(`users/${uid}`),{deletionStatus:"REQUESTED"},{merge:true});
     });
