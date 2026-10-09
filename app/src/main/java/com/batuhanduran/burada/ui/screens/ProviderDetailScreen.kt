@@ -179,7 +179,8 @@ fun ProviderDetailScreen(
         LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(innerPadding),
+                .padding(innerPadding)
+                .testTag("provider_detail_list"),
             contentPadding = PaddingValues(16.dp)
         ) {
             // Profile Card Header
