@@ -120,9 +120,7 @@ private fun RequestItemCard(
     onViewReceipt: (QuoteEntity) -> Unit,
     onRejectQuote: (String) -> Unit
 ) {
-    val detailsKind = requestDetailsKind(request.sector)
-    val isRenovation = detailsKind == RequestDetailsKind.RENOVATION
-    val isEvent = detailsKind == RequestDetailsKind.EVENT
+    val isRenovation = request.sector == "HOME_REPAIR"
     val isEmergency = request.urgencyMode == "EMERGENCY"
 
     Card(
@@ -141,20 +139,16 @@ private fun RequestItemCard(
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(
-                        imageVector = when (detailsKind) {
-                        RequestDetailsKind.RENOVATION -> Icons.Default.Handyman
-                        RequestDetailsKind.EVENT -> Icons.Default.Celebration
-                        RequestDetailsKind.GENERAL -> Icons.Default.Category
-                    },
+                        imageVector = if (isRenovation) Icons.Default.Handyman else Icons.Default.Celebration,
                         contentDescription = null,
-                        tint = if (isEvent) FestiveCoral else TealPrimary,
+                        tint = if (isRenovation) TealPrimary else FestiveCoral,
                         modifier = Modifier.size(18.dp)
                     )
                     Spacer(modifier = Modifier.width(6.dp))
                     Text(
-                        text = requestSectorLabel(request.sector),
+                        text = if (isRenovation) "Ev & Tadilat" else "Eğlence & Organizasyon",
                         style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
-                        color = if (isEvent) FestiveCoral else TealPrimary
+                        color = if (isRenovation) TealPrimary else FestiveCoral
                     )
 
                     if (isEmergency) {
@@ -219,7 +213,7 @@ private fun RequestItemCard(
                     style = MaterialTheme.typography.bodySmall,
                     color = Slate600
                 )
-            } else if (isEvent) {
+            } else {
                 Text(
                     text = "🎪 ${request.eventType} • ${request.durationHours} Saat • ${request.targetAgeGroup} • Kostüm: ${request.selectedCostumeOrCharacter}",
                     style = MaterialTheme.typography.bodySmall,
@@ -386,24 +380,37 @@ private fun QuoteCardView(
                     modifier = Modifier.testTag("quote_terminal_status_${quote.id}")
                 )
             } else if (mayActOnQuote(quote.status, isRequestAccepted)) {
-                Row(
+                Column(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.End,
-                    verticalAlignment = Alignment.CenterVertically
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
-                    TextButton(onClick = onReject) {
-                        Text("Reddet", color = Slate500, fontSize = 12.sp)
-                    }
-                    Spacer(modifier = Modifier.width(6.dp))
                     Button(
-                        onClick = onAcceptWithEscrow,
-                        shape = RoundedCornerShape(8.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = TealPrimary),
-                        modifier = Modifier.testTag("btn_accept_escrow_${quote.id}")
+                        onClick = onAccept,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .testTag("btn_accept_quote_${quote.id}")
                     ) {
-                        Icon(Icons.Default.Security, contentDescription = null, modifier = Modifier.size(14.dp))
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text("🔒 Güvenli Havuzla Onayla", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        Text("Teklifi Kabul Et", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    }
+                    Text(
+                        "Teklifi kabul etmek ödeme yapmaz ve para bloke etmez.",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = Slate600
+                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        TextButton(onClick = onReject) {
+                            Text("Reddet", color = Slate500, fontSize = 12.sp)
+                        }
+                        TextButton(
+                            onClick = onAcceptWithEscrow,
+                            modifier = Modifier.testTag("btn_escrow_info_${quote.id}")
+                        ) {
+                            Text("Ödeme bilgisi", fontSize = 12.sp)
+                        }
                     }
                 }
             }
