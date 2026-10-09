@@ -35,7 +35,11 @@ fun MyRequestsScreen(
     onAcceptWithEscrow: (quote: QuoteEntity, request: JobRequestEntity) -> Unit = { _, _ -> },
     onViewReceipt: (QuoteEntity) -> Unit = {},
     onRejectQuote: (quoteId: String) -> Unit,
-    onNewRequestClick: () -> Unit
+    onNewRequestClick: () -> Unit,
+    reviewedRequestIds: List<String> = emptyList(),
+    reviewBusy: Set<String> = emptySet(),
+    onCompleteJob: (String) -> Unit = {},
+    onSubmitReview: (String, Int, String) -> Unit = { _, _, _ -> }
 ) {
     BackHandler { onBackClick() }
 
@@ -103,7 +107,11 @@ fun MyRequestsScreen(
                         onAcceptQuote = { qId, pName -> onAcceptQuote(req.id, qId, pName) },
                         onAcceptWithEscrow = { q -> onAcceptWithEscrow(q, req) },
                         onViewReceipt = onViewReceipt,
-                        onRejectQuote = onRejectQuote
+                        onRejectQuote = onRejectQuote,
+                        reviewed = req.id in reviewedRequestIds,
+                        busy = req.id in reviewBusy,
+                        onCompleteJob = { onCompleteJob(req.id) },
+                        onSubmitReview = { rating, comment -> onSubmitReview(req.id, rating, comment) }
                     )
                 }
             }
@@ -118,7 +126,11 @@ private fun RequestItemCard(
     onAcceptQuote: (String, String) -> Unit,
     onAcceptWithEscrow: (QuoteEntity) -> Unit,
     onViewReceipt: (QuoteEntity) -> Unit,
-    onRejectQuote: (String) -> Unit
+    onRejectQuote: (String) -> Unit,
+    reviewed: Boolean,
+    busy: Boolean,
+    onCompleteJob: () -> Unit,
+    onSubmitReview: (Int, String) -> Unit
 ) {
     val isRenovation = request.sector == "HOME_REPAIR"
     val isEmergency = request.urgencyMode == "EMERGENCY"
@@ -179,6 +191,7 @@ private fun RequestItemCard(
                 ) {
                     Text(
                         text = when (request.status) {
+                            "COMPLETED" -> "İş Tamamlandı"
                             "ACCEPTED" -> "Usta Onaylandı"
                             "QUOTED" -> "${quotes.size} Teklif Geldi"
                             else -> "Teklif Bekleniyor"
@@ -233,6 +246,8 @@ private fun RequestItemCard(
                 )
             }
 
+            com.batuhanduran.burada.ui.components.JobReviewActions(
+                request.id, request.status, reviewed, busy, onCompleteJob, onSubmitReview)
             // Quotes Section
             if (quotes.isNotEmpty()) {
                 Spacer(modifier = Modifier.height(14.dp))
@@ -249,7 +264,7 @@ private fun RequestItemCard(
                 quotes.forEach { quote ->
                     QuoteCardView(
                         quote = quote,
-                        isRequestAccepted = request.status == "ACCEPTED",
+                        isRequestAccepted = request.status != "PENDING" && request.status != "QUOTED",
                         onAccept = { onAcceptQuote(quote.id, quote.providerName) },
                         onAcceptWithEscrow = { onAcceptWithEscrow(quote) },
                         onViewReceipt = { onViewReceipt(quote) },

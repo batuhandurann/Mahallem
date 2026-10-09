@@ -3,6 +3,29 @@
 Updated: 2026-10-08 (Europe/Istanbul). Read `AGENTS.md` and git status before work;
 fetch current remote state because other sessions may advance the repository.
 
+## Verified customer reviews (2026-10-09)
+
+- Based on main `e287fe0`; existing Android identity, UID isolation and payment
+  safety are preserved. See `VERIFIED_REVIEWS.md` for choices and deployment order.
+- Added customer-confirmed job completion and server-only 1–5 rating/comment after
+  completion, with accepted quote/provider binding, 30-day cutoff, one review per
+  job, retry idempotency, transactional aggregate updates and App Check/quotas.
+- Added Android completion confirmation, review form, persisted submission state,
+  provider review list/load-more and report flow. Public review records omit UID,
+  request ID and contact details. Added moderator queue/hide/audit backend; hiding
+  updates aggregate counts and preserves the private one-review tombstone.
+- Local backend 9/9 and Auth/Firestore emulator 38/38 passed on demo-mahallem,
+  including negative review/complete writes and post-rating availability editing.
+- Actual callable integration tests and four Android Compose regressions added;
+  their final execution results are recorded in the subsequent validation update.
+  Initial local callable-emulator startup failed at Eventarc registration.
+- Local Android compilation stopped at Gradle distribution download (network
+  unreachable), before compilation. Live Firebase database listing lacked Auth;
+  edition was identified from firebase.json and actual Enterprise emulator startup.
+  No production deployment, signing or physical-device success is claimed.
+- Next: pass exact-head Android/emulator CI, integrate through protected PR, then
+  deploy backend/Rules/index together using protected production inputs.
+
 ## Phone verification and authoritative listing trust (2026-10-09)
 
 - Based on canonical main `f1db9637f52f80947a5a3c20ea9b3d890860fcdd`.

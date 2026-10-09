@@ -55,7 +55,7 @@ service cloud.firestore {
         && d.title is string && d.title.size() <= 5000
         && d.sector is string && d.sector.size() <= 5000
         && d.categoryId is string && d.categoryId.size() <= 5000
-        && d.rating is number && d.rating >= 0
+        && d.rating is number && d.rating >= 0 && d.rating <= 5
         && d.reviewCount is number && d.reviewCount >= 0
         && d.experienceYears is number && d.experienceYears >= 0
         && d.district is string && d.district.size() <= 5000
@@ -89,8 +89,6 @@ service cloud.firestore {
         && d.verifiedSafeBadge == false
         && d.mykCertified == false
         && d.childSafeCertified == false
-        && d.rating == 0
-        && d.reviewCount == 0
         && d.isFavorite == false
         && d.name.size() >= 2
         && d.title.size() >= 2;
@@ -316,6 +314,7 @@ service cloud.firestore {
       allow read: if signed() && (resource.data.ownerUid == request.auth.uid || resource.data.visibility == 'published');
       allow create: if signed() && request.resource.data.keys().hasOnly(['ownerUid','data','createdAt','updatedAt','visibility'])
         && request.resource.data.ownerUid == request.auth.uid && request.resource.data.visibility == 'published' && fresh(request.resource.data)
+        && request.resource.data.data.rating == 0 && request.resource.data.data.reviewCount == 0
         && validProvider(request.resource.data.data) && validGeo(request.resource.data.data) && request.resource.data.data.ownerUid == request.auth.uid
         && request.resource.data.data.id == id
         && hasWriteBudget('listing', /databases/$(database)/documents/providers/$(id));
@@ -323,6 +322,19 @@ service cloud.firestore {
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['data','updatedAt'])
         && changed(request.resource.data) && validProvider(request.resource.data.data)
         && request.resource.data.data.diff(resource.data.data).affectedKeys().hasOnly(['isOpenForOffers','bookedDatesJson']);
+    }
+    match /providers/{providerId}/reviews/{reviewId} {
+      allow read: if signed() && (providerDoc(providerId).visibility == 'published'
+        || providerDoc(providerId).ownerUid == request.auth.uid);
+      allow write: if false;
+    }
+    match /jobReviews/{requestId} {
+      allow read: if signed() && resource.data.customerUid == request.auth.uid;
+      allow write: if false;
+    }
+    match /reviewReports/{reportId} {
+      allow read: if signed() && request.auth.token.moderator == true;
+      allow write: if false;
     }
     match /requests/{id} {
       allow read: if signed() && (resource.data.ownerUid == request.auth.uid || resource.data.visibility == 'published');

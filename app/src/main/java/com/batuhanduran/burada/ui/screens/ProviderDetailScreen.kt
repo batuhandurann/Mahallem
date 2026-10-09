@@ -33,7 +33,11 @@ fun ProviderDetailScreen(
     onFavoriteToggle: () -> Unit,
     onRequestQuoteClick: (String) -> Unit,
     onChatClick: () -> Unit = {},
-    onReportClick: () -> Unit = {}
+    onReportClick: () -> Unit = {},
+    reviews: List<com.batuhanduran.burada.data.model.JobReview> = emptyList(),
+    onMoreReviews: () -> Unit = {},
+    onReportReview: (String, String) -> Unit = { _, _ -> }
+
 ) {
     BackHandler { onBackClick() }
 
@@ -167,6 +171,10 @@ fun ProviderDetailScreen(
                 .testTag("provider_detail_list"),
             contentPadding = PaddingValues(16.dp)
         ) {
+            item {
+                ProviderReviews(reviews, provider.reviewCount, onMoreReviews, onReportReview)
+                Spacer(Modifier.height(16.dp))
+            }
             // Profile Card Header
             item {
                 Card(

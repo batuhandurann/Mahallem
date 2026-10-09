@@ -23,6 +23,7 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.catch
 import com.batuhanduran.burada.moderation.*
 import com.batuhanduran.burada.data.model.*
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -164,6 +165,36 @@ class MarketplaceViewModel @JvmOverloads constructor(
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val myRequests = repository.getMyRequests().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    val reviewedRequestIds = repository.getReviewedRequestIds()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+    private val _reviewBusy = MutableStateFlow<Set<String>>(emptySet())
+    val reviewBusy = _reviewBusy.asStateFlow()
+    private val _reviewProvider = MutableStateFlow<String?>(null)
+    private val _reviewLimit = MutableStateFlow(20L)
+    @OptIn(ExperimentalCoroutinesApi::class)
+    val providerReviews = combine(_reviewProvider, _reviewLimit) { id, limit -> id to limit }
+        .flatMapLatest { (id, limit) -> if (id == null) flowOf(emptyList()) else repository.getProviderReviews(id, limit) }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+    fun selectReviewProvider(id: String?) { _reviewProvider.value = id; _reviewLimit.value = 20 }
+    fun loadMoreReviews() { _reviewLimit.value += 20 }
+    private fun reviewAction(id: String, block: suspend () -> Unit) {
+        if (id in _reviewBusy.value) return
+        _reviewBusy.value = _reviewBusy.value + id
+        action { try { block() } finally { _reviewBusy.value = _reviewBusy.value - id } }
+    }
+    fun confirmJobCompletion(id: String) = reviewAction(id) {
+        repository.confirmJobCompletion(id)
+        _toastMessage.value = "İş tamamlandı. Artık deneyiminizi değerlendirebilirsiniz."
+    }
+    fun submitJobReview(id: String, rating: Int, comment: String) = reviewAction(id) {
+        repository.submitJobReview(id, rating, comment)
+        _toastMessage.value = "Değerlendirmeniz kaydedildi. Teşekkürler."
+    }
+    fun reportJobReview(providerId: String, reviewId: String, reason: String) = action {
+        repository.reportJobReview(providerId, reviewId, reason)
+        _toastMessage.value = "Değerlendirme şikayetiniz inceleme için kaydedildi."
+    }
 
     // --- Quotes Flow ---
     val allQuotes: StateFlow<List<QuoteEntity>> = repository.getAllQuotes()

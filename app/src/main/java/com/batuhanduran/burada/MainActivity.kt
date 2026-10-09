@@ -65,6 +65,9 @@ fun MarketplaceApp(
     val requests by viewModel.jobRequests.collectAsStateWithLifecycle()
     val myRequests by viewModel.myRequests.collectAsStateWithLifecycle()
     val quotes by viewModel.allQuotes.collectAsStateWithLifecycle()
+    val reviewedRequestIds by viewModel.reviewedRequestIds.collectAsStateWithLifecycle()
+    val reviewBusy by viewModel.reviewBusy.collectAsStateWithLifecycle()
+    val providerReviews by viewModel.providerReviews.collectAsStateWithLifecycle()
     val conversations by viewModel.conversations.collectAsStateWithLifecycle()
     val activeChatMessages by viewModel.activeChatMessages.collectAsStateWithLifecycle()
     val toastMessage by viewModel.toastMessage.collectAsStateWithLifecycle()
@@ -203,8 +206,15 @@ fun MarketplaceApp(
 
                 is ScreenDestination.ProviderDetail -> {
                     val provider = providers.find { it.id == screen.providerId }
+                    DisposableEffect(screen.providerId) {
+                        viewModel.selectReviewProvider(screen.providerId)
+                        onDispose { viewModel.selectReviewProvider(null) }
+                    }
                     ProviderDetailScreen(
                         provider = provider,
+                        reviews = providerReviews.filter { it.providerId == screen.providerId },
+                        onMoreReviews = viewModel::loadMoreReviews,
+                        onReportReview = { id, reason -> viewModel.reportJobReview(screen.providerId, id, reason) },
                         onBackClick = { viewModel.navigateBack() },
                         onFavoriteToggle = { provider?.let { viewModel.toggleFavorite(it) } },
                         onRequestQuoteClick = {
@@ -294,6 +304,10 @@ fun MarketplaceApp(
                 is ScreenDestination.MyRequests -> {
                     MyRequestsScreen(
                         requests = myRequests,
+                        reviewedRequestIds = reviewedRequestIds,
+                        reviewBusy = reviewBusy,
+                        onCompleteJob = viewModel::confirmJobCompletion,
+                        onSubmitReview = viewModel::submitJobReview,
                         quotes = quotes,
                         onBackClick = { viewModel.navigateBack() },
                         onAcceptQuote = { reqId, quoteId, pName ->
