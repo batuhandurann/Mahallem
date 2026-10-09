@@ -34,6 +34,13 @@ fetch current remote state because other sessions may advance the repository.
   Android test exposed a logout/recomposition race constructing a phone model
   from a null currentUser; the model now receives the immutable session UID and
   fails closed until that UID is current, avoiding this constructor crash.
+- Second CI `37950712712`, source `9827ab58`: Rules 37/37, trusted integration
+  3/3 including actual SMS/trust/revocation, backend 7/7, debug/unit/lint and
+  unsigned release passed. Android exposed a second account-switch race: an old
+  read stream started after logout and threw from requireAccount. Read streams
+  now finish empty when stale; write checks remain strict. Marketplace models
+  also receive immutable session UIDs rather than constructor-time currentUser.
+  The Android regression now directly asserts stale read streams end empty.
 - Actual local Auth-only emulator smoke passed wrong OTP, valid link, preserved
   UID, unlink and email re-login. This does not cover Android or Firestore trust.
 - Next: verify this branch's full CI including the added tests. Production Phone

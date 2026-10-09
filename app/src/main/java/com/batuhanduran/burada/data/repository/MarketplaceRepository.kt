@@ -52,7 +52,9 @@ class MarketplaceRepository(
         require(area.provinceId == provinceId && area.districtId == districtId)
     }
     private fun <T> observe(query: Query, transform: (DocumentSnapshot) -> T): Flow<List<T>> = callbackFlow {
-        requireAccount()
+        // A WhileSubscribed stream can start after its account has already left.
+        // End read streams empty; write operations still strictly reject stale UIDs.
+        if (auth.currentUser?.uid != uid) { trySend(emptyList()); close(); return@callbackFlow }
         val authListener = FirebaseAuth.AuthStateListener { current ->
             if (current.currentUser?.uid != uid) { trySend(emptyList()); close() }
         }
@@ -154,6 +156,7 @@ class MarketplaceRepository(
     @OptIn(ExperimentalCoroutinesApi::class)
     private fun <T> withPhoneTrust(source: Flow<List<T>>, kind: String,
         id: (T) -> String, apply: (T, Boolean) -> T): Flow<List<T>> = source.transformLatest { rows ->
+        if (auth.currentUser?.uid != uid) { emit(emptyList()); return@transformLatest }
         val unverified = rows.map { apply(it, false) }
         emit(unverified)
         if (rows.isEmpty()) return@transformLatest

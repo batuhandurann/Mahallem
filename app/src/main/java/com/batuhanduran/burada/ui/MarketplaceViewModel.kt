@@ -40,11 +40,14 @@ sealed class ScreenDestination {
     object MapView : ScreenDestination()
 }
 
-class MarketplaceViewModel(application: Application) : AndroidViewModel(application) {
+class MarketplaceViewModel @JvmOverloads constructor(
+    application: Application,
+    sessionUid: String = requireNotNull(com.batuhanduran.burada.data.remote.FirebaseServices.auth.currentUser).uid
+) : AndroidViewModel(application) {
 
-    private val repository = MarketplaceRepository()
+    private val repository = MarketplaceRepository(uid = sessionUid)
     val currentUid: String get() = repository.uid
-    private val moderation = ModerationRepository()
+    private val moderation = ModerationRepository(uid = sessionUid)
     val blockedUids = moderation.observeBlockedUids().catch {
         _toastMessage.value = "Engelleme tercihleri yüklenemedi. Yeniden giriş yapın."
         emit(emptySet())

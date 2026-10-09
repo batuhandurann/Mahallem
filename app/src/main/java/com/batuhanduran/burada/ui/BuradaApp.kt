@@ -109,8 +109,14 @@ private fun AuthenticatedMarketplace(
     }
     val application = context.applicationContext as Application
     // The Activity retains this UID-scoped store across configuration changes.
-    val marketplaceFactory = remember(application) {
-        ViewModelProvider.AndroidViewModelFactory(application)
+    val marketplaceFactory = remember(application, user.uid) {
+        object : ViewModelProvider.Factory {
+            @Suppress("UNCHECKED_CAST")
+            override fun <T : ViewModel> create(modelClass: Class<T>): T {
+                require(modelClass == MarketplaceViewModel::class.java)
+                return MarketplaceViewModel(application, user.uid) as T
+            }
+        }
     }
     val marketplace: MarketplaceViewModel = viewModel(
         viewModelStoreOwner = owner,

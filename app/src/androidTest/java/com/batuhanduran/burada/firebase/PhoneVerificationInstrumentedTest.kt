@@ -30,6 +30,8 @@ class PhoneVerificationInstrumentedTest {
         val email = "phone-${UUID.randomUUID()}@example.com"
         val first = Tasks.await(auth.createUserWithEmailAndPassword(email, password), 30, TimeUnit.SECONDS).user!!
         val uid = first.uid
+        val oldRepository = com.batuhanduran.burada.data.repository.MarketplaceRepository(uid = uid)
+        val oldModeration = com.batuhanduran.burada.moderation.ModerationRepository(uid = uid)
         val suffix = kotlin.random.Random.nextInt(100_000_000, 1_000_000_000).toString()
         val number = "+905$suffix"
         val store = ViewModelStore()
@@ -67,6 +69,9 @@ class PhoneVerificationInstrumentedTest {
                 assertEquals(uid, auth.currentUser?.uid)
                 assertEquals(number, auth.currentUser?.phoneNumber)
                 auth.signOut()
+                assertTrue(withTimeout(10_000) { oldRepository.getAllProviders().first() }.isEmpty())
+                assertTrue(withTimeout(10_000) { oldRepository.getMyRequests().first() }.isEmpty())
+                assertTrue(withTimeout(10_000) { oldModeration.observeBlockedUids().first() }.isEmpty())
                 val second = Tasks.await(auth.createUserWithEmailAndPassword("other-${UUID.randomUUID()}@example.com", password), 30, TimeUnit.SECONDS).user!!
                 withTimeout(10_000) { model.state.first { !it.linked && !it.codeSent } }
                 scenario.onActivity { model.verifyCode(code) }
