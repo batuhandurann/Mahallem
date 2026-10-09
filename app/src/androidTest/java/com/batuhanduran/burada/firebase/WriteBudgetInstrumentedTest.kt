@@ -53,7 +53,8 @@ class WriteBudgetInstrumentedTest {
                 val budget = AtomicWriteBudget(db, uid).plan(tx, WriteOperation.REPORT, invalid)
                 budget.applyTo(tx)
                 tx.set(invalid, mapOf("reporterUid" to uid, "targetType" to "user", "targetId" to "target-user",
-                    "targetUid" to "target-user", "reason" to "spam", "details" to "", "status" to "resolved",
+                    "targetUid" to "target-user", "targetRef" to db.document("users/target-user"),
+                    "conversationId" to "", "reason" to "spam", "details" to "", "status" to "resolved",
                     "createdAt" to FieldValue.serverTimestamp()))
             })
             assertFalse(await(budgets.document("report").get(Source.SERVER)).exists())

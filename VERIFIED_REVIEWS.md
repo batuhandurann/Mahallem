@@ -2,13 +2,14 @@
 
 ## Rules and product choices
 
-A quote acceptance is an agreement, not proof that work is finished. The request's
-customer explicitly confirms delivery using `confirmJobCompletion`; the callable
-checks the accepted quote, both participant identities, current account status and
-request state. Only ACCEPTED jobs can transition. No escrow payment is released.
-This implements customer confirmation, not independent proof of physical delivery.
-Provider completion requests, cancellation and dispute resolution are separate
-lifecycle features; no timer automatically completes a job in this change.
+A quote acceptance is an agreement, not proof that work is finished. The existing
+`manageJob` lifecycle remains the only completion authority: provider submits,
+customer confirms. Reviews verify the private completed job and its terminal
+CONFIRM_COMPLETION event (customer identity, role, prior state, matching version
+and server timestamp), plus the accepted quote/provider and request. Legacy
+completed jobs with this authoritative event remain eligible; a standalone
+COMPLETED flag cannot unlock reviews. No extra completion callable or bypass is
+introduced, and no escrow payment is released by a review.
 
 Only that customer can call `submitJobReview` after server-confirmed COMPLETED,
 within 30 days. Pending, accepted, cancelled, disputed, unrelated jobs, disabled
@@ -23,13 +24,13 @@ editing remains permitted after their first real review.
 
 ## Android flow and privacy
 
-Taleplerim → accepted job → explicit completion confirmation → review dialog.
+Taleplerim → İş durumu → provider submission/customer confirmation → review dialog.
 Drafts survive server errors while the dialog is open, submission disables repeated
 taps and only confirmed persisted reviews close the dialog. Drafts are in memory
 and do not survive process death. UID-bound repository guards and server-only
 snapshots preserve existing account-switch behavior. Server time, not the phone's
-clock, determines the 30-day cutoff; the CTA can still be visible after expiration,
-but the server returns the specific eligibility error without publishing anything.
+clock, determines the 30-day cutoff; the job detail hides the review CTA after its terminal confirmation
+expires. The server independently verifies the deadline against its own clock.
 
 Provider details display newest reviews first, load 20 at a time, and permit loading
 more. Increasing a live query limit rereads its prefix; this is not cursor pagination.
@@ -51,8 +52,7 @@ must reference the same job and is marked reviewed. A dedicated moderator UI,
 restoring hidden content and provider replies are not included.
 
 Client review/completion/aggregate writes are denied by Rules. Callables enforce
-App Check outside the Firebase emulator. Hourly quotas apply to review, completion,
-report and moderation operations. Existing ratings must remain server-owned; any
+App Check outside the Firebase emulator. Hourly quotas apply to review, report and moderation operations. Existing ratings must remain server-owned; any
 future migration of preexisting nonzero scores must reconstruct `ratingSum` from
 verified records instead of trusting legacy client claims. This repository's
 existing create rules required zero initial rating/count.

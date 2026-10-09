@@ -64,6 +64,11 @@ fun MarketplaceApp(
     val ownedProviders by viewModel.ownedProviders.collectAsStateWithLifecycle()
     val requests by viewModel.jobRequests.collectAsStateWithLifecycle()
     val myRequests by viewModel.myRequests.collectAsStateWithLifecycle()
+    val assignedRequests by viewModel.assignedRequests.collectAsStateWithLifecycle()
+    val jobLifecycles by viewModel.jobLifecycles.collectAsStateWithLifecycle()
+    val jobEvents by viewModel.activeJobEvents.collectAsStateWithLifecycle()
+    val busyJobIds by viewModel.busyJobIds.collectAsStateWithLifecycle()
+    val jobErrors by viewModel.jobErrors.collectAsStateWithLifecycle()
     val quotes by viewModel.allQuotes.collectAsStateWithLifecycle()
     val reviewedRequestIds by viewModel.reviewedRequestIds.collectAsStateWithLifecycle()
     val reviewBusy by viewModel.reviewBusy.collectAsStateWithLifecycle()
@@ -304,10 +309,6 @@ fun MarketplaceApp(
                 is ScreenDestination.MyRequests -> {
                     MyRequestsScreen(
                         requests = myRequests,
-                        reviewedRequestIds = reviewedRequestIds,
-                        reviewBusy = reviewBusy,
-                        onCompleteJob = viewModel::confirmJobCompletion,
-                        onSubmitReview = viewModel::submitJobReview,
                         quotes = quotes,
                         onBackClick = { viewModel.navigateBack() },
                         onAcceptQuote = { reqId, quoteId, pName ->
@@ -322,7 +323,8 @@ fun MarketplaceApp(
                         },
                         onNewRequestClick = {
                             viewModel.navigateTo(ScreenDestination.CreateRequest())
-                        }
+                        },
+                        onOpenJob = { viewModel.navigateTo(ScreenDestination.JobDetail(it)) }
                     )
                 }
 
@@ -381,9 +383,26 @@ fun MarketplaceApp(
                         },
                         onSubmitQuote = { reqId, prov, price, arrival, notes ->
                             viewModel.submitProviderQuote(reqId, prov, price, arrival, notes)
-                        }
+                        },
+                        onOpenMyJobs = { viewModel.navigateTo(ScreenDestination.MyJobs) }
                     )
                 }
+
+                is ScreenDestination.MyJobs -> MyJobsScreen(assignedRequests, jobLifecycles,
+                    onBack = { viewModel.navigateBack() },
+                    onOpenJob = { viewModel.navigateTo(ScreenDestination.JobDetail(it)) })
+
+                is ScreenDestination.JobDetail -> JobDetailScreen(
+                    request = (myRequests + assignedRequests).find { it.id == screen.requestId },
+                    job = jobLifecycles.find { it.requestId == screen.requestId }, events = jobEvents,
+                    currentUid = viewModel.currentUid, busy = screen.requestId in busyJobIds,
+                    reviewed = screen.requestId in reviewedRequestIds, reviewBusy = screen.requestId in reviewBusy,
+                    onSubmitReview = { rating, comment -> viewModel.submitJobReview(screen.requestId, rating, comment) },
+                    error = jobErrors[screen.requestId], onBack = { viewModel.navigateBack() },
+                    onRetry = { viewModel.retryJobAction(screen.requestId) },
+                    onAction = { action, version, note, reason ->
+                        viewModel.submitJobAction(screen.requestId, action, version, note, reason)
+                    })
 
                 else -> {}
             }

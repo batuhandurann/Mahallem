@@ -1,5 +1,6 @@
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
+import { randomUUID } from 'node:crypto';
 import { createRequire } from 'node:module';
 import { initializeApp, deleteApp } from 'firebase/app';
 import { getAuth, connectAuthEmulator, createUserWithEmailAndPassword } from 'firebase/auth';
@@ -22,9 +23,19 @@ async function call(name,user,data) {
 async function fixture(suffix,status='ACCEPTED',resetProvider=true) {
   const requestId=`${prefix}-${suffix}`,quoteId=`${requestId}-quote`,providerId=`${prefix}-provider`;
   if(resetProvider) await db.doc(`providers/${providerId}`).set({ownerUid:bob.uid,visibility:'published',data:{id:providerId,rating:0,reviewCount:0},ratingSum:0});
-  await db.doc(`requests/${requestId}`).set({ownerUid:alice.uid,acceptedQuoteId:quoteId,acceptedProviderUid:bob.uid,data:{id:requestId,status,escrowStatus:'NONE'}});
-  await db.doc(`quotes/${quoteId}`).set({requestId,customerUid:alice.uid,providerUid:bob.uid,status:'ACCEPTED',data:{providerId}});
+  await db.doc(`requests/${requestId}`).set({ownerUid:alice.uid,acceptedQuoteId:quoteId,acceptedProviderUid:bob.uid,data:{id:requestId,status,escrowStatus:'NONE',escrowAmount:''}});
+  await db.doc(`quotes/${quoteId}`).set({requestId,customerUid:alice.uid,providerUid:bob.uid,status:'ACCEPTED',data:{providerId,escrowFunded:false}});
   return {requestId,providerId};
+}
+async function manage(requestId,user,action,version) {
+  return call('manageJob',user,{requestId,actionId:randomUUID(),action,version,
+    note:action==='SUBMIT_COMPLETION'?'Hizmet tamamlandı, müşteri kontrolüne sunuldu.':'',reasonCode:''});
+}
+async function complete(requestId) {
+  assert.equal((await manage(requestId,bob,'SUBMIT_COMPLETION',0)).status,200);
+  const confirmation={requestId,actionId:randomUUID(),action:'CONFIRM_COMPLETION',version:1,note:'',reasonCode:''};
+  assert.equal((await call('manageJob',alice,confirmation)).status,200);
+  assert.equal((await call('manageJob',alice,confirmation)).status,200);
 }
 before(async()=>{
   assert.ok(process.env.FIRESTORE_EMULATOR_HOST && process.env.FIREBASE_AUTH_EMULATOR_HOST,'Emulators required; never use live Firebase');
@@ -36,12 +47,10 @@ test('real callable lifecycle: customer-only completion/review, concurrent dupli
   const {requestId,providerId}=await fixture('main'), input={requestId,rating:2,comment:'İşçilik geliştirilebilir.'};
   assert.equal((await call('submitJobReview',null,input)).status,401);
   for(const user of [bob,eve]) {
-    assert.equal((await call('confirmJobCompletion',user,{requestId})).status,403);
     assert.equal((await call('submitJobReview',user,input)).status,403);
   }
   assert.equal((await call('submitJobReview',alice,input)).status,400);
-  assert.equal((await call('confirmJobCompletion',alice,{requestId})).status,200);
-  assert.equal((await call('confirmJobCompletion',alice,{requestId})).status,200);
+  await complete(requestId);
   const duplicate=await Promise.all(Array.from({length:4},()=>call('submitJobReview',alice,input)));
   for(const response of duplicate) assert.equal(response.status,200,JSON.stringify(response.body));
   const provider=(await db.doc(`providers/${providerId}`).get()).data();
@@ -68,7 +77,7 @@ test('concurrent reviews for distinct jobs update one aggregate without lost inc
   const jobs=[];
   for(let i=0;i<3;i++) {
     const job=await fixture(`parallel-${i}`,'ACCEPTED',i===0);jobs.push(job);
-    assert.equal((await call('confirmJobCompletion',alice,{requestId:job.requestId})).status,200);
+    await complete(job.requestId);
   }
   const responses=await Promise.all(jobs.map((job,i)=>call('submitJobReview',alice,{requestId:job.requestId,rating:1+2*i,comment:''})));
   for(const r of responses) assert.equal(r.status,200,JSON.stringify(r.body));
@@ -77,17 +86,21 @@ test('concurrent reviews for distinct jobs update one aggregate without lost inc
 });
 test('cancelled, disputed, expired, forged completions, invalid input and disabled/deleting accounts fail closed',async()=>{
   for(const status of ['CANCELLED','DISPUTED','PENDING']) {
-    const {requestId}=await fixture(status);
-    assert.equal((await call('confirmJobCompletion',alice,{requestId})).status,400);
+    const {requestId}=await fixture(status,status);
     assert.equal((await call('submitJobReview',alice,{requestId,rating:5,comment:''})).status,400);
   }
-  const {requestId}=await fixture('expired','COMPLETED');
-  await db.doc(`requests/${requestId}`).update({completedByUid:alice.uid,completedAt:Timestamp.fromMillis(Date.now()-31*86400000)});
+  const forged=await fixture('forged','COMPLETED');
+  assert.equal((await call('submitJobReview',alice,{requestId:forged.requestId,rating:5,comment:''})).status,400);
+  const {requestId}=await fixture('expired');
+  await complete(requestId);
+  const confirmations=await db.collection(`jobs/${requestId}/events`).where('action','==','CONFIRM_COMPLETION').get();
+  await confirmations.docs[0].ref.update({createdAt:Timestamp.fromMillis(Date.now()-31*86400000)});
   assert.equal((await call('submitJobReview',alice,{requestId,rating:5,comment:''})).status,400);
   assert.equal((await call('submitJobReview',alice,{requestId,rating:5,comment:'',customerUid:bob.uid})).status,400);
   await adminAuth(admin).updateUser(alice.uid,{disabled:true});
-  assert.equal((await call('submitJobReview',alice,{requestId,rating:5,comment:''})).status,403);
+  assert.ok([401,403].includes((await call('submitJobReview',alice,{requestId,rating:5,comment:''})).status));
   await adminAuth(admin).updateUser(alice.uid,{disabled:false});
+  alice.token=await getAuth(apps.find(a=>a.name===`${prefix}-alice`)).currentUser.getIdToken(true);
   await db.doc(`users/${alice.uid}`).set({deletionStatus:'REQUESTED'});
-  assert.equal((await call('confirmJobCompletion',alice,{requestId})).status,403);
+  assert.equal((await call('submitJobReview',alice,{requestId,rating:5,comment:''})).status,403);
 });

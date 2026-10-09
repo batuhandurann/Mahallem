@@ -17,11 +17,15 @@ function acceptedJob(job, quote, uid) {
     && quote.requestId === job.data?.id && quote.status === "ACCEPTED"
     && job.acceptedProviderUid === quote.providerUid && quote.providerUid !== uid;
 }
-function reviewEligible(job, quote, uid, now) {
-  const completed = job?.completedAt?.toMillis?.();
-  return acceptedJob(job, quote, uid) && job.data.status === "COMPLETED"
-    && job.data.escrowStatus !== "DISPUTED" && job.completedByUid === uid && Number.isFinite(completed)
-    && completed <= now && now <= completed + WINDOW_MS;
+function reviewEligible(request, quote, lifecycle, event, uid, now) {
+  const completed = event?.createdAt?.toMillis?.();
+  return acceptedJob(request, quote, uid) && request.data.status === "COMPLETED"
+    && lifecycle?.status === "COMPLETED" && lifecycle.customerUid === uid
+    && lifecycle.providerUid === quote.providerUid && lifecycle.requestId === request.data.id
+    && event?.action === "CONFIRM_COMPLETION" && event.actorUid === uid && event.actorRole === "CUSTOMER"
+    && event.fromStatus === "AWAITING_CONFIRMATION" && event.toStatus === "COMPLETED"
+    && event.version === lifecycle.version && request.data.escrowStatus !== "DISPUTED"
+    && Number.isFinite(completed) && completed <= now && now <= completed + WINDOW_MS;
 }
 function registerReviews({ db, onCall, options, HttpsError, getAuth, FieldValue, reserve, requireModerator }) {
   const fail = (code, message) => { throw new HttpsError(code, message); };
@@ -37,31 +41,22 @@ function registerReviews({ db, onCall, options, HttpsError, getAuth, FieldValue,
   const privateRef = id => db.doc(`jobReviews/${id}`);
   const publicId = id => crypto.createHash("sha256").update(id).digest("hex");
   const result = {};
-  // Customer confirmation is authoritative; accepting a quote or funding escrow does not complete a job.
-  result.confirmJobCompletion = onCall(options, async request => {
-    const uid = await active(request);
-    const id = parse(identifier, request.data?.requestId);
-    await reserve(uid, "completion", 60, 3600);
-    await db.runTransaction(async tx => {
-      const ref = db.doc(`requests/${id}`), job = (await tx.get(ref)).data();
-      if (!job || job.ownerUid !== uid) fail("permission-denied", "Bu işi yalnızca müşterisi tamamlayabilir.");
-      const quote = job.acceptedQuoteId ? (await tx.get(db.doc(`quotes/${identifier(job.acceptedQuoteId)}`))).data() : null;
-      if (!acceptedJob(job, quote, uid)) fail("failed-precondition", "Kabul edilmiş teklif bulunamadı.");
-      if (job.data.status === "COMPLETED" && job.data.escrowStatus !== "DISPUTED" && job.completedByUid === uid && job.completedAt) return;
-      if (job.data.status !== "ACCEPTED" || job.data.escrowStatus === "DISPUTED") fail("failed-precondition", "Bu iş tamamlanamaz.");
-      tx.update(ref, { "data.status": "COMPLETED", completedAt: FieldValue.serverTimestamp(), completedByUid: uid, updatedAt: FieldValue.serverTimestamp() });
-    });
-    return { requestId: id, status: "COMPLETED" };
-  });
   result.submitJobReview = onCall(options, async request => {
     const uid = await active(request), input = parse(reviewInput, request.data);
     await reserve(uid, "review", 30, 3600);
     return db.runTransaction(async tx => {
-      const jobRef = db.doc(`requests/${input.requestId}`), job = (await tx.get(jobRef)).data();
+      const jobRef = db.doc(`requests/${input.requestId}`);
+      const [jobSnapshot, profileSnapshot] = await Promise.all([tx.get(jobRef), tx.get(db.doc(`users/${uid}`))]);
+      const job = jobSnapshot.data();
+      if (["REQUESTED", "PURGING"].includes(profileSnapshot.data()?.deletionStatus)) fail("permission-denied", "Hesap silinme sürecinde.");
       if (!job || job.ownerUid !== uid) fail("permission-denied", "Bu işi yalnızca müşterisi değerlendirebilir.");
       const quote = job.acceptedQuoteId ? (await tx.get(db.doc(`quotes/${identifier(job.acceptedQuoteId)}`))).data() : null;
+      const lifecycleRef = db.doc(`jobs/${input.requestId}`);
+      const lifecycle = (await tx.get(lifecycleRef)).data();
+      const confirmations = await tx.get(lifecycleRef.collection("events").where("action", "==", "CONFIRM_COMPLETION").limit(2));
+      const confirmation = confirmations.size === 1 ? confirmations.docs[0].data() : null;
       // Evaluate server time on every transaction retry; no client completion claim is accepted.
-      if (!reviewEligible(job, quote, uid, Date.now())) fail("failed-precondition", "Yalnızca tamamlanan işler 30 gün içinde değerlendirilebilir.");
+      if (!reviewEligible(job, quote, lifecycle, confirmation, uid, Date.now())) fail("failed-precondition", "Yalnızca tamamlanan işler 30 gün içinde değerlendirilebilir.");
       const providerId = parse(identifier, quote.data?.providerId);
       const providerRef = db.doc(`providers/${providerId}`), ownRef = privateRef(input.requestId);
       const [providerSnap, existing] = await Promise.all([tx.get(providerRef), tx.get(ownRef)]);
@@ -73,7 +68,11 @@ function registerReviews({ db, onCall, options, HttpsError, getAuth, FieldValue,
         if (old.customerUid === uid && old.rating === input.rating && old.comment === input.comment) return { reviewId, alreadySubmitted: true };
         fail("already-exists", "Bu iş için değerlendirme zaten gönderildi.");
       }
-      const count = (provider.data.reviewCount || 0) + 1, sum = (provider.ratingSum || 0) + input.rating;
+      const previousCount = provider.data.reviewCount || 0, previousSum = provider.ratingSum || 0;
+      if (!Number.isSafeInteger(previousCount) || !Number.isSafeInteger(previousSum) || previousCount < 0
+        || previousSum < previousCount || previousSum > previousCount * 5)
+        fail("failed-precondition", "Puan toplamı doğrulanamadı. Destek ile iletişime geçin.");
+      const count = previousCount + 1, sum = previousSum + input.rating;
       const publicRef = providerRef.collection("reviews").doc(reviewId);
       tx.create(ownRef, { customerUid: uid, providerUid: quote.providerUid, providerId, reviewId, rating: input.rating, comment: input.comment, status: "published", createdAt: FieldValue.serverTimestamp() });
       // Public projection intentionally excludes customer UID, request ID, contact and address.
@@ -89,6 +88,8 @@ function registerReviews({ db, onCall, options, HttpsError, getAuth, FieldValue,
     const reason = request.data?.reason;
     if (typeof reason !== "string" || reason.trim().length < 3 || reason.length > 1000) fail("invalid-argument", "3–1000 karakter gerekçe yazın.");
     await reserve(uid, "reviewReport", 10, 3600);
+    const provider = (await db.doc(`providers/${providerId}`).get()).data();
+    if (!provider || (provider.visibility !== "published" && provider.ownerUid !== uid)) fail("permission-denied", "İlana erişilemiyor.");
     const review = await db.doc(`providers/${providerId}/reviews/${reviewId}`).get();
     const lookup = (await db.doc(`reviewLookup/${reviewId}`).get()).data();
     if (!lookup || lookup.providerId !== providerId) fail("not-found", "Değerlendirme bulunamadı.");

@@ -52,6 +52,18 @@ and App Check configuration, using the protected production workflow/principal.
 Then prove a real SMS link, stable UID, matching and mismatching listing badges,
 logout/relogin, two-account private-data isolation and revocation on a real phone.
 
+The protected production audit requires Phone enabled, a TR-only SMS allowlist
+(`smsRegionConfig.allowlistOnly.allowedRegions: ["TR"]`) and no configured test
+phone numbers/codes (`signIn.phoneNumber.testPhoneNumbers`). Set public protected
+environment variables `FIREBASE_ANDROID_SIGNING_SHA1` and
+`FIREBASE_ANDROID_SIGNING_SHA256` from the **same Play application-signing
+certificate**, not its upload key. Both must be registered on the canonical app;
+API key restrictions must include the intended SHA-1 and every allowed SHA-1
+must be registered there. The post-deploy check includes active Node 22
+`getListingTrust` with bounded instances and the named database. This read-only
+audit does not deliver an SMS or prove callable App Check token rejection;
+those evidence flags remain false until separate real-device verification.
+
 Emulator tests do not prove SMS delivery, live provider configuration, attestation,
 backend deployment or Play signing. See `PRODUCTION_EXECUTION.md` and
 `FIREBASE_PRODUCTION_DEPLOY.md` for the existing protected release workflow.

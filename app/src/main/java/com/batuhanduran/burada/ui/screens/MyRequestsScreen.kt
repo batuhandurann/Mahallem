@@ -24,6 +24,7 @@ import androidx.compose.ui.unit.sp
 import com.batuhanduran.burada.data.local.JobRequestEntity
 import com.batuhanduran.burada.data.local.QuoteEntity
 import com.batuhanduran.burada.ui.theme.*
+import com.batuhanduran.burada.data.model.jobStatusLabel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -36,10 +37,7 @@ fun MyRequestsScreen(
     onViewReceipt: (QuoteEntity) -> Unit = {},
     onRejectQuote: (quoteId: String) -> Unit,
     onNewRequestClick: () -> Unit,
-    reviewedRequestIds: List<String> = emptyList(),
-    reviewBusy: Set<String> = emptySet(),
-    onCompleteJob: (String) -> Unit = {},
-    onSubmitReview: (String, Int, String) -> Unit = { _, _, _ -> }
+    onOpenJob: (String) -> Unit = {}
 ) {
     BackHandler { onBackClick() }
 
@@ -108,10 +106,7 @@ fun MyRequestsScreen(
                         onAcceptWithEscrow = { q -> onAcceptWithEscrow(q, req) },
                         onViewReceipt = onViewReceipt,
                         onRejectQuote = onRejectQuote,
-                        reviewed = req.id in reviewedRequestIds,
-                        busy = req.id in reviewBusy,
-                        onCompleteJob = { onCompleteJob(req.id) },
-                        onSubmitReview = { rating, comment -> onSubmitReview(req.id, rating, comment) }
+                        onOpenJob = { onOpenJob(req.id) }
                     )
                 }
             }
@@ -127,10 +122,7 @@ private fun RequestItemCard(
     onAcceptWithEscrow: (QuoteEntity) -> Unit,
     onViewReceipt: (QuoteEntity) -> Unit,
     onRejectQuote: (String) -> Unit,
-    reviewed: Boolean,
-    busy: Boolean,
-    onCompleteJob: () -> Unit,
-    onSubmitReview: (Int, String) -> Unit
+    onOpenJob: () -> Unit
 ) {
     val isRenovation = request.sector == "HOME_REPAIR"
     val isEmergency = request.urgencyMode == "EMERGENCY"
@@ -191,10 +183,8 @@ private fun RequestItemCard(
                 ) {
                     Text(
                         text = when (request.status) {
-                            "COMPLETED" -> "İş Tamamlandı"
-                            "ACCEPTED" -> "Usta Onaylandı"
                             "QUOTED" -> "${quotes.size} Teklif Geldi"
-                            else -> "Teklif Bekleniyor"
+                            else -> jobStatusLabel(request.status)
                         },
                         fontSize = 11.sp,
                         fontWeight = FontWeight.Bold,
@@ -246,8 +236,6 @@ private fun RequestItemCard(
                 )
             }
 
-            com.batuhanduran.burada.ui.components.JobReviewActions(
-                request.id, request.status, reviewed, busy, onCompleteJob, onSubmitReview)
             // Quotes Section
             if (quotes.isNotEmpty()) {
                 Spacer(modifier = Modifier.height(14.dp))
@@ -264,7 +252,7 @@ private fun RequestItemCard(
                 quotes.forEach { quote ->
                     QuoteCardView(
                         quote = quote,
-                        isRequestAccepted = request.status != "PENDING" && request.status != "QUOTED",
+                        isRequestAccepted = request.status != "PENDING",
                         onAccept = { onAcceptQuote(quote.id, quote.providerName) },
                         onAcceptWithEscrow = { onAcceptWithEscrow(quote) },
                         onViewReceipt = { onViewReceipt(quote) },
@@ -272,6 +260,9 @@ private fun RequestItemCard(
                     )
                     Spacer(modifier = Modifier.height(8.dp))
                 }
+            }
+            OutlinedButton(onClick = onOpenJob, modifier = Modifier.fillMaxWidth().testTag("open_job_${request.id}")) {
+                Text(if (request.status == "PENDING") "Talebi yönet / iptal et" else "İş durumu ve geçmişi")
             }
         }
     }
@@ -369,7 +360,7 @@ private fun QuoteCardView(
                             Icon(Icons.Default.CheckCircle, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
                             Spacer(modifier = Modifier.width(6.dp))
                             Text(
-                                text = "Teklif Onaylandı • Burada Güvencesi Aktif",
+                                text = "Bu iş için seçilen teklif",
                                 color = Color.White,
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 12.sp
@@ -377,15 +368,8 @@ private fun QuoteCardView(
                         }
                     }
 
-                    OutlinedButton(
-                        onClick = onViewReceipt,
-                        shape = RoundedCornerShape(8.dp),
-                        modifier = Modifier.fillMaxWidth().testTag("btn_view_receipt_${quote.id}")
-                    ) {
-                        Icon(Icons.Default.ReceiptLong, contentDescription = null, modifier = Modifier.size(15.dp))
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text("📄 Dijital İş Fişi & Garantiyi İncele", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
-                    }
+                    Text("Teklif kabulü ödeme veya garanti onayı değildir. İşin güncel durumunu iş ekranından takip edin.",
+                        style = MaterialTheme.typography.bodySmall)
                 }
             } else if (quote.status == "REJECTED" || quote.status == "WITHDRAWN") {
                 Text(

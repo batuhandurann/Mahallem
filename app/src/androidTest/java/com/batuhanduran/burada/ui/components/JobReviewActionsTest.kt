@@ -12,21 +12,13 @@ import org.junit.runner.RunWith
 @RunWith(AndroidJUnit4::class)
 class JobReviewActionsTest {
     @get:Rule val compose = createComposeRule()
-    @Test fun incompleteJobCannotReviewAndCompletionNeedsExplicitConfirmation() {
-        var completed = 0
-        compose.setContent { BuradaTheme { JobReviewActions("r", "ACCEPTED", false, false, { completed++ }, { _, _ -> }) } }
+    @Test fun acceptedJobCannotReview() {
+        compose.setContent { BuradaTheme { JobReviewActions("r", "ACCEPTED", false, false, { _, _ -> }) } }
         compose.onNodeWithTag("review_job_r").assertDoesNotExist()
-        compose.onNodeWithTag("complete_job_r").performClick()
-        compose.runOnIdle { assertEquals(0, completed) }
-        compose.onNodeWithText("Henüz tamamlanmadı").performClick()
-        compose.runOnIdle { assertEquals(0, completed) }
-        compose.onNodeWithTag("complete_job_r").performClick()
-        compose.onNodeWithText("Evet, tamamlandı").performClick()
-        compose.runOnIdle { assertEquals(1, completed) }
     }
     @Test fun noDefaultFiveStarsAndDraftRemainsUntilServerConfirmation() {
         var submitted = 0
-        compose.setContent { BuradaTheme { JobReviewActions("r", "COMPLETED", false, false, {}, { _, _ -> submitted++ }) } }
+        compose.setContent { BuradaTheme { JobReviewActions("r", "COMPLETED", false, false, { _, _ -> submitted++ }) } }
         compose.onNodeWithTag("review_job_r").performClick()
         compose.onNodeWithTag("submit_review").assertIsNotEnabled()
         compose.onNodeWithTag("review_star_2").performClick()
@@ -36,12 +28,12 @@ class JobReviewActionsTest {
         compose.onNodeWithTag("review_comment").assertTextContains("İşçilik geliştirilebilir")
     }
     @Test fun reviewedJobCannotSubmitAgain() {
-        compose.setContent { BuradaTheme { JobReviewActions("r", "COMPLETED", true, false, {}, { _, _ -> }) } }
+        compose.setContent { BuradaTheme { JobReviewActions("r", "COMPLETED", true, false, { _, _ -> }) } }
         compose.onNodeWithTag("review_job_r").assertDoesNotExist()
         compose.onNodeWithTag("review_sent_r").assertIsDisplayed()
     }
     @Test fun cancelledJobExposesNoCompletionOrReviewControls() {
-        compose.setContent { BuradaTheme { JobReviewActions("r", "CANCELLED", false, false, {}, { _, _ -> }) } }
+        compose.setContent { BuradaTheme { JobReviewActions("r", "CANCELLED", false, false, { _, _ -> }) } }
         compose.onNodeWithTag("complete_job_r").assertDoesNotExist()
         compose.onNodeWithTag("review_job_r").assertDoesNotExist()
     }

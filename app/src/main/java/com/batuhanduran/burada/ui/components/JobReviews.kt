@@ -16,29 +16,17 @@ import java.util.Date
 @Composable
 fun JobReviewActions(
     requestId: String, status: String, reviewed: Boolean, busy: Boolean,
-    onComplete: () -> Unit, onReview: (Int, String) -> Unit
+    onReview: (Int, String) -> Unit
 ) {
-    var confirm by remember(requestId) { mutableStateOf(false) }
     var editing by remember(requestId) { mutableStateOf(false) }
     var rating by remember(requestId) { mutableIntStateOf(0) }
     var comment by remember(requestId) { mutableStateOf("") }
     LaunchedEffect(reviewed) { if (reviewed) editing = false }
-    if (status == "ACCEPTED") {
-        OutlinedButton(onClick = { confirm = true }, enabled = !busy,
-            modifier = Modifier.fillMaxWidth().testTag("complete_job_$requestId")) {
-            Text(if (busy) "İşlem sürüyor…" else "İş tamamlandı, onayla")
-        }
-    } else if (status == "COMPLETED") {
+    if (status == "COMPLETED") {
         if (reviewed) Text("Değerlendirmeniz kaydedildi", modifier = Modifier.testTag("review_sent_$requestId"))
         else Button(onClick = { editing = true }, enabled = !busy,
             modifier = Modifier.fillMaxWidth().testTag("review_job_$requestId")) { Text("Hizmeti değerlendir") }
     }
-    if (confirm) AlertDialog(
-        onDismissRequest = { confirm = false }, title = { Text("İş gerçekten tamamlandı mı?") },
-        text = { Text("Hizmeti teslim aldıysanız onaylayın. Bu onay değerlendirme hakkınızı açar; ödeme veya para transferi yapmaz.") },
-        confirmButton = { TextButton(onClick = { confirm = false; onComplete() }) { Text("Evet, tamamlandı") } },
-        dismissButton = { TextButton(onClick = { confirm = false }) { Text("Henüz tamamlanmadı") } }
-    )
     if (editing && !reviewed) AlertDialog(
         onDismissRequest = { if (!busy) editing = false }, title = { Text("Deneyiminizi paylaşın") },
         text = { Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {

@@ -39,20 +39,20 @@ class LiveCloudTests(unittest.TestCase):
         self.routes = {
             f"https://firebase.googleapis.com/v1beta1/projects/{self.project}": {"projectId": self.project, "projectNumber": self.number},
             f"https://firebase.googleapis.com/v1beta1/projects/{self.project}/androidApps/{self.app_id}": {"appId": self.app_id, "packageName": cloud.PACKAGE, "state": "ACTIVE"},
-            f"https://firebase.googleapis.com/v1beta1/projects/{self.project}/androidApps/{self.app_id}/sha": {"certificates": [{"certType": "SHA_256", "shaHash": "AB" * 32}]},
+            f"https://firebase.googleapis.com/v1beta1/projects/{self.project}/androidApps/{self.app_id}/sha": {"certificates": [{"certType": "SHA_256", "shaHash": "AB" * 32}, {"certType": "SHA_1", "shaHash": "AB" * 20}]},
             f"https://firebase.googleapis.com/v1beta1/projects/{self.project}/adminSdkConfig": {"projectId": self.project, "storageBucket": self.bucket},
             f"https://firestore.googleapis.com/v1/projects/{self.project}/databases/mahallem": {"name": f"projects/{self.project}/databases/mahallem", "locationId": "europe-west3", "type": "FIRESTORE_NATIVE"},
             f"https://firebaseappcheck.googleapis.com/v1/projects/{self.number}/services": {"services": [{"name": f"projects/{self.number}/services/{s}", "enforcementMode": "ENFORCED"} for s in cloud.audit.__globals__["SERVICES"]]},
             f"https://firebaseappcheck.googleapis.com/v1/projects/{self.number}/apps/{self.app_id}/playIntegrityConfig": {"name": f"projects/{self.number}/apps/{self.app_id}/playIntegrityConfig"},
             f"https://apikeys.googleapis.com/v2/projects/{self.number}/locations/global/keys/key-id": {"name": f"projects/{self.number}/locations/global/keys/key-id", "restrictions": {"androidKeyRestrictions": {"allowedApplications": [{"packageName": cloud.PACKAGE, "sha1Fingerprint": "AB" * 20}]}, "apiTargets": [{"service": s} for s in cloud.audit.__globals__["REQUIRED_APIS"]]}},
             f"https://apikeys.googleapis.com/v2/projects/{self.number}/locations/global/keys/key-id/keyString": {"keyString": "secret-test-key"},
-            f"https://identitytoolkit.googleapis.com/admin/v2/projects/{self.project}/config": {"name": f"projects/{self.project}/config", "emailPrivacyConfig": {"enableImprovedEmailPrivacy": True}, "passwordPolicyConfig": {"passwordPolicyEnforcementState": "ENFORCE", "passwordPolicyVersions": [{"customStrengthOptions": {"minPasswordLength": 8}}]}, "signIn": {"email": {"enabled": True}, "phoneNumber": {"enabled": False, "testPhoneNumbers": {"private-number": "secret-test-code"}}}, "notification": {"sendEmail": {"smtp": {"password": "secret-smtp-password"}}}},
+            f"https://identitytoolkit.googleapis.com/admin/v2/projects/{self.project}/config": {"name": f"projects/{self.project}/config", "emailPrivacyConfig": {"enableImprovedEmailPrivacy": True}, "passwordPolicyConfig": {"passwordPolicyEnforcementState": "ENFORCE", "passwordPolicyVersions": [{"customStrengthOptions": {"minPasswordLength": 8}}]}, "signIn": {"email": {"enabled": True}, "phoneNumber": {"enabled": True}}, "smsRegionConfig": {"allowlistOnly": {"allowedRegions": ["TR"]}}, "notification": {"sendEmail": {"smtp": {"password": "secret-smtp-password"}}}},
             f"https://storage.googleapis.com/storage/v1/b/{self.bucket}": {"name": self.bucket, "projectNumber": self.number, "iamConfiguration": {"publicAccessPrevention": "enforced"}},
             f"https://storage.googleapis.com/storage/v1/b/{self.bucket}/iam": {"bindings": [{"members": ["serviceAccount:runtime@burada-production.iam.gserviceaccount.com"]}]},
         }
 
     def collect(self):
-        cloud.collect(FakeReader(self.routes), self.config, self.project, self.number, self.app_id, self.bucket, "key-id")
+        cloud.collect(FakeReader(self.routes), self.config, self.project, self.number, self.app_id, self.bucket, "key-id", "AB" * 20, "AB" * 32)
 
     def test_all_live_guards_pass_matching_fixtures(self):
         self.assertEqual((self.number, self.app_id, self.bucket), cloud.validate_inputs(self.config, self.firebase, self.project, "key-id"))
@@ -75,15 +75,64 @@ class LiveCloudTests(unittest.TestCase):
         with self.assertRaisesRegex(cloud.VerificationError, "password"):
             self.collect()
 
-    def test_unused_sms_and_public_bucket_refused(self):
+    def test_disabled_phone_and_public_bucket_refused(self):
         auth = self.routes[f"https://identitytoolkit.googleapis.com/admin/v2/projects/{self.project}/config"]
-        auth["signIn"]["phoneNumber"]["enabled"] = True
-        with self.assertRaisesRegex(cloud.VerificationError, "SMS"):
-            self.collect()
         auth["signIn"]["phoneNumber"]["enabled"] = False
+        with self.assertRaisesRegex(cloud.VerificationError, "Phone Authentication"):
+            self.collect()
+        auth["signIn"]["phoneNumber"]["enabled"] = True
         self.routes[f"https://storage.googleapis.com/storage/v1/b/{self.bucket}/iam"]["bindings"][0]["members"].append("allUsers")
         with self.assertRaisesRegex(cloud.VerificationError, "public IAM"):
             self.collect()
+
+    def test_sms_region_policy_fails_closed(self):
+        auth = self.routes[f"https://identitytoolkit.googleapis.com/admin/v2/projects/{self.project}/config"]
+        for policy in ({}, {"allowByDefault": {"disallowedRegions": []}},
+                       {"allowlistOnly": {"allowedRegions": []}},
+                       {"allowlistOnly": {"allowedRegions": ["TR", "US"]}},
+                       {"allowlistOnly": {"allowedRegions": ["tr"]}},
+                       {"allowlistOnly": {"allowedRegions": ["TR"]}, "allowByDefault": {}}):
+            with self.subTest(policy=policy):
+                auth["smsRegionConfig"] = policy
+                with self.assertRaisesRegex(cloud.VerificationError, "only TR"):
+                    self.collect()
+
+    def test_production_test_phone_numbers_and_malformed_maps_refused(self):
+        phone = self.routes[f"https://identitytoolkit.googleapis.com/admin/v2/projects/{self.project}/config"]["signIn"]["phoneNumber"]
+        for value in ({"private-number": "secret-test-code"}, [], None):
+            with self.subTest(value=value):
+                phone["testPhoneNumbers"] = value
+                with self.assertRaisesRegex(cloud.VerificationError, "test numbers") as error:
+                    self.collect()
+                self.assertNotIn("private-number", str(error.exception))
+                self.assertNotIn("secret-test-code", str(error.exception))
+
+    def test_signing_fingerprints_match_registration_and_api_allowlist(self):
+        sha = self.routes[f"https://firebase.googleapis.com/v1beta1/projects/{self.project}/androidApps/{self.app_id}/sha"]
+        sha["certificates"][1]["shaHash"] = "CD" * 20
+        with self.assertRaisesRegex(cloud.VerificationError, "SHA-1 registration"):
+            self.collect()
+        sha["certificates"][1]["shaHash"] = "AB" * 20
+        sha["certificates"][0]["shaHash"] = "CD" * 32
+        with self.assertRaisesRegex(cloud.VerificationError, "SHA-256 registration"):
+            self.collect()
+        sha["certificates"][0]["shaHash"] = "AB" * 32
+        apps = self.routes[f"https://apikeys.googleapis.com/v2/projects/{self.number}/locations/global/keys/key-id"]["restrictions"]["androidKeyRestrictions"]["allowedApplications"]
+        apps.append({"packageName": cloud.PACKAGE, "sha1Fingerprint": "CD" * 20})
+        with self.assertRaisesRegex(cloud.VerificationError, "API restrictions"):
+            self.collect()
+        sha["certificates"].append({"certType": "SHA_1", "shaHash": "CD" * 20})
+        self.collect()
+        apps.pop(0)
+        with self.assertRaisesRegex(cloud.VerificationError, "API restrictions"):
+            self.collect()
+
+    def test_explicit_fingerprint_format_and_normalization(self):
+        self.assertEqual("AB" * 20, cloud.fingerprint(":".join(["ab"] * 20), 20))
+        for value in (None, "", "AB" * 19, "secret-access-token", "ab " * 20):
+            with self.assertRaises(cloud.VerificationError) as error:
+                cloud.fingerprint(value, 20)
+            self.assertNotIn("secret-access-token", str(error.exception))
 
     def test_public_access_prevention_and_signing_certificate_required(self):
         self.routes[f"https://storage.googleapis.com/storage/v1/b/{self.bucket}"]["iamConfiguration"]["publicAccessPrevention"] = "inherited"
@@ -189,18 +238,96 @@ class LiveCloudTests(unittest.TestCase):
         with self.assertRaisesRegex(cloud.VerificationError, "Push trigger"):
             cloud.verify_deployed(reader, self.project, self.bucket, ROOT)
 
+    def test_listing_trust_function_is_required_and_checked(self):
+        self.assertIn("getListingTrust", cloud.FUNCTIONS)
+        key = f"https://cloudfunctions.googleapis.com/v2/projects/{self.project}/locations/europe-west3/functions/getListingTrust"
+        for field, value, message in (("state", "FAILED", "missing/inactive"),
+                                     ("runtime", "nodejs20", "runtime"),
+                                     ("maxInstanceCount", 0, "bounded"),
+                                     ("maxInstanceCount", 6, "bounded"),
+                                     ("database", "(default)", "unsafe"),
+                                     ("emulator", "true", "unsafe")):
+            with self.subTest(field=field, value=value):
+                reader = self.deployed_reader()
+                live = reader.responses[key]
+                if field == "state":
+                    live["state"] = value
+                elif field == "runtime":
+                    live["buildConfig"]["runtime"] = value
+                elif field == "maxInstanceCount":
+                    live["serviceConfig"][field] = value
+                else:
+                    live["serviceConfig"]["environmentVariables"] = {
+                        "FIRESTORE_DATABASE_ID" if field == "database" else "FUNCTIONS_EMULATOR": value}
+                with self.assertRaisesRegex(cloud.VerificationError, message):
+                    cloud.verify_deployed(reader, self.project, self.bucket, ROOT)
+
+    def test_job_lifecycle_function_is_required_and_checked(self):
+        self.assertIn("manageJob", cloud.FUNCTIONS)
+        key = f"https://cloudfunctions.googleapis.com/v2/projects/{self.project}/locations/europe-west3/functions/manageJob"
+        reader = self.deployed_reader()
+        reader.responses[key]["state"] = "FAILED"
+        with self.assertRaisesRegex(cloud.VerificationError, "missing/inactive"):
+            cloud.verify_deployed(reader, self.project, self.bucket, ROOT)
+        reader = self.deployed_reader()
+        reader.responses[key]["serviceConfig"]["environmentVariables"] = {"FUNCTIONS_EMULATOR": "true"}
+        with self.assertRaisesRegex(cloud.VerificationError, "unsafe"):
+            cloud.verify_deployed(reader, self.project, self.bucket, ROOT)
+
+    def test_review_functions_must_be_deployed_and_active(self):
+        for name in ("submitJobReview", "reportJobReview", "getReviewModerationQueue", "hideJobReview"):
+            self.assertIn(name, cloud.FUNCTIONS)
+            reader = self.deployed_reader()
+            key = f"https://cloudfunctions.googleapis.com/v2/projects/{self.project}/locations/europe-west3/functions/{name}"
+            reader.responses[key]["state"] = "FAILED"
+            with self.assertRaisesRegex(cloud.VerificationError, "missing/inactive"):
+                cloud.verify_deployed(reader, self.project, self.bucket, ROOT)
+
+    def test_function_emulator_hosts_and_secret_guard_overrides_fail_closed(self):
+        key = f"https://cloudfunctions.googleapis.com/v2/projects/{self.project}/locations/europe-west3/functions/getListingTrust"
+        for name in ("FIREBASE_AUTH_EMULATOR_HOST", "FIRESTORE_EMULATOR_HOST", "FIREBASE_STORAGE_EMULATOR_HOST"):
+            reader = self.deployed_reader()
+            reader.responses[key]["serviceConfig"]["environmentVariables"] = {name: "untrusted-host:9099"}
+            with self.assertRaisesRegex(cloud.VerificationError, "emulator service"):
+                cloud.verify_deployed(reader, self.project, self.bucket, ROOT)
+        for name in ("FUNCTIONS_EMULATOR", "FIRESTORE_DATABASE_ID", "FIREBASE_AUTH_EMULATOR_HOST"):
+            reader = self.deployed_reader()
+            reader.responses[key]["serviceConfig"]["secretEnvironmentVariables"] = [{"key": name, "secret": "private-secret"}]
+            with self.assertRaisesRegex(cloud.VerificationError, "unobservable secret") as error:
+                cloud.verify_deployed(reader, self.project, self.bucket, ROOT)
+            self.assertNotIn("private-secret", str(error.exception))
+
     def test_success_report_never_contains_cloud_responses_or_secrets(self):
         with tempfile.TemporaryDirectory() as directory:
             config = Path(directory) / "config.json"
             report = Path(directory) / "report.json"
             config.write_text(json.dumps(self.config))
-            argv = ["verify", "--project", self.project, "--key-id", "key-id", "--config", str(config), "--firebase-config", str(ROOT / "firebase.json"), "--report", str(report)]
-            with patch.object(sys, "argv", argv), patch.object(cloud, "validate_adc"), patch.object(cloud, "access_token", return_value="secret-access-token"), patch.object(cloud, "CloudReader", return_value=FakeReader(self.routes)):
+            argv = ["verify", "--project", self.project, "--key-id", "key-id", "--signing-sha1", "AB" * 20, "--signing-sha256", "AB" * 32, "--config", str(config), "--firebase-config", str(ROOT / "firebase.json"), "--report", str(report)]
+            with patch.object(sys, "argv", argv), patch.object(cloud, "validate_adc"), patch.object(cloud, "access_token", return_value="secret-access-token"), patch.object(cloud, "CloudReader", return_value=FakeReader(self.routes)), patch("builtins.print"):
                 self.assertEqual(0, cloud.main())
             saved = report.read_text()
             for value in ("secret-test-key", "secret-access-token", "secret-smtp-password", "private-number", "secret-test-code", "testPhoneNumbers", "smtp"):
                 self.assertNotIn(value, saved)
             self.assertFalse(json.loads(saved)["physicalDeviceVerified"])
+            self.assertFalse(json.loads(saved)["phoneSmsDeliveryVerified"])
+            self.assertFalse(json.loads(saved)["callableAppCheckRejectionVerified"])
+
+    def test_failed_sms_audit_report_does_not_disclose_test_otp(self):
+        auth = self.routes[f"https://identitytoolkit.googleapis.com/admin/v2/projects/{self.project}/config"]
+        auth["signIn"]["phoneNumber"]["testPhoneNumbers"] = {"private-number": "secret-test-code"}
+        with tempfile.TemporaryDirectory() as directory:
+            config = Path(directory) / "config.json"
+            report = Path(directory) / "report.json"
+            config.write_text(json.dumps(self.config))
+            argv = ["verify", "--project", self.project, "--key-id", "key-id", "--signing-sha1", "AB" * 20,
+                    "--signing-sha256", "AB" * 32, "--config", str(config), "--firebase-config", str(ROOT / "firebase.json"),
+                    "--report", str(report)]
+            with patch.object(sys, "argv", argv), patch.object(cloud, "validate_adc"), patch.object(cloud, "access_token", return_value="secret-access-token"), patch.object(cloud, "CloudReader", return_value=FakeReader(self.routes)), patch("builtins.print"):
+                self.assertEqual(1, cloud.main())
+            saved = report.read_text()
+            self.assertEqual("FAIL", json.loads(saved)["status"])
+            for value in ("secret-access-token", "secret-test-code", "private-number"):
+                self.assertNotIn(value, saved)
 
 
 if __name__ == "__main__":

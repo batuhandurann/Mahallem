@@ -30,7 +30,9 @@ object FirebaseServices {
                     context.applicationContext,
                     FirebaseOptions.Builder().setProjectId("demo-mahallem")
                         .setApplicationId("1:1234567890:android:0123456789abcdef")
-                        .setApiKey("fake-emulator-key")
+                        // IID/Functions validate the SDK key shape even with an emulator.
+                        // Deliberately nonfunctional placeholder: no production credential.
+                        .setApiKey("A" + "0".repeat(38))
                         .setStorageBucket("demo-mahallem.appspot.com")
                         .build(),
                     "emulator"

@@ -71,6 +71,8 @@ class ModerationRepository(
             "targetType" to report.targetType.code,
             "targetId" to report.targetId,
             "targetUid" to report.targetUid,
+            "targetRef" to db.document(report.targetDocumentPath()),
+            "conversationId" to report.conversationId,
             "reason" to report.reason.code,
             "details" to report.details,
             "status" to "pending",

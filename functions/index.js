@@ -17,6 +17,8 @@ const db = getFirestore(DATABASE);
 const callableOptions = { region: "europe-west3", enforceAppCheck: process.env.FUNCTIONS_EMULATOR !== "true", memory: "512MiB", timeoutSeconds: 60,
   maxInstances: 5, concurrency: 2 };
 
+exports.manageJob = onCall(callableOptions, require("./job-handler").createJobHandler({ db, auth: getAuth(), reserve }));
+
 // No client-controlled trust booleans, phone numbers or owner UIDs are accepted.
 // Return only a boolean for visible listings; private contact values never leave the server.
 exports.getListingTrust = onCall(callableOptions, async request => {
@@ -74,7 +76,13 @@ exports.getModerationQueue = onCall(callableOptions, async request => {
   const uid = await requireModerator(request);
   await reserve(uid, "moderationQueue", 120, 3600);
   const queue = await db.collection("reports").where("status", "==", "pending").orderBy("createdAt").limit(50).get();
-  return { reports: queue.docs.map(doc => ({ id: doc.id, ...doc.data(), createdAt: doc.data().createdAt?.toMillis() || 0 })) };
+  return { reports: queue.docs.map(doc => {
+    const { targetRef, ...report } = doc.data();
+    // Callable responses must never contain Admin DocumentReference internals.
+    // Older reports remain readable without inventing evidence references.
+    return { id: doc.id, ...report, targetRefPath: targetRef?.path || null,
+      createdAt: report.createdAt?.toMillis() || 0 };
+  }) };
 });
 
 exports.reviewReport = onCall(callableOptions, async request => {
