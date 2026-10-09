@@ -74,6 +74,27 @@ class QuoteAcceptanceWithoutPaymentTest {
         }
     }
 
+
+    @Test fun acceptedQuoteCannotAdvertiseUnverifiedPlatformGuaranteeOrReceipt() {
+        compose.setContent {
+            BuradaTheme {
+                MyRequestsScreen(
+                    requests = listOf(request.copy(status = "ACCEPTED")),
+                    quotes = listOf(quote.copy(status = "ACCEPTED")),
+                    onBackClick = {},
+                    onAcceptQuote = { _, _, _ -> },
+                    onRejectQuote = {},
+                    onNewRequestClick = {}
+                )
+            }
+        }
+        compose.onNodeWithTag("quote_card_quote-1").performScrollTo()
+        compose.onNodeWithText("Teklif Onaylandı").assertExists()
+        compose.onNodeWithText("Burada Güvencesi Aktif", substring = true).assertDoesNotExist()
+        compose.onNodeWithTag("btn_view_receipt_quote-1").assertDoesNotExist()
+        compose.onNodeWithText("Dijital İş Fişi & Garantiyi İncele", substring = true).assertDoesNotExist()
+    }
+
     @Test fun paymentInfoIsDistinctFromQuoteAcceptance() {
         var accepts = 0
         var paymentInfoClicks = 0
