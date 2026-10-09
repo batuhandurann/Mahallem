@@ -2,7 +2,6 @@ package com.batuhanduran.burada.ui.screens
 
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
-import androidx.compose.ui.test.assertDoesNotExist
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
@@ -10,6 +9,7 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.performTextInput
+import androidx.compose.ui.test.performTextClearance
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.batuhanduran.burada.data.local.JobRequestEntity
 import com.batuhanduran.burada.data.local.ServiceProviderEntity
@@ -90,9 +90,11 @@ class ProviderQuoteFormTest {
         compose.onNodeWithTag("input_quote_arrival").performTextInput("Yarın 14.00")
         compose.onNodeWithTag("btn_confirm_send_quote").assertIsNotEnabled()
 
-        // A genuine price and time make the action available.
+        // Replacing the bad price with a real price is the only way to enable sending.
+        compose.runOnIdle { assertEquals(0, sent) }
+        compose.onNodeWithTag("input_quote_price").performTextClearance()
         compose.onNodeWithTag("input_quote_price").performTextInput("1250 TL")
-        // append above would still contain junk: clear and type explicitly instead
+        compose.onNodeWithTag("btn_confirm_send_quote").assertIsEnabled()
     }
 
     @Test fun validProviderEnteredQuoteIsPassedUnchanged() {
