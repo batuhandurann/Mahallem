@@ -355,7 +355,7 @@ private fun QuoteCardView(
                             Icon(Icons.Default.CheckCircle, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
                             Spacer(modifier = Modifier.width(6.dp))
                             Text(
-                                text = "Teklif Onaylandı • Burada Güvencesi Aktif",
+                                text = "Teklif Onaylandı",
                                 color = Color.White,
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 12.sp
@@ -363,15 +363,11 @@ private fun QuoteCardView(
                         }
                     }
 
-                    OutlinedButton(
-                        onClick = onViewReceipt,
-                        shape = RoundedCornerShape(8.dp),
-                        modifier = Modifier.fillMaxWidth().testTag("btn_view_receipt_${quote.id}")
-                    ) {
-                        Icon(Icons.Default.ReceiptLong, contentDescription = null, modifier = Modifier.size(15.dp))
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text("📄 Dijital İş Fişi & Garantiyi İncele", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
-                    }
+                    Text(
+                        text = "Teklif kabulü ödeme yapmaz, para bloke etmez veya platform garantisi başlatmaz.",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = Slate600
+                    )
                 }
             } else if (quote.status == "REJECTED" || quote.status == "WITHDRAWN") {
                 Text(
