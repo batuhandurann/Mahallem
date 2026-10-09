@@ -12,6 +12,12 @@ import com.google.android.gms.tasks.Task
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.*
 import com.squareup.moshi.Moshi
+import com.batuhanduran.burada.BuildConfig
+import com.batuhanduran.burada.auth.awaitResult
+import com.google.firebase.functions.FirebaseFunctions
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.suspendCancellableCoroutine
@@ -46,7 +52,9 @@ class MarketplaceRepository(
         require(area.provinceId == provinceId && area.districtId == districtId)
     }
     private fun <T> observe(query: Query, transform: (DocumentSnapshot) -> T): Flow<List<T>> = callbackFlow {
-        requireAccount()
+        // A WhileSubscribed stream can start after its account has already left.
+        // End read streams empty; write operations still strictly reject stale UIDs.
+        if (auth.currentUser?.uid != uid) { trySend(emptyList()); close(); return@callbackFlow }
         val authListener = FirebaseAuth.AuthStateListener { current ->
             if (current.currentUser?.uid != uid) { trySend(emptyList()); close() }
         }
@@ -143,22 +151,69 @@ class MarketplaceRepository(
         }
     }
 
-    fun getAllProviders(): Flow<List<ServiceProviderEntity>> = combine(
+    // A verified phone is computed from current server Auth + the private listing contact.
+    // Strip all client-supplied trust claims, including certificates without a review workflow.
+    @OptIn(ExperimentalCoroutinesApi::class)
+    private fun <T> withPhoneTrust(source: Flow<List<T>>, kind: String,
+        id: (T) -> String, apply: (T, Boolean) -> T): Flow<List<T>> = source.transformLatest { rows ->
+        if (auth.currentUser?.uid != uid) { emit(emptyList()); return@transformLatest }
+        val unverified = rows.map { apply(it, false) }
+        emit(unverified)
+        if (rows.isEmpty()) return@transformLatest
+        val functions = FirebaseFunctions.getInstance(FirebaseServices.app, "europe-west3").apply {
+            if (BuildConfig.USE_FIREBASE_EMULATORS) useEmulator(BuildConfig.EMULATOR_HOST, 5001)
+        }
+        while (true) {
+            if (auth.currentUser?.uid != uid) { emit(emptyList()); return@transformLatest }
+            emit(unverified)
+            try {
+                requireAccount()
+                val flags = mutableMapOf<String, Boolean>()
+                for (batch in rows.map(id).distinct().chunked(50)) {
+                    val response = withTimeout(15_000) {
+                        functions.getHttpsCallable("getListingTrust")
+                            .call(mapOf("kind" to kind, "ids" to batch)).awaitResult().data
+                    } as? Map<*, *> ?: error("Invalid trust response")
+                    requireAccount()
+                    val results = response["listings"] as? Map<*, *> ?: error("Invalid trust evidence")
+                    for (listingId in batch) flags[listingId] =
+                        (results[listingId] as? Map<*, *>)?.get("phoneVerified") == true
+                }
+                emit(rows.map { apply(it, flags[id(it)] == true) })
+            } catch (error: kotlinx.coroutines.TimeoutCancellationException) {
+                emit(unverified)
+            } catch (error: CancellationException) {
+                throw error
+            } catch (_: Exception) {
+                if (auth.currentUser?.uid != uid) { emit(emptyList()); return@transformLatest }
+                emit(unverified)
+            }
+            // Revoked/disabled accounts lose evidence on the next refresh (maximum 60 seconds).
+            delay(60_000)
+        }
+    }
+    private fun providerTrust(source: Flow<List<ServiceProviderEntity>>) =
+        withPhoneTrust(source, "providers", { it.id }) { row, verified ->
+            row.copy(phoneVerified = verified, verifiedSafeBadge = false, mykCertified = false, childSafeCertified = false)
+        }
+    private fun requestTrust(source: Flow<List<JobRequestEntity>>) =
+        withPhoneTrust(source, "requests", { it.id }) { row, verified -> row.copy(phoneVerified = verified) }
+
+    fun getAllProviders(): Flow<List<ServiceProviderEntity>> = providerTrust(combine(
         observe(db.collection("providers").whereEqualTo("visibility", "published")) { decode(it, ServiceProviderEntity::class.java) },
         observe(db.collection("users").document(uid).collection("favorites")) { it.id }
-    ) { providers, favorites -> providers.map { it.copy(isFavorite = it.id in favorites) } }
-    // Own listings are a separate owner-scoped stream: never depend on public feed search/category/area filters.
-    fun getOwnedProviders(): Flow<List<ServiceProviderEntity>> =
+    ) { providers, favorites -> providers.map { it.copy(isFavorite = it.id in favorites) } })
+    fun getOwnedProviders(): Flow<List<ServiceProviderEntity>> = providerTrust(
         observe(db.collection("providers").whereEqualTo("ownerUid", uid)) {
             decode(it, ServiceProviderEntity::class.java)
-        }.map { profiles -> ownedProviderProfiles(profiles, uid) }
+        }.map { profiles -> ownedProviderProfiles(profiles, uid) })
 
-    fun getAllRequests(): Flow<List<JobRequestEntity>> = observe(db.collection("requests").whereEqualTo("visibility", "published")) {
+    fun getAllRequests(): Flow<List<JobRequestEntity>> = requestTrust(observe(db.collection("requests").whereEqualTo("visibility", "published")) {
         decode(it, JobRequestEntity::class.java).copy(createdAt = it.getTimestamp("createdAt")?.toDate()?.time ?: 0)
-    }
-    fun getMyRequests(): Flow<List<JobRequestEntity>> = observe(db.collection("requests").whereEqualTo("ownerUid", uid)) {
+    })
+    fun getMyRequests(): Flow<List<JobRequestEntity>> = requestTrust(observe(db.collection("requests").whereEqualTo("ownerUid", uid)) {
         decode(it, JobRequestEntity::class.java).copy(createdAt = it.getTimestamp("createdAt")?.toDate()?.time ?: 0)
-    }
+    })
     fun getProviderById(id: String) = getAllProviders().map { list -> list.find { it.id == id } }
     fun getRequestById(id: String) = getAllRequests().map { list -> list.find { it.id == id } }
     suspend fun publishProviderListing(provider: ServiceProviderEntity) {

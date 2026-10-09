@@ -40,11 +40,14 @@ sealed class ScreenDestination {
     object MapView : ScreenDestination()
 }
 
-class MarketplaceViewModel(application: Application) : AndroidViewModel(application) {
+class MarketplaceViewModel @JvmOverloads constructor(
+    application: Application,
+    sessionUid: String = requireNotNull(com.batuhanduran.burada.data.remote.FirebaseServices.auth.currentUser).uid
+) : AndroidViewModel(application) {
 
-    private val repository = MarketplaceRepository()
+    private val repository = MarketplaceRepository(uid = sessionUid)
     val currentUid: String get() = repository.uid
-    private val moderation = ModerationRepository()
+    private val moderation = ModerationRepository(uid = sessionUid)
     val blockedUids = moderation.observeBlockedUids().catch {
         _toastMessage.value = "Engelleme tercihleri yüklenemedi. Yeniden giriş yapın."
         emit(emptySet())
@@ -400,17 +403,17 @@ class MarketplaceViewModel(application: Application) : AndroidViewModel(applicat
                 title = title.ifBlank { "Hizmet Uzmanı" },
                 sector = sector.name,
                 categoryId = categoryId,
-                rating = 5.0,
-                reviewCount = 1,
+                rating = 0.0,
+                reviewCount = 0,
                 experienceYears = experienceYears,
                 district = district,
                 city = area.provinceName,
                 hourlyOrBasePrice = price.ifBlank { "Anlaşmaya Bağlı" },
                 isEmergencyAvailable = isEmergency,
-                verifiedSafeBadge = hasSafeBadge,
-                mykCertified = hasMykBadge,
-                childSafeCertified = hasChildSafeBadge,
-                phoneVerified = true,
+                verifiedSafeBadge = false,
+                mykCertified = false,
+                childSafeCertified = false,
+                phoneVerified = false,
                 daysRemaining = 30,
                 isReported = false,
                 paintBrandsJson = if (sector == SectorType.HOME_REPAIR) "[\"$brandsOrCharacters\"]" else "[]",
@@ -468,7 +471,7 @@ class MarketplaceViewModel(application: Application) : AndroidViewModel(applicat
                 status = "PENDING",
                 customerName = customerName.ifBlank { "Mahalle Sakini" },
                 customerPhone = customerPhone.ifBlank { "05xx xxx xx xx" },
-                phoneVerified = true,
+                phoneVerified = false,
                 daysRemaining = 7,
                 isReported = false,
                 areaSquareMeters = areaSquareMeters,

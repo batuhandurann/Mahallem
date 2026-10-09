@@ -109,8 +109,14 @@ private fun AuthenticatedMarketplace(
     }
     val application = context.applicationContext as Application
     // The Activity retains this UID-scoped store across configuration changes.
-    val marketplaceFactory = remember(application) {
-        ViewModelProvider.AndroidViewModelFactory(application)
+    val marketplaceFactory = remember(application, user.uid) {
+        object : ViewModelProvider.Factory {
+            @Suppress("UNCHECKED_CAST")
+            override fun <T : ViewModel> create(modelClass: Class<T>): T {
+                require(modelClass == MarketplaceViewModel::class.java)
+                return MarketplaceViewModel(application, user.uid) as T
+            }
+        }
     }
     val marketplace: MarketplaceViewModel = viewModel(
         viewModelStoreOwner = owner,
@@ -130,8 +136,21 @@ private fun AuthenticatedMarketplace(
         factory = profileFactory
     )
     val profileState by profile.state.collectAsStateWithLifecycle()
+    val phoneFactory = remember(user.uid) {
+        object : ViewModelProvider.Factory {
+            @Suppress("UNCHECKED_CAST")
+            override fun <T : ViewModel> create(modelClass: Class<T>): T {
+                require(modelClass == com.batuhanduran.burada.auth.PhoneVerificationViewModel::class.java)
+                return com.batuhanduran.burada.auth.PhoneVerificationViewModel(user.uid) as T
+            }
+        }
+    }
+    val phone: com.batuhanduran.burada.auth.PhoneVerificationViewModel =
+        viewModel(viewModelStoreOwner = owner, factory = phoneFactory)
+    var showPhone by remember { mutableStateOf(false) }
+    if (showPhone) com.batuhanduran.burada.ui.components.PhoneVerificationDialog(phone) { showPhone = false }
     MarketplaceApp(viewModel = marketplace, accountHeader = {
-        AccountHeader(user, profileState, notice, onDismissNotice, profile::retry, onSignOut) {
+        AccountHeader(user, profileState, notice, onDismissNotice, profile::retry, onSignOut, { showPhone = true }) {
             if (Build.VERSION.SDK_INT >= 33 && ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED)
                 notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
             else PushTokenLifecycle.start(context.applicationContext)
@@ -147,6 +166,7 @@ private fun AccountHeader(
     onDismissNotice: () -> Unit,
     onRetry: () -> Unit,
     onSignOut: () -> Unit,
+    onVerifyPhone: () -> Unit,
     onEnableNotifications: () -> Unit
 ) {
     Surface(color = MaterialTheme.colorScheme.surface, tonalElevation = 2.dp) {
@@ -162,6 +182,7 @@ private fun AccountHeader(
                 TextButton(onClick = onEnableNotifications) { Text("Bildirimleri aç") }
                 TextButton(onClick = onSignOut) { Text("Çıkış yap") }
             }
+            TextButton(onClick = onVerifyPhone) { Text("Telefon doğrulaması") }
             Text(
                 text = when {
                     profile.busy -> "Profil buluta kaydediliyor…"

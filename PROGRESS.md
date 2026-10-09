@@ -3,6 +3,50 @@
 Updated: 2026-10-08 (Europe/Istanbul). Read `AGENTS.md` and git status before work;
 fetch current remote state because other sessions may advance the repository.
 
+## Phone verification and authoritative listing trust (2026-10-09)
+
+- Based on canonical main `f1db9637f52f80947a5a3c20ea9b3d890860fcdd`.
+- Added UID-scoped Android Phone Auth SMS linking (no account sign-in/switch),
+  number/code validation, resend cooldown, callback generation guards, failure
+  handling, retry and in-memory-only OTP state across rotation.
+- Added App Check enforced `getListingTrust`: reads current Admin Auth, private
+  contact and account deletion status; checks exact normalized Turkish mobile
+  number and linked phone provider, listing visibility/ownership and disabled
+  accounts. Responses contain booleans only. Client truth claims are ignored;
+  certificate/safety badges remain false without a reviewed evidence workflow.
+- Feeds, own listings and details use the server response, reset trust on error,
+  offline/account change and refresh every 60 seconds. This bounds evidence age;
+  immediate push revocation is not implemented. Missing/unavailable deployment
+  means no verified badge, not an invented success.
+- New tests: Android real SMS callbacks, wrong OTP, correct link, UID preservation,
+  rotation and old-session isolation; JS actual Auth emulator link/unlink, private
+  contact mismatch, hidden listings, disabled/deleting accounts and stale tokens.
+  Android CI now runs Functions alongside Auth/Firestore for instrumentation.
+- Local backend tests: 7/7 passed; backend syntax and modified JS syntax passed.
+  Existing Python configuration suite: 45/45 passed (fixture verification only).
+  Local Gradle stopped before compilation because services.gradle.org was
+  unreachable. Local Firebase tests stopped before startup: only JDK 17 is
+  installed, CLI requires JDK 21. Android SDK/ADB/emulator are absent locally.
+  These failures are NOT successful device/Rules/SMS execution evidence.
+- First branch CI `37949884643`, source `e30b8ead`: debug/unit/lint and clean
+  unsigned release passed. Existing Rules passed; new Node phone test revealed
+  the Node SDK PhoneAuthProvider stub. Test now uses documented REST linking.
+  Android test exposed a logout/recomposition race constructing a phone model
+  from a null currentUser; the model now receives the immutable session UID and
+  fails closed until that UID is current, avoiding this constructor crash.
+- Second CI `37950712712`, source `9827ab58`: Rules 37/37, trusted integration
+  3/3 including actual SMS/trust/revocation, backend 7/7, debug/unit/lint and
+  unsigned release passed. Android exposed a second account-switch race: an old
+  read stream started after logout and threw from requireAccount. Read streams
+  now finish empty when stale; write checks remain strict. Marketplace models
+  also receive immutable session UIDs rather than constructor-time currentUser.
+  The Android regression now directly asserts stale read streams end empty.
+- Actual local Auth-only emulator smoke passed wrong OTP, valid link, preserved
+  UID, unlink and email re-login. This does not cover Android or Firestore trust.
+- Next: verify this branch's full CI including the added tests. Production Phone
+  provider, SHA-256/SHA-1 registration, SMS region policy/billing, App Check and
+  callable deployment require protected production access and real-device proof.
+
 ## Direct content write abuse follow-up (2026-10-08)
 
 - Started from current main `40e095f6c3f66592d780614f8870608548b4cd54`.
