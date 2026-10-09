@@ -142,6 +142,10 @@ class MarketplaceViewModel(application: Application) : AndroidViewModel(applicat
         repository.getFilteredProviders(f.sector, f.urgency, f.category, f.query, f.district)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
+    // Owner dashboard must not inherit marketplace search, category, district or urgency filters.
+    val ownedProviders: StateFlow<List<ServiceProviderEntity>> = repository.getOwnedProviders()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
     // --- Job Requests Flow (Flow B: Hizmet Arayan Talepleri - Armut) ---
     @OptIn(ExperimentalCoroutinesApi::class)
     val jobRequests: StateFlow<List<JobRequestEntity>> = combine(

@@ -4,6 +4,18 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class RequestScheduleTest {
+    @Test fun calendarValidationDoesNotDependOnSkippedLocalDays() {
+        val originalZone = java.util.TimeZone.getDefault()
+        try {
+            java.util.TimeZone.setDefault(java.util.TimeZone.getTimeZone("Pacific/Apia"))
+            assertTrue(RequestSchedules.isValidDate("2011-12-30"))
+            assertFalse(RequestSchedules.isValidDate("2011-02-29"))
+            java.util.TimeZone.setDefault(java.util.TimeZone.getTimeZone("America/Sao_Paulo"))
+            assertTrue(RequestSchedules.isValidDate("2018-11-04"))
+        } finally {
+            java.util.TimeZone.setDefault(originalZone)
+        }
+    }
     @Test fun rejectsInvalidCalendarDatesIncludingCenturyLeapYears() {
         listOf("", "Hemen / Bugün", "2026-02-29", "2026-02-31", "2026-04-31", "2026-13-01", "2026-00-10", "2026-10-00", "2026-1-01", "1900-02-29").forEach {
             assertFalse(it, RequestSchedules.isValidDate(it))
