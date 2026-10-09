@@ -93,6 +93,7 @@ module.exports=function install(db,database,options,reserve) {
     const uid=request.auth.uid;
     if((await jobs.doc(uid).get()).exists) return {status:"REQUESTED"};
     await account(request);
+    await reserve(uid,"accountDeletion",10,3600);
     await db.runTransaction(async tx=>{
       if((await tx.get(jobs.doc(uid))).exists) return;
       const owned=await tx.get(db.collection("requests").where("ownerUid","==",uid));

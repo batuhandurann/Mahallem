@@ -26,6 +26,8 @@ https://support.taskrabbit.com/hc/en-gb/articles/46260446684571
   keeps history until account deletion.
 - Deletion uses password reauthentication, fresh Auth evidence within 5 minutes
   and exact typed confirmation. Active work/locked payments/disputes block it.
+  Unqueued deletion preflight is limited to 10 attempts per UID/hour; already
+  queued requests remain idempotent and do not consume another attempt.
   Historical accepted quotes are checked against terminal job status, not treated
   as active forever. Inconsistent agreement links fail closed.
 - A server-owned durable UID tombstone prevents cached-token reads/writes and

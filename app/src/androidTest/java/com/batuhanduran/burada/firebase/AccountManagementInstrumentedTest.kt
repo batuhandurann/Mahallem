@@ -94,8 +94,10 @@ class AccountManagementInstrumentedTest {
             val doc = Tasks.await(ref.get(Source.SERVER),30,TimeUnit.SECONDS)
             assertEquals("Updated Name",doc.getString("displayName"))
             assertEquals("Local services",doc.getString("bio"))
+            compose.waitUntil(30_000) { compose.onAllNodesWithTag("account_feedback").fetchSemanticsNodes().isEmpty() }
             list.performScrollToNode(hasTestTag("open_account_deletion"))
             compose.onNodeWithTag("open_account_deletion").performClick()
+            compose.waitUntil(30_000) { compose.onAllNodesWithTag("confirm_account_deletion").fetchSemanticsNodes().isNotEmpty() }
             compose.onNodeWithTag("confirm_account_deletion").assertIsNotEnabled()
             compose.onNodeWithTag("delete_account_confirmation").performTextInput("WRONG")
             compose.onNodeWithTag("confirm_account_deletion").assertIsNotEnabled()

@@ -36,10 +36,10 @@ fun AccountManagementScreen(model: AccountManagementViewModel,providers: List<Se
     var bio by rememberSaveable(state.bio) { mutableStateOf(state.bio) }
     var deleteDialog by remember { mutableStateOf(false) }
     BackHandler { if (!state.busy) onClose() }
-    Scaffold(snackbarHost = { SnackbarHost(snackbar) },topBar = { TopAppBar(title = { Text("Profil ve hesap") },navigationIcon = {
+    Scaffold(snackbarHost = { SnackbarHost(snackbar) { Snackbar(it,Modifier.testTag("account_feedback")) } },topBar = { TopAppBar(title = { Text("Profil ve hesap") },navigationIcon = {
         TextButton(onClick = onClose,enabled = !state.busy) { Text("Geri") }
     }) }) { padding ->
-        LazyColumn(Modifier.fillMaxSize().padding(padding).testTag("account_management_list"),contentPadding = PaddingValues(20.dp),verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        LazyColumn(Modifier.fillMaxSize().padding(padding).testTag("account_management_list"),contentPadding = PaddingValues(start = 20.dp,top = 20.dp,end = 20.dp,bottom = 88.dp),verticalArrangement = Arrangement.spacedBy(12.dp)) {
             item { Text("Sana ait bilgiler",style = MaterialTheme.typography.headlineSmall) }
             item { Text("Hesap profilin özeldir. Keşfette hizmet ilanındaki adın ve açıklaman görünür; bunları ilan yönetiminden düzenleyebilirsin.") }
             if (state.busy) item { LinearProgressIndicator(Modifier.fillMaxWidth()) }

@@ -50,6 +50,12 @@ fetch current remote state because other sessions may advance the repository.
 - Product scope, primary reference URLs, privacy boundaries and coordinated
   rollout: PROFILE_ACCOUNT_MANAGEMENT.md. Pending reviews still require separate
   retention and integration validation before release.
+- Source `9f9047e` CI: backend 24/24, Rules 49/49, real callable/media 11/11,
+  debug/unit/lint, unsigned release and all security scans passed. Android 29/30:
+  profile save persisted both fields, but snackbar covered the deletion button.
+  Added footer clearance and explicit test feedback/dialog waits. Added per-UID
+  deletion preflight quota (10/hour), retry messaging and actual rate-limit
+  regression; verify final required checks before ready/merge.
 - Next: verify final commit CI before marking ready. No
   production deployment, signed release or real-account deletion performed.
 

@@ -146,3 +146,15 @@ test('actual job completion unlocks provider deletion and redacts only its share
   assert.equal((await db.doc(`quotes/${quoteId}`).get()).exists,false);
   assert.equal((await call('manageJob',leaving,{requestId:id,actionId:randomUUID(),action:'START',version:4,note:'',reasonCode:''})).status,403);
 });
+test('deletion preflight is rate limited without queuing or disabling a blocked account',async()=>{
+  const actor=await account('deletion-quota'),id=`quota-${actor.uid}`;
+  await db.doc(`requests/${id}`).set({...listing('requests',id,actor.uid,{status:'ACCEPTED'}),acceptedQuoteId:'active-quote',acceptedProviderUid:other.uid});
+  for(let attempt=0;attempt<10;attempt++) {
+    const result=await call('requestAccountDeletion',actor,{confirmation:'HESABIMI SİL'});
+    assert.equal(result.status,400,JSON.stringify(result.body));
+  }
+  const limited=await call('requestAccountDeletion',actor,{confirmation:'HESABIMI SİL'});
+  assert.equal(limited.status,429,JSON.stringify(limited.body));
+  assert.equal((await db.doc(`_accountDeletions/${actor.uid}`).get()).exists,false);
+  assert.equal((await adminAuth(admin).getUser(actor.uid)).disabled,false);
+});

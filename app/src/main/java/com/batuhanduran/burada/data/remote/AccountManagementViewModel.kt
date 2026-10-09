@@ -47,7 +47,9 @@ class AccountManagementViewModel(private val uid: String) : ViewModel() {
             } catch (e: CancellationException) { throw e }
             catch (e: Exception) {
                 if (!cleared && auth.currentUser?.uid == uid) mutableState.value = state.value.copy(error =
-                    if (e is FirebaseFunctionsException && e.code in listOf(FirebaseFunctionsException.Code.INVALID_ARGUMENT,
+                    if (e is FirebaseFunctionsException && e.code == FirebaseFunctionsException.Code.RESOURCE_EXHAUSTED)
+                        "Çok fazla deneme yapıldı. Bir süre sonra yeniden deneyin."
+                    else if (e is FirebaseFunctionsException && e.code in listOf(FirebaseFunctionsException.Code.INVALID_ARGUMENT,
                         FirebaseFunctionsException.Code.FAILED_PRECONDITION,FirebaseFunctionsException.Code.ABORTED)) e.message
                     else "İşlem tamamlanamadı. Bağlantınızı kontrol edin; hesap silme için doğru şifrenizi girin ve yeniden deneyin.")
             } finally { if (!cleared) mutableState.value = state.value.copy(busy = false) }
