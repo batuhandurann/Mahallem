@@ -40,6 +40,7 @@ import com.batuhanduran.burada.data.remote.ConversationPhotoRepository
 import com.batuhanduran.burada.data.remote.FirebaseServices
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import com.batuhanduran.burada.ui.theme.*
 import com.batuhanduran.burada.ui.components.ReportContentDialog
@@ -62,6 +63,7 @@ fun ChatScreen(
     messages: List<ChatMessageEntity>,
     onBackClick: () -> Unit,
     onSendMessage: (text: String, isOffer: Boolean, offerPrice: String) -> Unit,
+    onSendTextConfirmed: suspend (String) -> Boolean,
     onSendVoiceNote: (duration: Int) -> Unit = {},
     onSendPhoto: (Uri) -> Unit = {},
     onCallClick: () -> Unit,
@@ -73,6 +75,8 @@ fun ChatScreen(
     BackHandler { onBackClick() }
 
     var messageInput by remember(conversation?.id) { mutableStateOf("") }
+    var sendingText by remember(conversation?.id) { mutableStateOf(false) }
+    val sendScope = rememberCoroutineScope()
     var showBlockConfirmation by remember(conversation?.id) { mutableStateOf(false) }
     var showReportDialog by remember(conversation?.id) { mutableStateOf(false) }
     var showOfferDialog by remember(conversation?.id) { mutableStateOf(false) }
@@ -271,11 +275,25 @@ fun ChatScreen(
 
                         IconButton(
                             onClick = {
-                                if (messageInput.isNotBlank()) {
-                                    onSendMessage(messageInput, false, "")
-                                    messageInput = ""
+                                if (conversation != null && messageInput.isNotBlank() && !sendingText) {
+                                    // Keep the draft until Firestore confirms the write. Repeated taps
+                                    // cannot produce two transactions for the same draft.
+                                    val submitted = messageInput
+                                    sendingText = true
+                                    sendScope.launch {
+                                        try {
+                                            val delivered = onSendTextConfirmed(submitted)
+                                            // Do not erase text edited while the request was in flight.
+                                            if (delivered && messageInput == submitted) messageInput = ""
+                                        } catch (cancelled: CancellationException) {
+                                            throw cancelled
+                                        } finally {
+                                            sendingText = false
+                                        }
+                                    }
                                 }
                             },
+                            enabled = conversation != null && messageInput.isNotBlank() && !sendingText,
                             modifier = Modifier
                                 .size(44.dp)
                                 .clip(CircleShape)
