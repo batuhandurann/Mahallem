@@ -119,8 +119,38 @@ class AuthMarketplaceInstrumentedTest {
             assertFalse(received.isFromMe)
             reloaded.acceptQuote(requestId,quoteId)
             assertEquals("ACCEPTED",await(db.collection("quotes").document(quoteId).get(Source.SERVER)).getString("status"))
+            // Real Android SDK -> Functions -> private lifecycle -> Rules read-back.
+            auth.signOut()
+            await(auth.signInWithEmailAndPassword(providerEmail,password))
+            val jobProvider = MarketplaceRepository()
+            assertTrue(withTimeout(30_000) { jobProvider.getAssignedRequests().first { it.isNotEmpty() } }.any { it.id == requestId })
+            val startActionId = java.util.UUID.randomUUID().toString()
+            jobProvider.manageJob(requestId, com.batuhanduran.burada.data.model.JobAction.START, 0, "", "", startActionId)
+            jobProvider.manageJob(requestId, com.batuhanduran.burada.data.model.JobAction.START, 0, "", "", startActionId)
+            assertEquals(1L, await(db.collection("jobs").document(requestId).get(Source.SERVER)).getLong("version"))
+            jobProvider.manageJob(requestId, com.batuhanduran.burada.data.model.JobAction.SUBMIT_COMPLETION, 1,
+                "Boya işi tamamlandı ve kontrol edildi.", "", java.util.UUID.randomUUID().toString())
+            auth.signOut()
+            await(auth.signInWithEmailAndPassword(customerEmail,password))
+            val jobCustomer = MarketplaceRepository()
+            jobCustomer.manageJob(requestId, com.batuhanduran.burada.data.model.JobAction.REQUEST_REVISION, 2,
+                "Bir duvarın son katı eksik, lütfen tamamlayın.", "", java.util.UUID.randomUUID().toString())
+            auth.signOut()
+            await(auth.signInWithEmailAndPassword(providerEmail,password))
+            MarketplaceRepository().manageJob(requestId, com.batuhanduran.burada.data.model.JobAction.SUBMIT_COMPLETION, 3,
+                "Eksik son kat tamamlandı, yeniden kontrol edebilirsiniz.", "", java.util.UUID.randomUUID().toString())
+            auth.signOut()
+            await(auth.signInWithEmailAndPassword(customerEmail,password))
+            val confirmedCustomer = MarketplaceRepository()
+            confirmedCustomer.manageJob(requestId, com.batuhanduran.burada.data.model.JobAction.CONFIRM_COMPLETION, 4,
+                "", "", java.util.UUID.randomUUID().toString())
+            val finished = await(db.collection("requests").document(requestId).get(Source.SERVER))
+            assertEquals("COMPLETED", finished.getString("data.status"))
+            assertEquals("closed", finished.getString("visibility"))
+            assertEquals(5, withTimeout(30_000) { confirmedCustomer.getJobEvents(requestId).first { it.size == 5 } }.size)
             await(auth.currentUser!!.delete())
             await(auth.signInWithEmailAndPassword(providerEmail,password))
+            assertEquals("COMPLETED", await(db.collection("requests").document(requestId).get(Source.SERVER)).getString("data.status"))
             assertEquals("Özel adres",await(db.collection("requestContacts").document(requestId).get(Source.SERVER)).getString("address"))
             await(auth.currentUser!!.delete())
         } finally { auth.signOut() }

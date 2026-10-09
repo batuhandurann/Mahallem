@@ -1,7 +1,35 @@
 # Progress — Burada / Mahallem
 
-Updated: 2026-10-08 (Europe/Istanbul). Read `AGENTS.md` and git status before work;
+Updated: 2026-10-09 (Europe/Istanbul). Read `AGENTS.md` and git status before work;
 fetch current remote state because other sessions may advance the repository.
+
+## Job completion and cancellation (2026-10-09)
+
+- Based on canonical main `e287fe08b4044dbc37f9c2219ab350b984107694` (merged
+  phone isolation PR #71). Reviewed Armut, Fiverr and Upwork official material;
+  chosen local-service policy is documented in `JOB_LIFECYCLE.md`.
+- Added provider start/completion submission, customer confirmation/revision,
+  owner cancellation before selection and mutual accepted-job cancellation
+  with accept/decline/withdraw and restoration of the prior active state.
+- `manageJob` derives roles from authoritative request/quote records, enforces
+  App Check/current account revocation, UID quotas, exact versions, idempotent
+  command retries and atomic request/private state/append-only event updates.
+  Terminal jobs close discovery but preserve participant access. Private notes
+  and reasons never enter public listings. Direct client state/history writes
+  and payment-bearing lifecycle bypasses are denied.
+- Integrated My Requests -> Job Detail and Provider Dashboard -> My Jobs,
+  filters, role-specific controls, confirmation, reason/explanation validation,
+  busy/error/retry states and private timeline. Removed misleading acceptance
+  guarantee/receipt claims from the changed quote card.
+- Local backend policy/security unit tests 18/18 passed and syntax checks passed.
+  Local Gradle cannot download its distribution (network unreachable), so this
+  is not Android build evidence. Local emulator execution requires JDK 21;
+  this environment has JDK 17 and no Android SDK. New Rules, real callable,
+  Android SDK and Compose tests are committed for real GitHub CI execution.
+- Next: verify CI on this branch before merging; production needs protected
+  Rules + trusted-backend deployment and real-device App Check verification.
+  Payments/refunds, job-specific push, staffed disputes and reviews are separate
+  work; no automatic completion/cancellation timeout or financial claims added.
 
 ## Phone verification and authoritative listing trust (2026-10-09)
 

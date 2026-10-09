@@ -325,7 +325,8 @@ service cloud.firestore {
         && request.resource.data.data.diff(resource.data.data).affectedKeys().hasOnly(['isOpenForOffers','bookedDatesJson']);
     }
     match /requests/{id} {
-      allow read: if signed() && (resource.data.ownerUid == request.auth.uid || resource.data.visibility == 'published');
+      allow read: if signed() && (resource.data.ownerUid == request.auth.uid
+        || resource.data.acceptedProviderUid == request.auth.uid || resource.data.visibility == 'published');
       allow create: if signed() && request.resource.data.keys().hasOnly(['ownerUid','data','createdAt','updatedAt','acceptedQuoteId','acceptedProviderUid','visibility'])
         && fresh(request.resource.data) && request.resource.data.visibility == 'published' && request.resource.data.ownerUid == request.auth.uid
         && validRequest(request.resource.data.data) && validGeo(request.resource.data.data) && request.resource.data.data.id == id
@@ -350,6 +351,15 @@ service cloud.firestore {
         && request.resource.data.phone is string && request.resource.data.phone.size() <= 40
         && request.resource.data.address is string && request.resource.data.address.size() <= 1000
         && request.resource.data.updatedAt == request.time;
+    }
+    // State, explanations and history are private and written only by trusted Functions.
+    match /jobs/{id} {
+      allow read: if signed() && request.auth.uid in resource.data.participantUids;
+      allow write: if false;
+      match /events/{eventId} {
+        allow read: if signed() && request.auth.uid in get(/databases/$(database)/documents/jobs/$(id)).data.participantUids;
+        allow write: if false;
+      }
     }
     match /providerContacts/{id} {
       allow read: if signed() && resource.data.ownerUid == request.auth.uid;
