@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { initializeTestEnvironment, assertFails, assertSucceeds } from '@firebase/rules-unit-testing';
-import { doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
+import { doc, getDoc, setDoc, updateDoc, deleteDoc } from 'firebase/firestore';
 
 // Independent P0 matrix: allow legitimate reads AND deny cross-account reads.
 const env = await initializeTestEnvironment({
@@ -72,6 +72,39 @@ try {
   }
   await deny(getDoc(doc(owner, 'providers/qa-provider')));
 
+  // Independent P0 negative writes: even owners must not forge backend-only
+  // records, mutate payment/quote data, alter chat membership or escalate roles.
+  for (const path of [
+    'jobRequests/qa-forged-request', 'providers/qa-forged-provider',
+    'quotes/qa-forged-quote', 'payments/qa-forged-payment',
+    'conversations/qa-forged-chat', 'messages/qa-forged-message',
+    'jobRequestPrivate/qa-forged-request',
+  ]) {
+    const actor = path.startsWith('providers/') ? provider : owner;
+    await deny(setDoc(doc(actor, path), {
+      ownerId: 'qa-owner', customerId: 'qa-owner', providerId: 'qa-provider',
+      providerOwnerId: 'qa-provider', participantIds: ['qa-owner', 'qa-provider'],
+      conversationId: 'qa-chat', senderId: 'qa-owner',
+    }));
+  }
+  for (const path of [
+    'jobRequests/qa-request', 'providers/qa-provider',
+    'quotes/qa-quote', 'payments/qa-payment',
+    'conversations/qa-chat', 'messages/qa-message',
+    'jobRequestPrivate/qa-request',
+  ]) {
+    const actor = path.startsWith('providers/') ? provider : owner;
+    await deny(updateDoc(doc(actor, path), { status: 'FORGED' }));
+    await deny(deleteDoc(doc(actor, path)));
+  }
+  await deny(updateDoc(doc(owner, 'users/qa-owner'), { role: 'admin' }));
+  await deny(updateDoc(doc(owner, 'users/qa-owner'), { deletionStatus: 'REQUESTED' }));
+  await deny(updateDoc(doc(provider, 'users/qa-owner'), { displayName: 'stolen' }));
+  await deny(setDoc(doc(outsider, 'users/qa-owner'), { uid: 'qa-owner' }));
+  // The guard must not break legitimate profile edits for active owners.
+  await assertSucceeds(updateDoc(doc(owner, 'users/qa-owner'), { displayName: 'QA owner' }));
+  assertions++;
+
   // Critical regression: removing a participant must revoke access to OLD
   // messages, not only block new messages.
   await env.withSecurityRulesDisabled(async (ctx) => {
@@ -97,6 +130,7 @@ try {
   ]) {
     await deny(getDoc(doc(owner, path)));
   }
+  await deny(updateDoc(doc(owner, 'users/qa-owner'), { displayName: 'post deletion' }));
   console.log('P0 cross-account isolation assertions PASS: ' + assertions);
 } finally {
   await env.cleanup();
