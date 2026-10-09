@@ -1,6 +1,9 @@
 package com.batuhanduran.burada.ui.screens
 
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -43,27 +46,35 @@ class MyRequestsSectorScreenTest {
         }
     }
 
+    // Ensure the target is actually brought into the viewport before asserting visibility.
+    // The request row may be laid out below the fold on smaller emulators.
+    private fun assertVisibleInRequests(label: String, substring: Boolean = false) {
+        composeRule.onNodeWithTag("my_requests_list")
+            .performScrollToNode(hasText(label, substring = substring))
+        composeRule.onNodeWithText(label, substring = substring).assertIsDisplayed()
+    }
+
     @Test fun cleaningRequestRendersCorrectSector() {
         renderRequest("CLEANING")
-        composeRule.onNodeWithText("Temizlik & Bakım").assertIsDisplayed()
+        assertVisibleInRequests("Temizlik & Bakım")
         composeRule.onNodeWithText("Kostüm:", substring = true).assertDoesNotExist()
     }
 
     @Test fun movingRequestNeverShowsCostumeDetail() {
         renderRequest("MOVING_ASSEMBLY")
-        composeRule.onNodeWithText("Nakliye & Montaj").assertIsDisplayed()
+        assertVisibleInRequests("Nakliye & Montaj")
         composeRule.onNodeWithText("Kostüm:", substring = true).assertDoesNotExist()
     }
 
     @Test fun unknownCodeShowsHonestFallback() {
         renderRequest("LEGACY_UNKNOWN")
-        composeRule.onNodeWithText("Diğer Hizmet").assertIsDisplayed()
+        assertVisibleInRequests("Diğer Hizmet")
         composeRule.onNodeWithText("Eğlence & Organizasyon").assertDoesNotExist()
     }
 
     @Test fun eventRetainsEventDetails() {
         renderRequest("EVENT_ENTERTAINMENT")
-        composeRule.onNodeWithText("Etkinlik & Eğlence").assertIsDisplayed()
-        composeRule.onNodeWithText("Kostüm:", substring = true).assertIsDisplayed()
+        assertVisibleInRequests("Etkinlik & Eğlence")
+        assertVisibleInRequests("Kostüm:", substring = true)
     }
 }
