@@ -243,3 +243,5 @@ exports.notifyConversationMessage = onDocumentCreated({
   await deliveryRef.set({ sent: true, updatedAt: FieldValue.serverTimestamp(),
     expiresAt: Timestamp.fromMillis(Date.now() + 7 * 86400 * 1000) });
 });
+
+Object.assign(exports, require("./reviews").registerReviews({ db, onCall, options: callableOptions, HttpsError, getAuth, FieldValue, reserve, requireModerator }));

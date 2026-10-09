@@ -33,7 +33,11 @@ fun ProviderDetailScreen(
     onFavoriteToggle: () -> Unit,
     onRequestQuoteClick: (String) -> Unit,
     onChatClick: () -> Unit = {},
-    onReportClick: () -> Unit = {}
+    onReportClick: () -> Unit = {},
+    reviews: List<com.batuhanduran.burada.data.model.JobReview> = emptyList(),
+    onMoreReviews: () -> Unit = {},
+    onReportReview: (String, String) -> Unit = { _, _ -> }
+
 ) {
     BackHandler { onBackClick() }
 
@@ -223,7 +227,7 @@ fun ProviderDetailScreen(
                                         modifier = Modifier.size(18.dp)
                                     )
                                     Text(
-                                        text = " ${provider.rating}",
+                                        text = if (provider.reviewCount == 0) " Yeni" else " " + String.format(java.util.Locale.forLanguageTag("tr-TR"), "%.1f", provider.rating),
                                         fontWeight = FontWeight.Bold,
                                         fontSize = 14.sp
                                     )
@@ -362,6 +366,10 @@ fun ProviderDetailScreen(
                 }
             }
 
+            item {
+                Spacer(Modifier.height(16.dp))
+                ProviderReviews(reviews, provider.reviewCount, onMoreReviews, onReportReview)
+            }
         }
     }
 }

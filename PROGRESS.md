@@ -3,6 +3,42 @@
 Updated: 2026-10-09 (Europe/Istanbul). Read `AGENTS.md` and git status before work;
 fetch current remote state because other sessions may advance the repository.
 
+## Verified customer reviews (2026-10-10)
+
+- Integrated current main including PR #75's `manageJob` lifecycle and PR #74's
+  report authority. Removed the review draft's separate completion callable/CTA:
+  provider submission followed by customer confirmation is the only close path.
+- Review eligibility verifies request, accepted quote/provider, private job state
+  and the authoritative terminal CONFIRM_COMPLETION event (actor, role, version,
+  prior status and server timestamp). Completed flags alone cannot unlock reviews.
+- Added 1–5 rating and optional bounded comment within 30 days, unique per job,
+  retry idempotency, transactional aggregates, App Check, current-account checks
+  and quotas. Job detail shows review only to the customer and hides expired CTA.
+- Public reviews omit UID/request ID/contact. Added provider review list/load-more,
+  reporting and current-moderator-only queue/hide/audit. Reports never auto-hide
+  negative feedback; hidden tombstones prevent reposting and atomically reduce
+  rating totals. Moderator queue is callable-only, including revocation checks.
+- Initial PR #76 source `5e82b77`: Android Quality `37957795533` passed debug/unit/
+  lint, clean unsigned release and Android instrumentation. Backend/Rules passed,
+  but one callable fixture failed: its CANCELLED/PENDING status was accidentally
+  passed as the fixture name. Corrected that fixture and rebuilt tests around the
+  real provider-submit/customer-confirm lifecycle. Initial run is not evidence
+  for the subsequent integration. New Android SDK review read-back added.
+- Current local backend 20/20 and configuration/device fixtures 60/60 passed.
+  Current Auth/Firestore 46/46 and focused review HTTP integration 3/3 passed,
+  exercising real Auth, private lifecycle/confirmation events and transactions.
+  Provider summary remains before reviews, and unrated providers show "Yeni"
+  instead of an apparent zero-star score; actual averages render one decimal.
+  Exact-head Android/security CI results are recorded in the validation update.
+  Native Functions emulator workers cannot bind Unix sockets locally (EPERM);
+  a TCP harness exercises the actual onCall HTTP wrappers with Auth/Firestore
+  emulators without replacing authorization or transaction code.
+- Local Android compilation failed resolving Foojay before compilation; use exact
+  head CI. No signed production build, real device or live deployment is claimed.
+  See `VERIFIED_REVIEWS.md`; deploy all review callables/Rules/index together and
+  enforce their presence with the protected production audit before release.
+
+
 ## Job completion and cancellation (2026-10-09)
 
 - Based on canonical main `e287fe08b4044dbc37f9c2219ab350b984107694` (merged

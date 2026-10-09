@@ -23,7 +23,7 @@ HOSTS = {"firebase.googleapis.com", "firebaseappcheck.googleapis.com", "apikeys.
          "identitytoolkit.googleapis.com", "firestore.googleapis.com", "storage.googleapis.com",
          "firebaserules.googleapis.com", "cloudfunctions.googleapis.com"}
 FUNCTIONS = {"getModerationQueue", "reviewReport", "uploadConversationPhoto",
-             "readConversationPhoto", "notifyConversationMessage", "getListingTrust", "manageJob"}
+             "readConversationPhoto", "notifyConversationMessage", "getListingTrust", "manageJob", "submitJobReview", "reportJobReview", "getReviewModerationQueue", "hideJobReview"}
 
 
 class VerificationError(Exception):

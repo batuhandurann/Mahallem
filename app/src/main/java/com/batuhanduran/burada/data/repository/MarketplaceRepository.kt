@@ -337,6 +337,27 @@ class MarketplaceRepository(
                 "acceptedProviderUid" to requireNotNull(quote.getString("providerUid")), "updatedAt" to FieldValue.serverTimestamp()))
         }.awaitRemote()
     }
+    private suspend fun reviewCall(name: String, payload: Map<String, Any>) {
+        requireAccount()
+        val functions = FirebaseFunctions.getInstance(FirebaseServices.app, "europe-west3").apply {
+            if (BuildConfig.USE_FIREBASE_EMULATORS) useEmulator(BuildConfig.EMULATOR_HOST, 5001)
+        }
+        withTimeout(30_000) { functions.getHttpsCallable(name).call(payload).awaitResult() }
+        requireAccount()
+    }
+    suspend fun submitJobReview(requestId: String, rating: Int, comment: String) =
+        reviewCall("submitJobReview", mapOf("requestId" to requestId, "rating" to rating, "comment" to comment))
+    suspend fun reportJobReview(providerId: String, reviewId: String, reason: String) =
+        reviewCall("reportJobReview", mapOf("providerId" to providerId, "reviewId" to reviewId, "reason" to reason))
+    fun getReviewedRequestIds(): Flow<List<String>> = observe(
+        db.collection("jobReviews").whereEqualTo("customerUid", uid)
+    ) { it.id }
+    fun getProviderReviews(providerId: String, limit: Long): Flow<List<com.batuhanduran.burada.data.model.JobReview>> = observe(
+        db.collection("providers").document(providerId).collection("reviews")
+            .orderBy("createdAt", Query.Direction.DESCENDING).limit(limit)
+    ) { com.batuhanduran.burada.data.model.JobReview(it.id, (it.getLong("rating") ?: 0).toInt(),
+        it.getString("comment") ?: "", it.getTimestamp("createdAt")?.toDate()?.time ?: 0, providerId) }
+
     suspend fun rejectQuote(quoteId: String) {
         requireAccount()
         db.collection("quotes").document(quoteId).update(mapOf("status" to "REJECTED",

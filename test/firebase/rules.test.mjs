@@ -492,3 +492,28 @@ test('conversation preview requires a fresh charged message with matching text i
   assert.equal((await getDoc(doc(d,'users/alice/writeBudgets/message'))).data().count,1);
   assert.equal((await getDoc(chat)).data().lastMessage,'Fresh preview');
 });
+
+test('reviews and completion are server-owned; public projection private identity and rating updates protected', async () => {
+  await env.withSecurityRulesDisabled(async c => {
+    await setDoc(doc(c.firestore(),'providers/p/reviews/review'),{rating:2,comment:'Honest review',verifiedJob:true,createdAt:serverTimestamp()});
+    await setDoc(doc(c.firestore(),'jobReviews/r'),{customerUid:'alice',providerUid:'bob',rating:2});
+    await updateDoc(doc(c.firestore(),'providers/p'),{'data.rating':2,'data.reviewCount':1,ratingSum:2});
+  });
+  for (const uid of ['alice','bob','eve']) {
+    await assertSucceeds(getDoc(doc(db(uid),'providers/p/reviews/review')));
+    await assertFails(setDoc(doc(db(uid),'providers/p/reviews/forged'),{rating:5,verifiedJob:true}));
+    await assertFails(updateDoc(doc(db(uid),'providers/p/reviews/review'),{rating:5}));
+    await assertFails(deleteDoc(doc(db(uid),'providers/p/reviews/review')));
+    await assertFails(updateDoc(doc(db(uid),'requests/r'),{'data.status':'COMPLETED',completedByUid:uid,completedAt:serverTimestamp(),updatedAt:serverTimestamp()}));
+  }
+  await assertSucceeds(getDoc(doc(db('alice'),'jobReviews/r')));
+  await assertSucceeds(getDocs(query(collection(db('alice'),'jobReviews'),where('customerUid','==','alice'))));
+  await assertFails(getDoc(doc(db('eve'),'jobReviews/r')));
+  await assertFails(setDoc(doc(db('alice'),'jobReviews/r'),{customerUid:'alice',rating:5}));
+  await assertFails(getDoc(doc(db(null),'providers/p/reviews/review')));
+  await assertFails(updateDoc(doc(db('bob'),'providers/p'),{'data.rating':5,updatedAt:serverTimestamp()}));
+  // Receiving a real rating must not break the owner's existing availability editing.
+  await assertSucceeds(updateDoc(doc(db('bob'),'providers/p'),{'data.isOpenForOffers':false,updatedAt:serverTimestamp()}));
+  await env.withSecurityRulesDisabled(c => updateDoc(doc(c.firestore(),'providers/p'),{visibility:'hidden'}));
+  await assertFails(getDoc(doc(db('eve'),'providers/p/reviews/review')));
+});

@@ -19,19 +19,29 @@ import com.batuhanduran.burada.data.model.*
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import kotlinx.coroutines.delay
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun JobDetailScreen(
     request: JobRequestEntity?, job: JobLifecycle?, events: List<JobEvent>, currentUid: String,
     busy: Boolean, error: String?, onBack: () -> Unit, onRetry: () -> Unit,
-    onAction: (JobAction, Int, String, String) -> Unit
+    onAction: (JobAction, Int, String, String) -> Unit,
+    reviewed: Boolean = false, reviewBusy: Boolean = false,
+    onSubmitReview: (Int, String) -> Unit = { _, _ -> }
 ) {
     BackHandler { onBack() }
     var selectedAction by remember(request?.id) { mutableStateOf<JobAction?>(null) }
     val status = job?.status ?: request?.status.orEmpty()
     val version = job?.version ?: 0
     val visibleEvents = events.filter { it.requestId == request?.id }
+    val confirmation = visibleEvents.firstOrNull { it.action == "CONFIRM_COMPLETION" && it.version == version }
+    var currentTime by remember(request?.id) { mutableLongStateOf(System.currentTimeMillis()) }
+    LaunchedEffect(request?.id, status) {
+        while (status == "COMPLETED") { currentTime = System.currentTimeMillis(); delay(60_000) }
+    }
+    val reviewWindowOpen = confirmation != null && confirmation.createdAt > 0 &&
+        currentTime <= confirmation.createdAt + 30L * 24 * 60 * 60 * 1000
     val customer = request?.ownerUid == currentUid
     val ready = request != null && (job != null || status in listOf("PENDING", "ACCEPTED"))
     val actions = if (ready) availableJobActions(status, customer, job?.cancellationByUid == currentUid) else emptyList()
@@ -68,6 +78,12 @@ fun JobDetailScreen(
                             job?.reasonCode?.takeIf { it.isNotBlank() }?.let { Text("Neden: ${jobCancellationReasons[it] ?: it}") }
                         }
                     }
+                }
+                if (customer && status == "COMPLETED") item {
+                    if (reviewed || reviewWindowOpen)
+                        com.batuhanduran.burada.ui.components.JobReviewActions(request.id, status, reviewed, reviewBusy, onSubmitReview)
+                    else Text(if (confirmation == null) "Değerlendirme hakkınız için işin onay kaydı yükleniyor."
+                        else "30 günlük değerlendirme süresi doldu.")
                 }
                 if (error != null) item {
                     Text(error, color = MaterialTheme.colorScheme.error, modifier = Modifier.testTag("job_action_error"))

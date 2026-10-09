@@ -70,6 +70,9 @@ fun MarketplaceApp(
     val busyJobIds by viewModel.busyJobIds.collectAsStateWithLifecycle()
     val jobErrors by viewModel.jobErrors.collectAsStateWithLifecycle()
     val quotes by viewModel.allQuotes.collectAsStateWithLifecycle()
+    val reviewedRequestIds by viewModel.reviewedRequestIds.collectAsStateWithLifecycle()
+    val reviewBusy by viewModel.reviewBusy.collectAsStateWithLifecycle()
+    val providerReviews by viewModel.providerReviews.collectAsStateWithLifecycle()
     val conversations by viewModel.conversations.collectAsStateWithLifecycle()
     val activeChatMessages by viewModel.activeChatMessages.collectAsStateWithLifecycle()
     val toastMessage by viewModel.toastMessage.collectAsStateWithLifecycle()
@@ -208,8 +211,15 @@ fun MarketplaceApp(
 
                 is ScreenDestination.ProviderDetail -> {
                     val provider = providers.find { it.id == screen.providerId }
+                    DisposableEffect(screen.providerId) {
+                        viewModel.selectReviewProvider(screen.providerId)
+                        onDispose { viewModel.selectReviewProvider(null) }
+                    }
                     ProviderDetailScreen(
                         provider = provider,
+                        reviews = providerReviews.filter { it.providerId == screen.providerId },
+                        onMoreReviews = viewModel::loadMoreReviews,
+                        onReportReview = { id, reason -> viewModel.reportJobReview(screen.providerId, id, reason) },
                         onBackClick = { viewModel.navigateBack() },
                         onFavoriteToggle = { provider?.let { viewModel.toggleFavorite(it) } },
                         onRequestQuoteClick = {
@@ -386,6 +396,8 @@ fun MarketplaceApp(
                     request = (myRequests + assignedRequests).find { it.id == screen.requestId },
                     job = jobLifecycles.find { it.requestId == screen.requestId }, events = jobEvents,
                     currentUid = viewModel.currentUid, busy = screen.requestId in busyJobIds,
+                    reviewed = screen.requestId in reviewedRequestIds, reviewBusy = screen.requestId in reviewBusy,
+                    onSubmitReview = { rating, comment -> viewModel.submitJobReview(screen.requestId, rating, comment) },
                     error = jobErrors[screen.requestId], onBack = { viewModel.navigateBack() },
                     onRetry = { viewModel.retryJobAction(screen.requestId) },
                     onAction = { action, version, note, reason ->
