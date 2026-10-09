@@ -332,6 +332,9 @@ fun MarketplaceApp(
                         onSendMessage = { text, isOffer, price ->
                             viewModel.sendChatMessage(screen.conversationId, text, isOffer, price)
                         },
+                        onSendTextConfirmed = { text ->
+                            viewModel.sendChatTextConfirmed(screen.conversationId, text)
+                        },
                         onSendVoiceNote = { duration ->
                             viewModel.sendVoiceNote(screen.conversationId, duration)
                         },
