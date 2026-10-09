@@ -9,7 +9,8 @@ function mobile(value) {
   return /^\+905\d{9}$/.test(number) ? number : null;
 }
 function phoneMatches(account, contact, profile) {
-  return !!account && !account.disabled && !["REQUESTED", "PURGING"].includes(profile?.deletionStatus)
+  return !!account && !account.disabled && typeof account.uid === "string" && account.uid.length > 0
+    && profile?.uid === account.uid && !["REQUESTED", "PURGING"].includes(profile.deletionStatus)
     && account.providerData?.some(provider => provider.providerId === "phone") === true
     && mobile(account.phoneNumber) !== null && mobile(account.phoneNumber) === mobile(contact);
 }
