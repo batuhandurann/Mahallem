@@ -4,12 +4,14 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.batuhanduran.burada.auth.AuthValidation
@@ -54,7 +56,7 @@ fun AccountManagementScreen(model: AccountManagementViewModel,providers: List<Se
                 OutlinedButton(onClick = { model.openListing("requests",listing.id) },enabled = !state.busy,modifier = Modifier.fillMaxWidth().testTag("manage_request_${listing.id}")) { Text("Talep • ${listing.title}") }
             }
             item { HorizontalDivider(); Text("Veri ve gizlilik",style = MaterialTheme.typography.titleLarge) }
-            item { Text("Hesabını silmek geri alınamaz. İlanların, özel profilin, iletişim bilgilerin ve sana ait sohbet içerikleri kaldırılır. Karşı tarafın mesajları ve güvenlik inceleme kayıtları korunabilir. Devam eden anlaşmalar önce sonuçlandırılmalıdır.") }
+            item { Text("Hesabını silmek geri alınamaz. İlanların, özel profilin, iletişim bilgilerin ve sana ait sohbet içerikleri kaldırılır. Tamamlanan işlerin asgari işlem kayıtları, karşı tarafın mesajları ve güvenlik inceleme kayıtları korunabilir. Devam eden anlaşmalar önce sonuçlandırılmalıdır.") }
             item { TextButton(onClick = { deleteDialog = true },enabled = !state.busy,modifier = Modifier.testTag("open_account_deletion")) { Text("Hesabımı sil",color = MaterialTheme.colorScheme.error) } }
         }
     }
@@ -66,7 +68,8 @@ fun AccountManagementScreen(model: AccountManagementViewModel,providers: List<Se
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text("Onaylandıktan sonra oturumun kapanır ve sunucudaki silme işlemi başlar. Bu işlem geri alınamaz.")
                 OutlinedTextField(password,{ password = it },label = { Text("Mevcut şifren") },enabled = !state.busy,
-                    visualTransformation = PasswordVisualTransformation(),modifier = Modifier.testTag("delete_account_password"))
+                    visualTransformation = PasswordVisualTransformation(),keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                    singleLine = true,modifier = Modifier.testTag("delete_account_password"))
                 OutlinedTextField(confirmation,{ confirmation = it },label = { Text("HESABIMI SİL yaz") },enabled = !state.busy,modifier = Modifier.testTag("delete_account_confirmation"))
                 state.error?.let { Text(it,color = MaterialTheme.colorScheme.error) }
             }

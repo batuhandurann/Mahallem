@@ -18,6 +18,7 @@ const callableOptions = { region: "europe-west3", enforceAppCheck: process.env.F
   maxInstances: 5, concurrency: 2 };
 
 Object.assign(exports, require("./account-management")(db, DATABASE, callableOptions, reserve));
+exports.manageJob = onCall(callableOptions, require("./job-handler").createJobHandler({ db, auth: getAuth(), reserve }));
 
 // No client-controlled trust booleans, phone numbers or owner UIDs are accepted.
 // Return only a boolean for visible listings; private contact values never leave the server.

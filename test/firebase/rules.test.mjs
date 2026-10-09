@@ -48,6 +48,31 @@ beforeEach(async () => {
   });
 });
 after(async () => env?.cleanup());
+test('job state and events are participant-private and never client writable; closed requests remain available to parties', async () => {
+  await env.withSecurityRulesDisabled(async c => {
+    const d = c.firestore();
+    await setDoc(doc(d, 'jobs/r'), { participantUids: ['alice','bob'], status: 'COMPLETED', version: 1 });
+    await setDoc(doc(d, 'jobs/r/events/e'), { action: 'CONFIRM_COMPLETION', note: 'Private work note' });
+    await updateDoc(doc(d, 'requests/r'), { visibility: 'closed', acceptedProviderUid: 'bob', 'data.status': 'COMPLETED' });
+  });
+  for (const uid of ['alice', 'bob']) {
+    const d = db(uid);
+    await assertSucceeds(getDoc(doc(d, 'jobs/r')));
+    await assertSucceeds(getDocs(query(collection(d, 'jobs'), where('participantUids', 'array-contains', uid))));
+    await assertSucceeds(getDocs(collection(d, 'jobs/r/events')));
+    await assertSucceeds(getDoc(doc(d, 'requests/r')));
+    await assertFails(updateDoc(doc(d, 'jobs/r'), { status: 'ACCEPTED' }));
+    await assertFails(deleteDoc(doc(d, 'jobs/r/events/e')));
+    await assertFails(setDoc(doc(d, 'jobs/fake'), { participantUids: [uid], status: 'COMPLETED' }));
+    await assertFails(setDoc(doc(d, 'jobs/r/events/fake'), { action: 'CONFIRM_COMPLETION' }));
+    await assertFails(updateDoc(doc(d, 'requests/r'), { 'data.status': 'ACCEPTED', updatedAt: serverTimestamp() }));
+  }
+  for (const uid of ['eve', null]) {
+    await assertFails(getDoc(doc(db(uid), 'jobs/r')));
+    await assertFails(getDocs(collection(db(uid), 'jobs/r/events')));
+    await assertFails(getDoc(doc(db(uid), 'requests/r')));
+  }
+});
 test('urgent request uses real date/time; malformed calendars, times and blank titles denied', async () => {
   const d = db('alice');
   await assertSucceeds(budgetedSet(doc(d,'requests/urgent'),request({id:'urgent',urgencyMode:'EMERGENCY'})));

@@ -25,11 +25,61 @@ fetch current remote state because other sessions may advance the repository.
   Added actual Android listing edit/removal and archived quote UI regressions.
   Local Functions runtime could not bind Unix sockets (EPERM); use CI callable
   evidence. Do not claim physical-device or production success.
+- Integrated current main `30da563` / PR #75 without reverting job lifecycle
+  features. Job commands now check persistent deletion tombstones; worker redacts
+  own terminal-job notes with checkpointed event pages, preserving counterpart
+  notes and minimal shared audit state. Added actual completion/cancellation
+  followed by deletion integration regressions. Combined backend 24/24 passed;
+  Rules/configuration and complete Android/callable CI must verify this merge.
 - Product scope, primary reference URLs, privacy boundaries and coordinated
-  rollout: PROFILE_ACCOUNT_MANAGEMENT.md. Pending job/review feature branches
-  still require combined retention and concurrency validation before release.
+  rollout: PROFILE_ACCOUNT_MANAGEMENT.md. Pending reviews still require separate
+  retention and integration validation before release.
 - Next: verify final commit CI before marking ready. No
   production deployment, signed release or real-account deletion performed.
+
+## Job completion and cancellation (2026-10-09)
+
+- Based on canonical main `e287fe08b4044dbc37f9c2219ab350b984107694` (merged
+  phone isolation PR #71). Reviewed Armut, Fiverr and Upwork official material;
+  chosen local-service policy is documented in `JOB_LIFECYCLE.md`.
+- Integrated newly merged main `8042ff209c3be84c44de74a8b99fe63c39a9cba9`
+  (PR #74) without reverting its report authority or release/device checks.
+- Added provider start/completion submission, customer confirmation/revision,
+  owner cancellation before selection and mutual accepted-job cancellation
+  with accept/decline/withdraw and restoration of the prior active state.
+- `manageJob` derives roles from authoritative request/quote records, enforces
+  App Check/current account revocation, UID quotas, exact versions, idempotent
+  command retries and atomic request/private state/append-only event updates.
+  Terminal jobs close discovery but preserve participant access. Private notes
+  and reasons never enter public listings. Direct client state/history writes
+  and payment-bearing lifecycle bypasses are denied.
+- Integrated My Requests -> Job Detail and Provider Dashboard -> My Jobs,
+  filters, role-specific controls, confirmation, reason/explanation validation,
+  busy/error/retry states and private timeline. Removed misleading acceptance
+  guarantee/receipt claims from the changed quote card.
+- Local backend policy/security unit tests 18/18 passed and syntax checks passed.
+  Updated production audit requires `manageJob`; merged configuration/device
+  fixture suite 59/59 passed (not a live Cloud verification).
+  Local Gradle cannot download its distribution (network unreachable), so this
+  is not Android build evidence. Local emulator execution requires JDK 21;
+  this environment has JDK 17 and no Android SDK. New Rules, real callable,
+  Android SDK and Compose tests are committed for real GitHub CI execution.
+- CI source `630f238a`: debug build/unit/lint, clean unsigned release, backend
+  18/18, Auth/Rules 45/45, trusted integration 8/8 and both CodeQL languages /
+  secret scan passed. Android ran 27 tests: 26 passed, one failed because the
+  Functions SDK's IID context rejected `fake-emulator-key` syntax before sending
+  the job callable. Emulator-only options now use an explicitly nonfunctional
+  39-character SDK-compatible placeholder; production options are unchanged.
+- Corrected an incomplete GitHub source-tree transfer after the emulator key
+  fix: restored all 188 tracked files, verified against local Git tree
+  `a0fd55486fe38fa41e879587ef912a2d6becc66b`, source commit `e98732b`.
+  Fresh Android/security CI is required for the restored source; the earlier
+  partial-tree commit is not build evidence.
+- PR #75 records the current CI outcome; merge only after required checks pass.
+  Production needs protected
+  Rules + trusted-backend deployment and real-device App Check verification.
+  Payments/refunds, job-specific push, staffed disputes and reviews are separate
+  work; no automatic completion/cancellation timeout or financial claims added.
 
 ## Report authority and production/device compatibility (2026-10-09)
 

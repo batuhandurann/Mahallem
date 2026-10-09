@@ -24,7 +24,7 @@ HOSTS = {"firebase.googleapis.com", "firebaseappcheck.googleapis.com", "apikeys.
          "firebaserules.googleapis.com", "cloudfunctions.googleapis.com"}
 FUNCTIONS = {"getModerationQueue", "reviewReport", "uploadConversationPhoto",
              "readConversationPhoto", "notifyConversationMessage", "getListingTrust", "getAccountProfile", "updateAccountProfile",
-             "getListingManagement", "manageListing", "requestAccountDeletion", "purgeDeletedAccount", "purgeDeletedAccountPhoto"}
+             "getListingManagement", "manageListing", "requestAccountDeletion", "purgeDeletedAccount", "purgeDeletedAccountPhoto", "manageJob"}
 
 
 class VerificationError(Exception):

@@ -35,7 +35,8 @@ fun ProviderDashboardScreen(
     onBackClick: () -> Unit,
     onToggleOffers: (providerId: String, currentStatus: Boolean) -> Unit,
     onToggleCalendarDate: (provider: ServiceProviderEntity, dateIso: String) -> Unit,
-    onSubmitQuote: (requestId: String, provider: ServiceProviderEntity, price: String, arrival: String, notes: String) -> Unit
+    onSubmitQuote: (requestId: String, provider: ServiceProviderEntity, price: String, arrival: String, notes: String) -> Unit,
+    onOpenMyJobs: () -> Unit = {}
 ) {
     BackHandler { onBackClick() }
 
@@ -65,6 +66,7 @@ fun ProviderDashboardScreen(
                         Icon(imageVector = Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Geri")
                     }
                 },
+                actions = { TextButton(onClick = onOpenMyJobs, modifier = Modifier.testTag("btn_my_jobs")) { Text("İşlerim") } },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.surface)
             )
         }

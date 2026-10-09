@@ -1,6 +1,7 @@
 import {test,before,after} from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
+import {randomUUID} from 'node:crypto';
 import {createRequire} from 'node:module';
 import {initializeApp,deleteApp} from 'firebase/app';
 import {getAuth,connectAuthEmulator,createUserWithEmailAndPassword} from 'firebase/auth';
@@ -66,6 +67,10 @@ test('actual deletion trigger purges Auth/private data/own media while preservin
   await db.doc(`users/${leaving.uid}`).set({uid:leaving.uid,displayName:'Leaving',email:'private@example.com'});
   await db.doc(`users/${leaving.uid}/devices/device`).set({token:'sensitive-token'});
   await db.doc(`users/${leaving.uid}/favorites/p`).set({});
+  const cancelledId=`cancel-${leaving.uid}`;
+  await db.doc(`requests/${cancelledId}`).set(listing('requests',cancelledId,leaving.uid,{status:'PENDING',escrowStatus:'NONE',escrowAmount:''}));
+  const cancelled=await call('manageJob',leaving,{requestId:cancelledId,actionId:randomUUID(),action:'CANCEL_OPEN',version:0,note:'Private cancellation explanation',reasonCode:'OTHER'});
+  assert.equal(cancelled.status,200,JSON.stringify(cancelled.body));
   await db.doc(`providers/${id}`).set(listing('providers',id,leaving.uid));
   await db.doc(`providerContacts/${id}`).set({ownerUid:leaving.uid,phone:'+905551234567'});
   const convo=db.doc(`conversations/${id}`);
@@ -84,6 +89,10 @@ test('actual deletion trigger purges Auth/private data/own media while preservin
   for(const p of [`users/${leaving.uid}`,`users/${leaving.uid}/devices/device`,`providers/${id}`,`providerContacts/${id}`,`conversations/${id}/messages/mine`,`conversations/${id}/media/media`])assert.equal((await db.doc(p).get()).exists,false,p);
   assert.equal((await convo.collection('messages').doc('theirs').get()).data().data.text,'Keep');
   assert.equal((await convo.get()).data().names[leaving.uid],'Silinmiş hesap');
+  const retainedJob=(await db.doc(`jobs/${cancelledId}`).get()).data();
+  assert.equal(retainedJob.status,'CANCELLED');assert.equal(retainedJob.note,'');assert.equal(retainedJob.privacyRedacted,true);
+  const retainedEvent=(await db.collection(`jobs/${cancelledId}/events`).get()).docs[0].data();
+  assert.equal(retainedEvent.note,'');assert.equal(retainedEvent.privacyRedacted,true);
   assert.equal((await getStorage(admin).bucket().file(path).exists())[0],false);
   await assert.rejects(adminAuth(admin).getUser(leaving.uid),e=>e.code==='auth/user-not-found');
   assert.ok(await adminAuth(admin).getUser(other.uid));
@@ -94,4 +103,34 @@ test('actual deletion trigger purges Auth/private data/own media while preservin
   while((await getStorage(admin).bucket().file(late).exists())[0] && Date.now()<lateDeadline) await new Promise(r=>setTimeout(r,500));
   assert.equal((await getStorage(admin).bucket().file(late).exists())[0],false);
 
+});
+test('actual job completion unlocks provider deletion and redacts only its shared history notes',async()=>{
+  const leaving=await account('completed-provider'),id=`terminal-${leaving.uid}`,quoteId=`terminal-quote-${leaving.uid}`;
+  await db.doc(`requests/${id}`).set({...listing('requests',id,other.uid,{status:'ACCEPTED',escrowStatus:'NONE',escrowAmount:''}),acceptedQuoteId:quoteId,acceptedProviderUid:leaving.uid});
+  await db.doc(`quotes/${quoteId}`).set({providerUid:leaving.uid,customerUid:other.uid,requestId:id,status:'ACCEPTED',data:{...f.quote,escrowFunded:false}});
+  assert.equal((await call('requestAccountDeletion',leaving,{confirmation:'HESABIMI SİL'})).status,400);
+  const commands=[
+    [leaving,'SUBMIT_COMPLETION',0,'Provider private completion details'],
+    [other,'REQUEST_REVISION',1,'Counterpart details remain available'],
+    [leaving,'SUBMIT_COMPLETION',2,'Provider second private completion note'],
+    [other,'CONFIRM_COMPLETION',3,'']
+  ];
+  for(const [actor,action,version,note] of commands) {
+    const result=await call('manageJob',actor,{requestId:id,actionId:randomUUID(),action,version,note,reasonCode:''});
+    assert.equal(result.status,200,JSON.stringify(result.body));
+  }
+  assert.equal((await db.doc(`jobs/${id}`).get()).data().status,'COMPLETED');
+  assert.equal((await call('requestAccountDeletion',leaving,{confirmation:'HESABIMI SİL'})).status,200);
+  const deadline=Date.now()+90_000;
+  while((await db.doc(`_accountDeletions/${leaving.uid}`).get()).data()?.status!=='COMPLETED' && Date.now()<deadline)await new Promise(r=>setTimeout(r,500));
+  assert.equal((await db.doc(`_accountDeletions/${leaving.uid}`).get()).data().status,'COMPLETED');
+  const events=await db.collection(`jobs/${id}/events`).get();
+  assert.equal(events.size,4);
+  for(const event of events.docs.filter(d=>d.data().actorUid===leaving.uid)) {
+    assert.equal(event.data().note,'');assert.equal(event.data().privacyRedacted,true);
+  }
+  assert.equal(events.docs.find(d=>d.data().version===2).data().note,'Counterpart details remain available');
+  assert.equal((await db.doc(`requests/${id}`).get()).exists,true);
+  assert.equal((await db.doc(`quotes/${quoteId}`).get()).exists,false);
+  assert.equal((await call('manageJob',leaving,{requestId:id,actionId:randomUUID(),action:'START',version:4,note:'',reasonCode:''})).status,403);
 });

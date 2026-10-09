@@ -149,6 +149,35 @@ module.exports=function install(db,database,options,reserve) {
         await jobRef.update({conversationCursor:cursor,lastProgressAt:FieldValue.serverTimestamp()});
       }
     }
+    // Terminal shared job evidence stays available to the other participant.
+    // Remove the leaving actor's free text while retaining minimal audit metadata.
+    let jobCursor=(await jobRef.get()).data()?.jobCursor || "";
+    while(true) {
+      let query=db.collection("jobs").where("participantUids","array-contains",uid).orderBy(FieldPath.documentId()).limit(100);
+      if(jobCursor) query=query.startAfter(jobCursor);
+      const page=await query.get();
+      if(page.empty) break;
+      for(const job of page.docs) {
+        const progress=(await jobRef.get()).data();
+        let eventCursor=progress.jobEventJob===job.id ? progress.jobEventCursor || "" : "";
+        while(true) {
+          let eventsQuery=job.ref.collection("events").where("actorUid","==",uid).orderBy(FieldPath.documentId()).limit(100);
+          if(eventCursor) eventsQuery=eventsQuery.startAfter(eventCursor);
+          const events=await eventsQuery.get();
+          if(events.empty) break;
+          const batch=db.batch();
+          for(const event of events.docs) {
+            batch.update(event.ref,{note:"",privacyRedacted:true});
+            if(event.data().version===job.data().version) batch.update(job.ref,{note:"",privacyRedacted:true});
+            eventCursor=event.id;
+          }
+          batch.update(jobRef,{jobEventJob:job.id,jobEventCursor:eventCursor,lastProgressAt:FieldValue.serverTimestamp()});
+          await batch.commit();
+        }
+        jobCursor=job.id;
+        await jobRef.update({jobCursor,jobEventJob:FieldValue.delete(),jobEventCursor:FieldValue.delete(),lastProgressAt:FieldValue.serverTimestamp()});
+      }
+    }
     await db.recursiveDelete(db.doc(`users/${uid}`));
     await getAuth().deleteUser(uid).catch(e=>{if(e.code!=="auth/user-not-found") throw e;});
     await jobRef.update({status:"COMPLETED",completedAt:FieldValue.serverTimestamp()});

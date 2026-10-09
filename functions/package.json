@@ -7,7 +7,7 @@
   },
   "scripts": {
     "test": "node --test test/*.test.js",
-    "lint": "node --check index.js && node --check policy.js && node --check trust-policy.js && node --check account-policy.js && node --check account-management.js"
+    "lint": "node --check index.js && node --check policy.js && node --check trust-policy.js && node --check account-policy.js && node --check account-management.js && node --check job-policy.js && node --check job-handler.js"
   },
   "dependencies": {
     "firebase-admin": "14.5.0",

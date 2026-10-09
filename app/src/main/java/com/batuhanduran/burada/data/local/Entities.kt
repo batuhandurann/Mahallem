@@ -54,7 +54,7 @@ data class JobRequestEntity(
     val eventOrJobDate: String,
     val eventTime: String,
     val address: String,
-    val status: String, // PENDING, QUOTED, ACCEPTED, COMPLETED
+    val status: String, // PENDING, ACCEPTED, IN_PROGRESS, AWAITING_CONFIRMATION, CANCELLATION_REQUESTED, COMPLETED, CANCELLED
     val customerName: String,
     val customerPhone: String,
     val phoneVerified: Boolean = false,

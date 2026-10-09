@@ -1,7 +1,7 @@
 # Yakıno profile and account lifecycle
 
-Base: main 8042ff209c3be84c44de74a8b99fe63c39a9cba9. Android/Firebase identity
-is unchanged. This branch does not merge unrelated pending feature branches.
+Base: main 8042ff209c3be84c44de74a8b99fe63c39a9cba9, subsequently integrated
+main's merged job lifecycle (PR #75, 30da563). Android/Firebase identity is unchanged.
 
 ## Product references (2026-10-09)
 
@@ -35,6 +35,10 @@ https://support.taskrabbit.com/hc/en-gb/articles/46260446684571
   subcollections. Other accounts/messages remain; shared names/previews anonymize.
   Late photo commits check the tombstone transactionally. A retry-enabled Storage
   finalization trigger erases late objects even after a process crash or completed purge.
+- Job commands read persistent actor/counterpart tombstones in the transaction.
+  Completed/cancelled shared job records retain minimal state/role/UID/version/time
+  evidence. The deleting actor's event notes and last job note are redacted;
+  counterpart notes remain. Batched cleanup checkpoints both jobs and event pages.
 
 ## Data retention and limits
 
@@ -44,9 +48,9 @@ No promise is made to purge every forensic record. Production retention wording
 and operational review remain necessary. Account freezing, export, avatar upload,
 email change and listing contact/location editing are outside this batch.
 
-Pending job/reviews branches require integration validation before combined
-release: terminal jobs/events and anonymous reviews need a defined retention
-policy; do not claim their cleanup is covered by this main-based implementation.
+The merged job lifecycle is covered by actual completion/cancellation followed
+by deletion regressions. The pending reviews branch still requires a separate
+combined retention policy and integration validation before release.
 
 ## Release
 
@@ -54,7 +58,7 @@ Deploy Rules and trusted Functions together before shipping the Android screen.
 New App Check enforced callables: getAccountProfile, updateAccountProfile,
 getListingManagement, manageListing, requestAccountDeletion. New named-database
 retry trigger: purgeDeletedAccount; Storage retry trigger: purgeDeletedAccountPhoto.
-Production verifier checks all seven and the exact Storage bucket.
+Production verifier checks all seven, manageJob and the exact Storage bucket.
 Existing Admin Auth/Firestore/Storage service permissions are required.
 Monitor _accountDeletions jobs stuck REQUESTED/PURGING and retry failures; shared
 conversation cleanup is paginated and checkpoints progress for timeout retries.
