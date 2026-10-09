@@ -117,6 +117,25 @@ test('quote requires owned provider, correct customer and open request',async()=
   await assertFails(budgetedSet(doc(db('bob'),'quotes/forged'),quote({data:{...f.quote,id:'forged',providerId:'missing'}})));
   await assertFails(updateDoc(doc(db('bob'),'quotes/q'),{status:'ACCEPTED',updatedAt:serverTimestamp()}));
 });
+test('provider quote prices and arrival promises are enforced in Firestore Rules', async () => {
+  const d = db('bob');
+  for (const [index, price] of ['1.250,50 TL', '0,50 ₺', '1000', '75,5'].entries()) {
+    const id = `valid-quote-${index}`;
+    await assertSucceeds(budgetedSet(doc(d, `quotes/${id}`),
+      quote({data:{...f.quote,id,price,durationOrArrival:'Yarın 14.00'}})));
+  }
+  for (const badPrice of ['', ' ', '0', '0,00 TL', '-100', '1abc2', '1.2.3',
+    '12 TL ekstra', '4.000.000.000', '1e4', '99,999', '00,50', '1000000000']) {
+    await assertFails(budgetedSet(doc(d,'quotes/invalid'),
+      quote({data:{...f.quote,id:'invalid',price:badPrice,durationOrArrival:'Yarın'}})));
+  }
+  for (const durationOrArrival of ['', '   ', 'a'.repeat(121)]) {
+    await assertFails(budgetedSet(doc(d,'quotes/invalid'),
+      quote({data:{...f.quote,id:'invalid',price:'150 TL',durationOrArrival}})));
+  }
+  await assertFails(budgetedSet(doc(d,'quotes/invalid'),
+    quote({data:{...f.quote,id:'invalid',price:'150 TL',durationOrArrival:'Yarın',notes:'x'.repeat(1001)}})));
+});
 async function accept(d,q='q'){
   const b=writeBatch(d);b.update(doc(d,`quotes/${q}`),{status:'ACCEPTED',updatedAt:serverTimestamp()});
   b.update(doc(d,'requests/r'),{'data.status':'ACCEPTED',acceptedQuoteId:q,acceptedProviderUid:'bob',updatedAt:serverTimestamp()});
