@@ -39,6 +39,9 @@ https://support.taskrabbit.com/hc/en-gb/articles/46260446684571
   Completed/cancelled shared job records retain minimal state/role/UID/version/time
   evidence. The deleting actor's event notes and last job note are redacted;
   counterpart notes remain. Batched cleanup checkpoints both jobs and event pages.
+- Existing trusted media, trust and moderation endpoints also consult the
+  persistent tombstone. New uploads are blocked if either participant is deleting;
+  the active counterpart can still read its retained media history.
 
 ## Data retention and limits
 

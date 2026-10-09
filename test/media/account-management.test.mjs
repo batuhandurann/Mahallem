@@ -81,6 +81,9 @@ test('actual deletion trigger purges Auth/private data/own media while preservin
   const path=`conversationMedia/${id}/${leaving.uid}/media.jpg`;
   await getStorage(admin).bucket().file(path).save(Buffer.from('private-photo'));
   await convo.collection('media').doc('media').set({uploaderUid:leaving.uid,storagePath:path});
+  const otherPath=`conversationMedia/${id}/${other.uid}/retained.jpg`;
+  await getStorage(admin).bucket().file(otherPath).save(Buffer.from('keep-other-media'),{metadata:{contentType:'image/jpeg'}});
+  await convo.collection('media').doc('retained').set({uploaderUid:other.uid,storagePath:otherPath});
   assert.equal((await call('requestAccountDeletion',leaving,{confirmation:'WRONG'})).status,400);
   const started=await call('requestAccountDeletion',leaving,{confirmation:'HESABIMI SİL'});assert.equal(started.status,200,JSON.stringify(started.body));
   assert.equal(started.result.status,'REQUESTED');assert.equal((await call('getAccountProfile',leaving,{})).status,403);
@@ -95,6 +98,11 @@ test('actual deletion trigger purges Auth/private data/own media while preservin
   const retainedEvent=(await db.collection(`jobs/${cancelledId}/events`).get()).docs[0].data();
   assert.equal(retainedEvent.note,'');assert.equal(retainedEvent.privacyRedacted,true);
   assert.equal((await getStorage(admin).bucket().file(path).exists())[0],false);
+  assert.equal((await getStorage(admin).bucket().file(otherPath).exists())[0],true);
+  assert.equal((await call('readConversationPhoto',other,{conversationId:id,mediaId:'retained'})).status,200);
+  assert.equal((await call('uploadConversationPhoto',other,{conversationId:id,base64:'aGVsbG8='})).status,403);
+  assert.equal((await call('readConversationPhoto',leaving,{conversationId:id,mediaId:'retained'})).status,403);
+  assert.equal((await call('getListingTrust',leaving,{kind:'providers',ids:[id]})).status,403);
   await assert.rejects(adminAuth(admin).getUser(leaving.uid),e=>e.code==='auth/user-not-found');
   assert.ok(await adminAuth(admin).getUser(other.uid));
   // Simulate a trusted upload finishing after the durable purge is already complete.

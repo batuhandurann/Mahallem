@@ -34,6 +34,10 @@ fetch current remote state because other sessions may advance the repository.
   followed by deletion integration regressions. Combined backend 24/24,
   Rules 49/49 and Python configuration 60/60 passed locally. Complete Android
   and actual callable/trigger CI must verify the final source.
+- Existing photo/trust/moderation callables now check persistent tombstones too;
+  photo registration reads both participant tombstones transactionally. Regression
+  verifies counterpart media survives/readable while new uploads and old deleted
+  account tokens fail closed.
 - Product scope, primary reference URLs, privacy boundaries and coordinated
   rollout: PROFILE_ACCOUNT_MANAGEMENT.md. Pending reviews still require separate
   retention and integration validation before release.
