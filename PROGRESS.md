@@ -3,6 +3,36 @@
 Updated: 2026-10-08 (Europe/Istanbul). Read `AGENTS.md` and git status before work;
 fetch current remote state because other sessions may advance the repository.
 
+## Logout/calendar follow-up (2026-10-08)
+
+- PR #45 merged normally into main `40e095f6c3f66592d780614f8870608548b4cd54`;
+  its final Android Quality #138 and Security #596 required checks passed.
+- Follow-up on that main: logout's push cleanup exception previously escaped the
+  UI coroutine despite its `finally` signing out. Added bounded best-effort
+  cleanup; cancellation still propagates and the original UID guard protects a
+  replacement account. Session data continues to clear before remote cleanup.
+- Calendar validation now uses UTC for date-only parsing. Device zones with
+  skipped days/midnights must not reject otherwise valid Gregorian dates that
+  Firestore accepts. Submission-time date/time still use the device's local zone.
+- Added unit regressions for successful/failed/hanging/cancelled cleanup,
+  replacement-account protection, and Pacific/Apia + America/Sao_Paulo dates.
+- Application source `12450c5f0d44ebfcea2ee5022e446a17e34eef29` in
+  [PR #49](https://github.com/batuhandurann/Mahallem/pull/49) passed Android Quality
+  [#155](https://github.com/batuhandurann/Mahallem/actions/runs/37822569191) and
+  Security [#603](https://github.com/batuhandurann/Mahallem/actions/runs/37822569511).
+  New unit regressions, full unit/lint, debug APK, clean unsigned release APK/AAB,
+  backend/Auth/Rules/media and all required aliases passed. All 14 Android
+  instrumentation tests and foreground/rotation/process-death/cold-relaunch
+  smoke passed; both CodeQL languages and secret scan passed. Artifacts exist.
+  Local Android execution remains unverified: wrapper download is network-blocked
+  and offline Gradle lacks the foojay resolver plugin. CI is the test evidence.
+  Main subsequently advanced to `887acb5` with atomic per-UID write budgets.
+  The combined follow-up preserves those changes and must pass its own final-head
+  checks before merge; the earlier CI is evidence only for the stated source.
+- Physical-device and production Firebase checks remain unavailable. Next:
+  complete the follow-up PR checks normally, then use protected real inputs for
+  the existing production/physical-device plan.
+
 ## Direct content write abuse follow-up (2026-10-08)
 
 - Started from current main `40e095f6c3f66592d780614f8870608548b4cd54`.
