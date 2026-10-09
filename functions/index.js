@@ -17,19 +17,24 @@ const db = getFirestore(DATABASE);
 const callableOptions = { region: "europe-west3", enforceAppCheck: process.env.FUNCTIONS_EMULATOR !== "true", memory: "512MiB", timeoutSeconds: 60,
   maxInstances: 5, concurrency: 2 };
 
+Object.assign(exports, require("./account-management")(db, DATABASE, callableOptions, reserve));
 exports.manageJob = onCall(callableOptions, require("./job-handler").createJobHandler({ db, auth: getAuth(), reserve }));
+
+async function requireActiveAccount(uid) {
+  const [user, profile, deletion] = await Promise.all([
+    getAuth().getUser(uid).catch(error => { if (error.code === "auth/user-not-found") return null; throw error; }),
+    db.doc(`users/${uid}`).get(), db.doc(`_accountDeletions/${uid}`).get()
+  ]);
+  if (!user || user.disabled || deletion.exists || ["REQUESTED", "PURGING"].includes(profile.data()?.deletionStatus))
+    throw new HttpsError("permission-denied", "Hesap etkin değil.");
+  return user;
+}
 
 // No client-controlled trust booleans, phone numbers or owner UIDs are accepted.
 // Return only a boolean for visible listings; private contact values never leave the server.
 exports.getListingTrust = onCall(callableOptions, async request => {
   if (!request.auth) throw new HttpsError("unauthenticated", "Giriş yapın.");
-  const viewer = await getAuth().getUser(request.auth.uid).catch(error => {
-    if (error.code === "auth/user-not-found") return null;
-    throw error;
-  });
-  const viewerProfile = (await db.doc(`users/${request.auth.uid}`).get()).data();
-  if (!viewer || viewer.disabled || ["REQUESTED", "PURGING"].includes(viewerProfile?.deletionStatus))
-    throw new HttpsError("permission-denied", "Hesap etkin değil.");
+  await requireActiveAccount(request.auth.uid);
   const { listingTargets, phoneMatches } = require("./trust-policy");
   let targets;
   try { targets = listingTargets(request.data); }
@@ -49,14 +54,14 @@ exports.getListingTrust = onCall(callableOptions, async request => {
       getAuth().getUser(ownerUid).catch(error => {
         if (error.code === "auth/user-not-found") return null;
         throw error;
-      }), db.doc(`users/${ownerUid}`).get()
+      }), db.doc(`users/${ownerUid}`).get(), db.doc(`_accountDeletions/${ownerUid}`).get()
     ]));
-    const [account, profile] = await owners.get(ownerUid);
+    const [account, profile, deletion] = await owners.get(ownerUid);
     const contact = (await db.doc(`${contacts}/${listing.id}`).get()).data();
     // Re-check visibility before releasing evidence if moderation changed during the lookup.
     const current = (await listing.ref.get()).data();
     if (!current || current.ownerUid !== ownerUid || (current.visibility !== "published" && ownerUid !== request.auth.uid)) continue;
-    results[listing.id] = { phoneVerified: contact?.ownerUid === ownerUid
+    results[listing.id] = { phoneVerified: !deletion.exists && contact?.ownerUid === ownerUid
       && phoneMatches(account, contact.phone, profile.data()) === true };
   }
   return { listings: results };
@@ -66,7 +71,7 @@ async function requireModerator(request) {
   if (!request.auth) throw new HttpsError("unauthenticated", "Giriş yapın.");
   if (request.auth.token.moderator !== true) throw new HttpsError("permission-denied", "Moderatör yetkisi gerekli.");
   // A revoked moderator must not retain access until an old ID token expires.
-  const user = await getAuth().getUser(request.auth.uid);
+  const user = await requireActiveAccount(request.auth.uid);
   if (user.disabled || user.customClaims?.moderator !== true)
     throw new HttpsError("permission-denied", "Moderatör yetkisi gerekli.");
   return request.auth.uid;
@@ -95,6 +100,8 @@ exports.reviewReport = onCall(callableOptions, async request => {
     throw new HttpsError("invalid-argument", "İşlem ve 3–2000 karakter inceleme notu gerekli.");
   const ref = db.doc(`reports/${reportId}`);
   await db.runTransaction(async tx => {
+    if ((await tx.get(db.doc(`_accountDeletions/${moderatorUid}`))).exists)
+      throw new HttpsError("permission-denied", "Hesap silinme sürecinde.");
     const snapshot = await tx.get(ref);
     if (!snapshot.exists) throw new HttpsError("not-found", "Rapor bulunamadı.");
     const report = snapshot.data();
@@ -120,7 +127,7 @@ async function blocked(a, b) {
   return docs.some(doc => doc.exists);
 }
 
-async function authorizeConversation(request) {
+async function authorizeConversation(request, writing = false) {
   if (!request.auth) throw new HttpsError("unauthenticated", "Giriş yapın.");
   let conversationId;
   try { conversationId = segment(request.data?.conversationId); } catch { throw new HttpsError("invalid-argument", "Geçersiz sohbet."); }
@@ -131,12 +138,10 @@ async function authorizeConversation(request) {
   if (!ids.includes(uid) || await blocked(ids[0], ids[1])) throw new HttpsError("permission-denied", "Sohbete erişilemiyor.");
   // Do not trust a cached ID token after account disablement or deletion request.
   // Server-side ACL checks are safe here because Storage client reads are denied.
-  const authUser = await getAuth().getUser(uid).catch(() => null);
-  if (!authUser || authUser.disabled) throw new HttpsError("permission-denied", "Hesap etkin değil.");
-  const profile = (await db.doc(`users/${uid}`).get()).data();
-  if (["REQUESTED", "PURGING"].includes(profile?.deletionStatus))
-    throw new HttpsError("permission-denied", "Hesap silinme sürecinde.");
-  return { conversationId, uid };
+  await requireActiveAccount(uid);
+  if (writing && (await db.getAll(...ids.map(id => db.doc(`_accountDeletions/${id}`)))).some(doc => doc.exists))
+    throw new HttpsError("permission-denied", "Silinmiş hesapla yeni paylaşım yapılamaz.");
+  return { conversationId, uid, ids };
 }
 
 // Per-UID atomic budget; rejected malformed payloads never reach Storage. Reserving
@@ -154,7 +159,7 @@ async function reserve(uid, operation, limit, seconds) {
 }
 
 exports.uploadConversationPhoto = onCall(callableOptions, async request => {
-  const { conversationId, uid } = await authorizeConversation(request);
+  const { conversationId, uid, ids } = await authorizeConversation(request, true);
   let input;
   try { input = photoBytes(request.data?.base64); } catch { throw new HttpsError("invalid-argument", "En fazla 5 MB fotoğraf yükleyin."); }
   await reserve(uid, "photoUpload", 30, 86400);
@@ -170,15 +175,19 @@ exports.uploadConversationPhoto = onCall(callableOptions, async request => {
     if (image.length > MAX_PHOTO_BYTES) throw new Error("Oversized photo");
   } catch { throw new HttpsError("invalid-argument", "Fotoğraf biçimi desteklenmiyor."); }
   // Re-check ACL after decoding and immediately before writing.
-  await authorizeConversation(request);
+  await authorizeConversation(request, true);
   const mediaId = crypto.randomUUID();
   const storagePath = `conversationMedia/${conversationId}/${uid}/${mediaId}.jpg`;
   const file = getStorage().bucket().file(storagePath);
   await file.save(image, { resumable: false, metadata: { contentType: "image/jpeg", cacheControl: "private, no-store",
     metadata: { uploaderUid: uid, conversationId, mediaId } } });
   try {
-    await db.doc(`conversations/${conversationId}/media/${mediaId}`).create({ uploaderUid: uid, storagePath,
-      contentType: "image/jpeg", sizeBytes: image.length, createdAt: FieldValue.serverTimestamp() });
+    await db.runTransaction(async tx => {
+      const jobs = await Promise.all(ids.map(id => tx.get(db.doc(`_accountDeletions/${id}`))));
+      if (jobs.some(job => job.exists)) throw new HttpsError("permission-denied", "Hesap silinme sürecinde.");
+      tx.create(db.doc(`conversations/${conversationId}/media/${mediaId}`), { uploaderUid: uid, storagePath,
+        contentType: "image/jpeg", sizeBytes: image.length, createdAt: FieldValue.serverTimestamp() });
+    });
   } catch (error) { await file.delete().catch(() => {}); throw error; }
   return { mediaId, storagePath };
 });

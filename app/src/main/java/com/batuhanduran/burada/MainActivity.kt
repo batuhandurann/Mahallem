@@ -362,7 +362,7 @@ fun MarketplaceApp(
 
                 is ScreenDestination.ProviderDashboard -> {
                     ProviderDashboardScreen(
-                        providers = ownedProviders,
+                        providers = ownedProviders.filter { it.visibility == "published" },
                         requests = requests.filter { it.ownerUid != viewModel.currentUid && it.status == "PENDING" },
                         onBackClick = { viewModel.navigateBack() },
                         onToggleOffers = { pId, status ->

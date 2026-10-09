@@ -203,23 +203,27 @@ class MarketplaceRepository(
         withPhoneTrust(source, "requests", { it.id }) { row, verified -> row.copy(phoneVerified = verified) }
 
     fun getAllProviders(): Flow<List<ServiceProviderEntity>> = providerTrust(combine(
-        observe(db.collection("providers").whereEqualTo("visibility", "published")) { decode(it, ServiceProviderEntity::class.java) },
+        observe(db.collection("providers").whereEqualTo("visibility", "published")) {
+            decode(it, ServiceProviderEntity::class.java).copy(visibility = it.getString("visibility") ?: "hidden")
+        },
         observe(db.collection("users").document(uid).collection("favorites")) { it.id }
     ) { providers, favorites -> providers.map { it.copy(isFavorite = it.id in favorites) } })
     fun getOwnedProviders(): Flow<List<ServiceProviderEntity>> = providerTrust(
         observe(db.collection("providers").whereEqualTo("ownerUid", uid)) {
-            decode(it, ServiceProviderEntity::class.java)
+            decode(it, ServiceProviderEntity::class.java).copy(visibility = it.getString("visibility") ?: "hidden")
         }.map { profiles -> ownedProviderProfiles(profiles, uid) })
 
     fun getAllRequests(): Flow<List<JobRequestEntity>> = requestTrust(observe(db.collection("requests").whereEqualTo("visibility", "published")) {
-        decode(it, JobRequestEntity::class.java).copy(createdAt = it.getTimestamp("createdAt")?.toDate()?.time ?: 0)
+        decode(it, JobRequestEntity::class.java).copy(createdAt = it.getTimestamp("createdAt")?.toDate()?.time ?: 0,
+            visibility = it.getString("visibility") ?: "hidden")
     }.map { rows -> rows.filter { it.status == "PENDING" } })
     fun getMyRequests(): Flow<List<JobRequestEntity>> = requestTrust(observe(db.collection("requests").whereEqualTo("ownerUid", uid)) {
-        decode(it, JobRequestEntity::class.java).copy(createdAt = it.getTimestamp("createdAt")?.toDate()?.time ?: 0)
+        decode(it, JobRequestEntity::class.java).copy(createdAt = it.getTimestamp("createdAt")?.toDate()?.time ?: 0,
+            visibility = it.getString("visibility") ?: "hidden")
     })
     fun getAssignedRequests(): Flow<List<JobRequestEntity>> = observe(
         db.collection("requests").whereEqualTo("acceptedProviderUid", uid)
-    ) { decode(it, JobRequestEntity::class.java) }
+    ) { decode(it, JobRequestEntity::class.java).copy(visibility = it.getString("visibility") ?: "hidden") }
 
     fun getJobLifecycles(): Flow<List<JobLifecycle>> = observe(
         db.collection("jobs").whereArrayContains("participantUids", uid)

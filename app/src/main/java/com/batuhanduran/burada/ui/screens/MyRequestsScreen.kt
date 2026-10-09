@@ -182,8 +182,12 @@ private fun RequestItemCard(
                     }
                 ) {
                     Text(
-                        text = when (request.status) {
-                            "QUOTED" -> "${quotes.size} Teklif Geldi"
+                        text = when {
+                            request.visibility == "archived" -> "Kaldırıldı"
+                            request.status in listOf("COMPLETED", "CANCELLED") -> jobStatusLabel(request.status)
+                            request.visibility == "closed" -> "Kapalı"
+                            request.visibility != "published" -> "Gizli"
+                            request.status == "QUOTED" -> "${quotes.size} Teklif Geldi"
                             else -> jobStatusLabel(request.status)
                         },
                         fontSize = 11.sp,
@@ -237,6 +241,11 @@ private fun RequestItemCard(
             }
 
             // Quotes Section
+            if (request.visibility != "published") {
+                Spacer(modifier = Modifier.height(10.dp))
+                Text("Bu ilan yeni teklif ve kabul işlemlerine kapalı. Geçmiş teklifler aşağıda korunur.",
+                    style = MaterialTheme.typography.bodySmall, color = Slate600)
+            }
             if (quotes.isNotEmpty()) {
                 Spacer(modifier = Modifier.height(14.dp))
                 HorizontalDivider(color = SurfaceCardBorder)
@@ -252,7 +261,7 @@ private fun RequestItemCard(
                 quotes.forEach { quote ->
                     QuoteCardView(
                         quote = quote,
-                        isRequestAccepted = request.status != "PENDING",
+                        isRequestAccepted = request.visibility != "published" || request.status != "PENDING",
                         onAccept = { onAcceptQuote(quote.id, quote.providerName) },
                         onAcceptWithEscrow = { onAcceptWithEscrow(quote) },
                         onViewReceipt = { onViewReceipt(quote) },
@@ -261,7 +270,7 @@ private fun RequestItemCard(
                     Spacer(modifier = Modifier.height(8.dp))
                 }
             }
-            OutlinedButton(onClick = onOpenJob, modifier = Modifier.fillMaxWidth().testTag("open_job_${request.id}")) {
+            if (request.visibility != "archived") OutlinedButton(onClick = onOpenJob, modifier = Modifier.fillMaxWidth().testTag("open_job_${request.id}")) {
                 Text(if (request.status == "PENDING") "Talebi yönet / iptal et" else "İş durumu ve geçmişi")
             }
         }

@@ -3,6 +3,62 @@
 Updated: 2026-10-09 (Europe/Istanbul). Read `AGENTS.md` and git status before work;
 fetch current remote state because other sessions may advance the repository.
 
+## Profile/account management — PR #79 (2026-10-09)
+
+- Base main `8042ff209c3be84c44de74a8b99fe63c39a9cba9`; original scratch work
+  was lost before push, then reconstructed and durably saved in PR #79.
+- Added private profile edits with revision checking and login preservation,
+  owner-only listing edits/removal, quote/agreement/moderation locks and
+  UID-bound Android account management screen.
+- Added reauthenticated deletion, durable tombstone/access revocation and
+  retry-enabled Auth/private-data/chat-media cleanup. Late uploads serialize
+  against deletion. Accepted historical quotes consult terminal job status.
+- Local backend 13/13 and Python configuration 59/59 passed. Full Rules suite
+  including deletion/archive/provider-offer regressions passed 48/48.
+- CI on `1ab58d33eb3abc33097c0592bf17cd9b7533014f`: debug and unsigned
+  release APK/AAB, unit tests/lint, backend 12/12, Rules 47/47, real emulator
+  callable/media 5/5, Java/Kotlin + JS CodeQL and secret scan passed. Android
+  instrumentation: 24/25 passed; profile test timed out waiting for Save.
+  Fixed explicit lazy-list scrolling and preserved main's emulator SDK key-shape
+  correction. Source `5141f14` exposed an invalid test assertion import; removed
+  it. Final commit must rerun required checks.
+- Archived visibility now comes from the envelope, stays out of Moshi wire data,
+  and closes Android provider dashboard/quote actions while preserving history.
+  Added actual Android listing edit/removal and archived quote UI regressions.
+  Local Functions runtime could not bind Unix sockets (EPERM); use CI callable
+  evidence. Do not claim physical-device or production success.
+- Integrated current main `30da563` / PR #75 without reverting job lifecycle
+  features. Job commands now check persistent deletion tombstones; worker redacts
+  own terminal-job notes with checkpointed event pages, preserving counterpart
+  notes and minimal shared audit state. Added actual completion/cancellation
+  followed by deletion integration regressions. Combined backend 24/24,
+  Rules 49/49 and Python configuration 60/60 passed locally. Complete Android
+  and actual callable/trigger CI must verify the final source.
+- Existing photo/trust/moderation callables now check persistent tombstones too;
+  photo registration reads both participant tombstones transactionally. Regression
+  verifies counterpart media survives/readable while new uploads and old deleted
+  account tokens fail closed.
+- CI source `c2cee3b`: debug APK, Android unit/lint, unsigned release APK/AAB,
+  Rules 49/49, backend 24/24, both CodeQL languages and secret scan passed.
+  Callable/media 10/11 passed: retained counterpart photo fixture missed required
+  MIME metadata. Fixed with an actual JPEG and full canonical media metadata;
+  final source must rerun that suite. Android screens 29/30 passed including
+  listing edit/removal and archived quote actions. Profile test timed out on
+  offscreen feedback after the real callable finished. Added visible snackbar,
+  focus dismissal on save and explicit test scrolling to success/error; test also
+  awaits completed profile sync and full logout before checking relogin.
+- Product scope, primary reference URLs, privacy boundaries and coordinated
+  rollout: PROFILE_ACCOUNT_MANAGEMENT.md. Pending reviews still require separate
+  retention and integration validation before release.
+- Source `9f9047e` CI: backend 24/24, Rules 49/49, real callable/media 11/11,
+  debug/unit/lint, unsigned release and all security scans passed. Android 29/30:
+  profile save persisted both fields, but snackbar covered the deletion button.
+  Added footer clearance and explicit test feedback/dialog waits. Added per-UID
+  deletion preflight quota (10/hour), retry messaging and actual rate-limit
+  regression; verify final required checks before ready/merge.
+- Next: verify final commit CI before marking ready. No
+  production deployment, signed release or real-account deletion performed.
+
 ## Job completion and cancellation (2026-10-09)
 
 - Based on canonical main `e287fe08b4044dbc37f9c2219ab350b984107694` (merged

@@ -209,8 +209,15 @@ class LiveCloudTests(unittest.TestCase):
             routes[prefix + group + "/fields/expiresAt"] = {"ttlConfig": {"state": "ACTIVE"}}
         for function in cloud.FUNCTIONS:
             name = f"projects/{self.project}/locations/europe-west3/functions/{function}"
-            routes["https://cloudfunctions.googleapis.com/v2/" + name] = {"name": name, "state": "ACTIVE", "buildConfig": {"runtime": "nodejs22"}, "serviceConfig": {"maxInstanceCount": 5}, "eventTrigger": {"eventFilters": {"database": "mahallem"}}}
+            routes["https://cloudfunctions.googleapis.com/v2/" + name] = {"name": name, "state": "ACTIVE", "buildConfig": {"runtime": "nodejs22"}, "serviceConfig": {"maxInstanceCount": 5}, "eventTrigger": {"eventFilters": {"database": "mahallem", "bucket": self.bucket}}}
         return FakeReader(routes)
+
+    def test_deletion_photo_trigger_rejects_wrong_bucket(self):
+        reader = self.deployed_reader()
+        key = f"https://cloudfunctions.googleapis.com/v2/projects/{self.project}/locations/europe-west3/functions/purgeDeletedAccountPhoto"
+        reader.responses[key]["eventTrigger"]["eventFilters"]["bucket"] = "wrong-bucket"
+        with self.assertRaisesRegex(cloud.VerificationError, "wrong Storage bucket"):
+            cloud.verify_deployed(reader, self.project, self.bucket, ROOT)
 
     def test_active_deployment_passes_but_unready_index_or_ttl_fails(self):
         reader = self.deployed_reader()

@@ -96,4 +96,25 @@ class QuoteAcceptanceWithoutPaymentTest {
             assertEquals(1, paymentInfoClicks)
         }
     }
+
+    @Test fun archivedRequestPreservesHistoryWithoutQuoteActions() {
+        compose.setContent {
+            BuradaTheme {
+                MyRequestsScreen(
+                    requests = listOf(request.copy(visibility = "archived")),
+                    quotes = listOf(quote),
+                    onBackClick = {},
+                    onAcceptQuote = { _, _, _ -> error("Archived request accepted") },
+                    onAcceptWithEscrow = { _, _ -> error("Archived request payment action") },
+                    onRejectQuote = { error("Archived request changed") },
+                    onNewRequestClick = {}
+                )
+            }
+        }
+        compose.onNodeWithText("Kaldırıldı").assertIsDisplayed()
+        compose.onNodeWithTag("quote_card_quote-1").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithTag("btn_accept_quote_quote-1").assertDoesNotExist()
+        compose.onNodeWithTag("btn_escrow_info_quote-1").assertDoesNotExist()
+        compose.onNodeWithText("Reddet").assertDoesNotExist()
+    }
 }

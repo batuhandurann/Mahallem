@@ -8,9 +8,12 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     function isAuthenticated() {
-      return request.auth != null;
+      return request.auth != null && activeUid(request.auth.uid);
     }
 
+    function activeUid(uid) {
+      return !existsAfter(/databases/$(database)/documents/_accountDeletions/$(uid));
+    }
     function isOwner(userId) {
       return isAuthenticated() && request.auth.uid == userId;
     }
@@ -26,7 +29,8 @@ service cloud.firestore {
 
     function isValidUser(data) {
       return data.keys().hasAll(['uid', 'displayName', 'email', 'createdAt', 'updatedAt'])
-        && data.keys().hasOnly(['uid', 'displayName', 'email', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['uid', 'displayName', 'email', 'bio', 'createdAt', 'updatedAt'])
+        && (!('bio' in data) || (data.bio is string && data.bio.size() <= 1000))
         && data.uid is string && data.uid.size() >= 1 && data.uid.size() <= 128
         && data.displayName is string && data.displayName.size() >= 2 && data.displayName.size() <= 80
         && data.email is string && data.email.size() >= 1 && data.email.size() <= 254
@@ -201,7 +205,7 @@ service cloud.firestore {
         && d.photoMediaId.size() <= 256;
     }
 
-    function signed() { return request.auth != null; }
+    function signed() { return request.auth != null && activeUid(request.auth.uid); }
     function fresh(d) { return d.createdAt == request.time && d.updatedAt == request.time; }
     function changed(d) { return d.createdAt == resource.data.createdAt && d.updatedAt == request.time; }
     function member(d) { return signed() && request.auth.uid in d.participantUids; }
@@ -212,7 +216,7 @@ service cloud.firestore {
       return !exists(/databases/$(database)/documents/users/$(a)/blocks/$(b))
         && !exists(/databases/$(database)/documents/users/$(b)/blocks/$(a));
     }
-    function chatWritable(d) { return member(d) && notBlocked(d.participantUids[0], d.participantUids[1]); }
+    function chatWritable(d) { return member(d) && activeUid(d.participantUids[0]) && activeUid(d.participantUids[1]) && notBlocked(d.participantUids[0], d.participantUids[1]); }
     function validGeo(d) {
       let names = {'pilot_tr_35_buca_adatepe':'Adatepe','pilot_tr_35_buca_efeler':'Efeler',
         'pilot_tr_35_buca_inonu':'İnönü','pilot_tr_35_buca_sirinkapi':'Şirinkapı','pilot_tr_35_buca_yigitler':'Yiğitler'};
@@ -319,7 +323,7 @@ service cloud.firestore {
         && validProvider(request.resource.data.data) && validGeo(request.resource.data.data) && request.resource.data.data.ownerUid == request.auth.uid
         && request.resource.data.data.id == id
         && hasWriteBudget('listing', /databases/$(database)/documents/providers/$(id));
-      allow update: if signed() && resource.data.ownerUid == request.auth.uid
+      allow update: if signed() && resource.data.ownerUid == request.auth.uid && resource.data.visibility == 'published'
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['data','updatedAt'])
         && changed(request.resource.data) && validProvider(request.resource.data.data)
         && request.resource.data.data.diff(resource.data.data).affectedKeys().hasOnly(['isOpenForOffers','bookedDatesJson']);
@@ -334,7 +338,8 @@ service cloud.firestore {
         && request.resource.data.acceptedQuoteId == '' && request.resource.data.acceptedProviderUid == ''
         && hasWriteBudget('listing', /databases/$(database)/documents/requests/$(id));
       allow update: if signed() && resource.data.ownerUid == request.auth.uid
-        && resource.data.data.status == 'PENDING' && resource.data.acceptedQuoteId == ''
+        && resource.data.visibility == 'published' && resource.data.data.status == 'PENDING' && resource.data.acceptedQuoteId == ''
+        && activeUid(request.resource.data.acceptedProviderUid)
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['data','updatedAt','acceptedQuoteId','acceptedProviderUid'])
         && request.resource.data.data.diff(resource.data.data).affectedKeys().hasOnly(['status'])
         && changed(request.resource.data) && request.resource.data.data.status == 'ACCEPTED'
@@ -380,8 +385,11 @@ service cloud.firestore {
         && request.resource.data.status == 'PENDING'
         && requestDoc(request.resource.data.requestId).ownerUid == request.resource.data.customerUid
         && requestDoc(request.resource.data.requestId).data.status == 'PENDING'
+        && requestDoc(request.resource.data.requestId).visibility == 'published'
+        && activeUid(request.resource.data.customerUid)
         && notBlocked(request.resource.data.providerUid, request.resource.data.customerUid)
         && providerDoc(request.resource.data.data.providerId).ownerUid == request.auth.uid
+        && providerDoc(request.resource.data.data.providerId).visibility == 'published'
         && hasWriteBudget('quote', /databases/$(database)/documents/quotes/$(id));
       allow update: if signed() && resource.data.status == 'PENDING'
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status','updatedAt'])
@@ -395,7 +403,9 @@ service cloud.firestore {
               || (request.resource.data.status == 'ACCEPTED'
                 && requestAfter(resource.data.requestId).acceptedQuoteId == id
                 && requestAfter(resource.data.requestId).acceptedProviderUid == resource.data.providerUid
-                && requestAfter(resource.data.requestId).data.status == 'ACCEPTED')))
+                && requestAfter(resource.data.requestId).data.status == 'ACCEPTED'
+                && requestAfter(resource.data.requestId).visibility == 'published'
+                && activeUid(resource.data.providerUid))))
         );
     }
     match /conversations/{id} {

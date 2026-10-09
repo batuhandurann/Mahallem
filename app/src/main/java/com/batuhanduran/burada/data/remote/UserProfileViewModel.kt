@@ -25,7 +25,8 @@ import kotlin.coroutines.resumeWithException
 data class ProfileSyncState(
     val busy: Boolean = false,
     val synced: Boolean = false,
-    val error: String? = null
+    val error: String? = null,
+    val displayName: String = ""
 )
 
 /** One fixed account per instance; the signed-in UI owns and clears this ViewModel. */
@@ -44,13 +45,13 @@ class UserProfileViewModel(private val user: AuthUser) : ViewModel() {
     fun retry() {
         if (cleared || state.value.busy) return
         // Update before launching so repeated taps cannot start duplicate transactions.
-        mutableState.value = ProfileSyncState(busy = true)
+        mutableState.value = state.value.copy(busy = true, error = null)
         viewModelScope.launch {
             try {
-                synchronize()
+                val name = synchronize()
                 currentCoroutineContext().ensureActive()
                 requireCurrentAccount()
-                if (!cleared) mutableState.value = ProfileSyncState(synced = true)
+                if (!cleared) mutableState.value = ProfileSyncState(synced = true, displayName = name)
             } catch (exception: CancellationException) {
                 if (!cleared) {
                     mutableState.value = ProfileSyncState(error = "Profil kaydı tamamlanmadı. Yeniden deneyin.")
@@ -64,7 +65,7 @@ class UserProfileViewModel(private val user: AuthUser) : ViewModel() {
         }
     }
 
-    private suspend fun synchronize() {
+    private suspend fun synchronize(): String {
         val name = user.displayName.trim()
         AuthValidation.nameError(name)?.let { throw InvalidProfileException(it) }
 
@@ -84,7 +85,7 @@ class UserProfileViewModel(private val user: AuthUser) : ViewModel() {
         val db = FirebaseServices.firestore
         val reference = db.collection("users").document(user.uid)
         // Transactions require the server. An offline cache cannot produce a synced state.
-        db.runTransaction { transaction ->
+        return db.runTransaction { transaction ->
             requireCurrentAccount()
             val existing = transaction.get(reference)
             requireCurrentAccount()
@@ -95,14 +96,8 @@ class UserProfileViewModel(private val user: AuthUser) : ViewModel() {
                         FirebaseFirestoreException.Code.FAILED_PRECONDITION
                     )
                 }
-                transaction.update(
-                    reference,
-                    mapOf(
-                        "displayName" to name,
-                        "email" to email,
-                        "updatedAt" to FieldValue.serverTimestamp()
-                    )
-                )
+                // Existing Firestore profile is canonical, including after an Auth mirror failure.
+                existing.getString("displayName") ?: name
             } else {
                 transaction.set(
                     reference,
@@ -114,8 +109,8 @@ class UserProfileViewModel(private val user: AuthUser) : ViewModel() {
                         "updatedAt" to FieldValue.serverTimestamp()
                     )
                 )
+                name
             }
-            Unit
         }.awaitProfileResult()
     }
 
