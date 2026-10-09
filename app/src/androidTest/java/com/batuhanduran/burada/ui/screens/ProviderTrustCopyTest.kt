@@ -4,9 +4,8 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
-import androidx.compose.ui.test.onRoot
-import androidx.compose.ui.test.performTouchInput
-import androidx.compose.ui.test.swipeUp
+import androidx.compose.ui.test.hasTestTag
+import androidx.compose.ui.test.performScrollToNode
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.batuhanduran.burada.data.local.ServiceProviderEntity
 import com.batuhanduran.burada.ui.theme.BuradaTheme
@@ -55,7 +54,8 @@ class ProviderTrustCopyTest {
         compose.onNodeWithText("Çocuk Dostu").assertDoesNotExist()
         compose.onNodeWithTag("btn_detail_chat").assertIsDisplayed()
         compose.onNodeWithTag("btn_detail_request_quote").assertIsDisplayed()
-        repeat(5) { compose.onRoot().performTouchInput { swipeUp() } }
+        compose.onNodeWithTag("provider_detail_list")
+            .performScrollToNode(hasTestTag("provider_portfolio_empty"))
         compose.onNodeWithText(
             "Bu profilde doğrulanmış çalışma fotoğrafı veya videosu henüz gösterilmiyor."
         ).assertIsDisplayed()
