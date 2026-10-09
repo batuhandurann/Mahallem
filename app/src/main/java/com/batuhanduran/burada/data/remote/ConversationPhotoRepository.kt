@@ -39,7 +39,13 @@ class ConversationPhotoRepository {
         require(bounds.outWidth > 0 && bounds.outHeight > 0 && bounds.outWidth.toLong() * bounds.outHeight <= 16_000_000) {
             "Fotoğrafın boyutları desteklenmiyor (en fazla 16 megapiksel)."
         }
-        val bitmap = BitmapFactory.decodeByteArray(input, 0, input.size) ?: error("Geçersiz fotoğraf.")
+        // Decode at a bounded display resolution. Compressed 5 MB photos can otherwise
+        // expand to 64 MB+ bitmaps on low-memory Android devices.
+        val decodedOptions = BitmapFactory.Options().apply {
+            inSampleSize = PhotoDecodePolicy.sampleSize(bounds.outWidth, bounds.outHeight)
+        }
+        val bitmap = BitmapFactory.decodeByteArray(input, 0, input.size, decodedOptions)
+            ?: error("Geçersiz fotoğraf.")
         // Decode/re-encode removes EXIF including GPS. Server independently validates the bytes.
         val bytes = ByteArrayOutputStream().use { output ->
             try { check(bitmap.compress(Bitmap.CompressFormat.JPEG, 85, output)); output.toByteArray() }
