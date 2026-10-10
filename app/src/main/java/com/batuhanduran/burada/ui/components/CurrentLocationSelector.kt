@@ -100,7 +100,7 @@ private suspend fun readApproximateDeviceLocation(context: Context): GeoCoordina
         val listener = object : LocationListener {
             override fun onLocationChanged(location: Location) {
                 // Ignore stale fixes, including provider cache delivered as an initial update.
-                if (SystemClock.elapsedRealtimeNanos() - location.elapsedRealtimeNanos > 120_000_000_000L) return
+                if (!isFreshLocationFix(location.elapsedRealtimeNanos, SystemClock.elapsedRealtimeNanos())) return
                 if (!continuation.isActive) return
                 val coordinate = runCatching { GeoCoordinate(location.latitude, location.longitude) }
                 runCatching { manager.removeUpdates(this) }
