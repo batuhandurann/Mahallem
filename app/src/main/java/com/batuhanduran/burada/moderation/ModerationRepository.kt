@@ -27,7 +27,7 @@ class ModerationRepository(
     }
 
     fun observeBlockedUids(): Flow<Set<String>> = callbackFlow {
-        requireAccount()
+        if (auth.currentUser?.uid != uid) { trySend(emptySet()); close(); return@callbackFlow }
         val authListener = FirebaseAuth.AuthStateListener { currentAuth ->
             if (currentAuth.currentUser?.uid != uid) {
                 trySend(emptySet())
@@ -71,6 +71,8 @@ class ModerationRepository(
             "targetType" to report.targetType.code,
             "targetId" to report.targetId,
             "targetUid" to report.targetUid,
+            "targetRef" to db.document(report.targetDocumentPath()),
+            "conversationId" to report.conversationId,
             "reason" to report.reason.code,
             "details" to report.details,
             "status" to "pending",

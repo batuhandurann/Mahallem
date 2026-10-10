@@ -23,6 +23,7 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.catch
 import com.batuhanduran.burada.moderation.*
 import com.batuhanduran.burada.data.model.*
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -35,16 +36,21 @@ sealed class ScreenDestination {
     object PublishProviderOffer : ScreenDestination()
     object MyRequests : ScreenDestination()
     object ProviderDashboard : ScreenDestination()
+    object MyJobs : ScreenDestination()
+    data class JobDetail(val requestId: String) : ScreenDestination()
     data class Chat(val conversationId: String) : ScreenDestination()
     object ConversationsList : ScreenDestination()
     object MapView : ScreenDestination()
 }
 
-class MarketplaceViewModel(application: Application) : AndroidViewModel(application) {
+class MarketplaceViewModel @JvmOverloads constructor(
+    application: Application,
+    sessionUid: String = requireNotNull(com.batuhanduran.burada.data.remote.FirebaseServices.auth.currentUser).uid
+) : AndroidViewModel(application) {
 
-    private val repository = MarketplaceRepository()
+    private val repository = MarketplaceRepository(uid = sessionUid)
     val currentUid: String get() = repository.uid
-    private val moderation = ModerationRepository()
+    private val moderation = ModerationRepository(uid = sessionUid)
     val blockedUids = moderation.observeBlockedUids().catch {
         _toastMessage.value = "Engelleme tercihleri yüklenemedi. Yeniden giriş yapın."
         emit(emptySet())
@@ -142,6 +148,10 @@ class MarketplaceViewModel(application: Application) : AndroidViewModel(applicat
         repository.getFilteredProviders(f.sector, f.urgency, f.category, f.query, f.district)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
+    // Owner dashboard must not inherit marketplace search, category, district or urgency filters.
+    val ownedProviders: StateFlow<List<ServiceProviderEntity>> = repository.getOwnedProviders()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
     // --- Job Requests Flow (Flow B: Hizmet Arayan Talepleri - Armut) ---
     @OptIn(ExperimentalCoroutinesApi::class)
     val jobRequests: StateFlow<List<JobRequestEntity>> = combine(
@@ -157,6 +167,74 @@ class MarketplaceViewModel(application: Application) : AndroidViewModel(applicat
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val myRequests = repository.getMyRequests().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+    val assignedRequests = repository.getAssignedRequests().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+    val jobLifecycles = repository.getJobLifecycles().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+    @OptIn(ExperimentalCoroutinesApi::class)
+    val activeJobEvents = combine(currentScreen, jobLifecycles) { screen, jobs ->
+        (screen as? ScreenDestination.JobDetail)?.requestId?.takeIf { id -> jobs.any { it.requestId == id } }
+    }.flatMapLatest { id -> if (id == null) kotlinx.coroutines.flow.flowOf(emptyList()) else repository.getJobEvents(id) }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    private val _busyJobIds = MutableStateFlow<Set<String>>(emptySet())
+    val busyJobIds = _busyJobIds.asStateFlow()
+    private val _jobErrors = MutableStateFlow<Map<String, String>>(emptyMap())
+    val jobErrors = _jobErrors.asStateFlow()
+    private data class JobAttempt(val requestId: String, val action: JobAction, val version: Int,
+        val note: String, val reason: String, val id: String = java.util.UUID.randomUUID().toString())
+    private val jobAttempts = mutableMapOf<String, JobAttempt>()
+
+    fun submitJobAction(requestId: String, action: JobAction, version: Int, note: String, reason: String) {
+        if (requestId in _busyJobIds.value) return
+        val previous = jobAttempts[requestId]
+        val candidate = JobAttempt(requestId, action, version, note.trim(), reason)
+        val attempt = if (previous != null && candidate.copy(id = previous.id) == previous) previous else candidate
+        jobAttempts[requestId] = attempt
+        performJobAction(attempt)
+    }
+    fun retryJobAction(requestId: String) { jobAttempts[requestId]?.let(::performJobAction) }
+    private fun performJobAction(attempt: JobAttempt) {
+        if (attempt.requestId in _busyJobIds.value) return
+        _busyJobIds.value += attempt.requestId
+        _jobErrors.value -= attempt.requestId
+        viewModelScope.launch {
+            try {
+                repository.manageJob(attempt.requestId, attempt.action, attempt.version, attempt.note, attempt.reason, attempt.id)
+                jobAttempts.remove(attempt.requestId)
+                _toastMessage.value = "İşlem kaydedildi. Güncel durum iş ekranında gösterilecek."
+            } catch (e: kotlinx.coroutines.TimeoutCancellationException) {
+                _jobErrors.value += attempt.requestId to "Yanıt alınamadı. Durumu kontrol edin; tekrar denemek aynı işlemi çoğaltmaz."
+            } catch (e: CancellationException) { throw e
+            } catch (e: Exception) {
+                _jobErrors.value += attempt.requestId to (e.message ?: "İşlem kaydedilemedi. Bağlantınızı kontrol edin.")
+            } finally { _busyJobIds.value -= attempt.requestId }
+        }
+    }
+
+    val reviewedRequestIds = repository.getReviewedRequestIds()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+    private val _reviewBusy = MutableStateFlow<Set<String>>(emptySet())
+    val reviewBusy = _reviewBusy.asStateFlow()
+    private val _reviewProvider = MutableStateFlow<String?>(null)
+    private val _reviewLimit = MutableStateFlow(20L)
+    @OptIn(ExperimentalCoroutinesApi::class)
+    val providerReviews = combine(_reviewProvider, _reviewLimit) { id, limit -> id to limit }
+        .flatMapLatest { (id, limit) -> if (id == null) flowOf(emptyList()) else repository.getProviderReviews(id, limit) }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+    fun selectReviewProvider(id: String?) { _reviewProvider.value = id; _reviewLimit.value = 20 }
+    fun loadMoreReviews() { _reviewLimit.value += 20 }
+    private fun reviewAction(id: String, block: suspend () -> Unit) {
+        if (id in _reviewBusy.value) return
+        _reviewBusy.value = _reviewBusy.value + id
+        action { try { block() } finally { _reviewBusy.value = _reviewBusy.value - id } }
+    }
+    fun submitJobReview(id: String, rating: Int, comment: String) = reviewAction(id) {
+        repository.submitJobReview(id, rating, comment)
+        _toastMessage.value = "Değerlendirmeniz kaydedildi. Teşekkürler."
+    }
+    fun reportJobReview(providerId: String, reviewId: String, reason: String) = action {
+        repository.reportJobReview(providerId, reviewId, reason)
+        _toastMessage.value = "Değerlendirme şikayetiniz inceleme için kaydedildi."
+    }
 
     // --- Quotes Flow ---
     val allQuotes: StateFlow<List<QuoteEntity>> = repository.getAllQuotes()
@@ -406,16 +484,16 @@ class MarketplaceViewModel(application: Application) : AndroidViewModel(applicat
                 title = title.ifBlank { "Hizmet Uzmanı" },
                 sector = sector.name,
                 categoryId = categoryId,
-                rating = 5.0,
-                reviewCount = 1,
+                rating = 0.0,
+                reviewCount = 0,
                 experienceYears = experienceYears,
                 district = district,
                 city = area.provinceName,
                 hourlyOrBasePrice = price.ifBlank { "Anlaşmaya Bağlı" },
                 isEmergencyAvailable = isEmergency,
-                verifiedSafeBadge = hasSafeBadge,
-                mykCertified = hasMykBadge,
-                childSafeCertified = hasChildSafeBadge,
+                verifiedSafeBadge = false,
+                mykCertified = false,
+                childSafeCertified = false,
                 phoneVerified = false,
                 daysRemaining = 30,
                 isReported = false,

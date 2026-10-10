@@ -173,6 +173,7 @@ jobs:
       - run: sdkmanager 'platforms;android-36.1' 'build-tools;36.0.0'
       - uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6
       - run: npm ci
+      - run: npm --prefix functions ci
       - name: Enable KVM
         run: |
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
@@ -184,7 +185,7 @@ jobs:
           arch: x86_64
           target: google_apis
           disable-animations: true
-          script: npx firebase emulators:exec --project demo-mahallem --only auth,firestore './gradlew -PfirebaseEmulators=true :app:connectedDebugAndroidTest && bash scripts/adb-process-death-smoke.sh'
+          script: npx firebase emulators:exec --project demo-mahallem --only auth,firestore,functions './gradlew -PfirebaseEmulators=true :app:connectedDebugAndroidTest && bash scripts/adb-process-death-smoke.sh'
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         if: always()
         with:

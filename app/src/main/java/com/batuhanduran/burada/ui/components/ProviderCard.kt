@@ -132,7 +132,7 @@ fun ProviderCard(
                                 modifier = Modifier.size(15.dp)
                             )
                             Text(
-                                text = " ${provider.rating}",
+                                text = if (provider.reviewCount == 0) " Yeni" else " " + String.format(java.util.Locale.forLanguageTag("tr-TR"), "%.1f", provider.rating),
                                 style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
                                 color = MaterialTheme.colorScheme.onSurface
                             )

@@ -37,10 +37,12 @@ For multiple devices, add `--serial YOUR_DEVICE_SERIAL`. `--adb PATH_TO_ADB` is
 available when platform-tools is not on PATH. On Windows, run the repository
 commands from a bash/WSL environment with the Android SDK/device accessible.
 
-The second command installs test dependencies, starts only `demo-mahallem` Auth
-and Firestore emulators, sets device-specific USB reverse mappings, compiles
+The second command installs root and Functions test dependencies, starts only
+`demo-mahallem` Auth, Firestore and Functions emulators, sets device-specific USB
+reverse mappings for ports 9099, 8080 and 5001, compiles
 the debug/test APKs, and runs the full Android instrumentation suite on that
-phone. It then runs foreground/background, rotation and actual process-death
+phone, including phone-linking and trust callable tests. A missing Functions
+emulator stops the run before building or installing APKs. It then runs foreground/background, rotation and actual process-death
 smoke checks. New reverse mappings are removed afterward; existing conflicting
 mappings stop the run. The runner does not uninstall an existing application to
 work around a signing mismatch: use a dedicated test phone/profile.
@@ -49,7 +51,7 @@ Evidence is saved to `build/evidence/physical-device.json`. Only a positive JUni
 test count plus successful lifecycle smoke produces `PASS`. Preflight alone
 remains `NOT_RUN`. The serial is hashed in the evidence. These tests use real
 Android SDKs on a phone with an isolated emulator backend; they do not verify
-production Play Integrity or real FCM delivery.
+production Play Integrity, real SMS delivery or real FCM delivery.
 
 ## Production device attestation and push
 

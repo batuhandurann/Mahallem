@@ -24,6 +24,7 @@ import androidx.compose.ui.unit.sp
 import com.batuhanduran.burada.data.local.JobRequestEntity
 import com.batuhanduran.burada.data.local.QuoteEntity
 import com.batuhanduran.burada.ui.theme.*
+import com.batuhanduran.burada.data.model.jobStatusLabel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -35,7 +36,8 @@ fun MyRequestsScreen(
     onAcceptWithEscrow: (quote: QuoteEntity, request: JobRequestEntity) -> Unit = { _, _ -> },
     onViewReceipt: (QuoteEntity) -> Unit = {},
     onRejectQuote: (quoteId: String) -> Unit,
-    onNewRequestClick: () -> Unit
+    onNewRequestClick: () -> Unit,
+    onOpenJob: (String) -> Unit = {}
 ) {
     BackHandler { onBackClick() }
 
@@ -103,7 +105,8 @@ fun MyRequestsScreen(
                         onAcceptQuote = { qId, pName -> onAcceptQuote(req.id, qId, pName) },
                         onAcceptWithEscrow = { q -> onAcceptWithEscrow(q, req) },
                         onViewReceipt = onViewReceipt,
-                        onRejectQuote = onRejectQuote
+                        onRejectQuote = onRejectQuote,
+                        onOpenJob = { onOpenJob(req.id) }
                     )
                 }
             }
@@ -118,7 +121,8 @@ private fun RequestItemCard(
     onAcceptQuote: (String, String) -> Unit,
     onAcceptWithEscrow: (QuoteEntity) -> Unit,
     onViewReceipt: (QuoteEntity) -> Unit,
-    onRejectQuote: (String) -> Unit
+    onRejectQuote: (String) -> Unit,
+    onOpenJob: () -> Unit
 ) {
     val isRenovation = request.sector == "HOME_REPAIR"
     val isEmergency = request.urgencyMode == "EMERGENCY"
@@ -179,9 +183,8 @@ private fun RequestItemCard(
                 ) {
                     Text(
                         text = when (request.status) {
-                            "ACCEPTED" -> "Usta Onaylandı"
                             "QUOTED" -> "${quotes.size} Teklif Geldi"
-                            else -> "Teklif Bekleniyor"
+                            else -> jobStatusLabel(request.status)
                         },
                         fontSize = 11.sp,
                         fontWeight = FontWeight.Bold,
@@ -249,7 +252,7 @@ private fun RequestItemCard(
                 quotes.forEach { quote ->
                     QuoteCardView(
                         quote = quote,
-                        isRequestAccepted = request.status == "ACCEPTED",
+                        isRequestAccepted = request.status != "PENDING",
                         onAccept = { onAcceptQuote(quote.id, quote.providerName) },
                         onAcceptWithEscrow = { onAcceptWithEscrow(quote) },
                         onViewReceipt = { onViewReceipt(quote) },
@@ -257,6 +260,9 @@ private fun RequestItemCard(
                     )
                     Spacer(modifier = Modifier.height(8.dp))
                 }
+            }
+            OutlinedButton(onClick = onOpenJob, modifier = Modifier.fillMaxWidth().testTag("open_job_${request.id}")) {
+                Text(if (request.status == "PENDING") "Talebi yönet / iptal et" else "İş durumu ve geçmişi")
             }
         }
     }
@@ -354,7 +360,7 @@ private fun QuoteCardView(
                             Icon(Icons.Default.CheckCircle, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
                             Spacer(modifier = Modifier.width(6.dp))
                             Text(
-                                text = "Teklif Onaylandı • Burada Güvencesi Aktif",
+                                text = "Bu iş için seçilen teklif",
                                 color = Color.White,
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 12.sp
@@ -362,15 +368,8 @@ private fun QuoteCardView(
                         }
                     }
 
-                    OutlinedButton(
-                        onClick = onViewReceipt,
-                        shape = RoundedCornerShape(8.dp),
-                        modifier = Modifier.fillMaxWidth().testTag("btn_view_receipt_${quote.id}")
-                    ) {
-                        Icon(Icons.Default.ReceiptLong, contentDescription = null, modifier = Modifier.size(15.dp))
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text("📄 Dijital İş Fişi & Garantiyi İncele", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
-                    }
+                    Text("Teklif kabulü ödeme veya garanti onayı değildir. İşin güncel durumunu iş ekranından takip edin.",
+                        style = MaterialTheme.typography.bodySmall)
                 }
             } else if (quote.status == "REJECTED" || quote.status == "WITHDRAWN") {
                 Text(
@@ -380,24 +379,37 @@ private fun QuoteCardView(
                     modifier = Modifier.testTag("quote_terminal_status_${quote.id}")
                 )
             } else if (mayActOnQuote(quote.status, isRequestAccepted)) {
-                Row(
+                Column(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.End,
-                    verticalAlignment = Alignment.CenterVertically
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
-                    TextButton(onClick = onReject) {
-                        Text("Reddet", color = Slate500, fontSize = 12.sp)
-                    }
-                    Spacer(modifier = Modifier.width(6.dp))
                     Button(
-                        onClick = onAcceptWithEscrow,
-                        shape = RoundedCornerShape(8.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = TealPrimary),
-                        modifier = Modifier.testTag("btn_accept_escrow_${quote.id}")
+                        onClick = onAccept,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .testTag("btn_accept_quote_${quote.id}")
                     ) {
-                        Icon(Icons.Default.Security, contentDescription = null, modifier = Modifier.size(14.dp))
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text("🔒 Güvenli Havuzla Onayla", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        Text("Teklifi Kabul Et", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    }
+                    Text(
+                        "Teklifi kabul etmek ödeme yapmaz ve para bloke etmez.",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = Slate600
+                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        TextButton(onClick = onReject) {
+                            Text("Reddet", color = Slate500, fontSize = 12.sp)
+                        }
+                        TextButton(
+                            onClick = onAcceptWithEscrow,
+                            modifier = Modifier.testTag("btn_escrow_info_${quote.id}")
+                        ) {
+                            Text("Ödeme bilgisi", fontSize = 12.sp)
+                        }
                     }
                 }
             }

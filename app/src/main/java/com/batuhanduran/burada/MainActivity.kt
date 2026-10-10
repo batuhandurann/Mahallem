@@ -61,9 +61,18 @@ fun MarketplaceApp(
     val searchSuggestions by viewModel.searchSuggestions.collectAsStateWithLifecycle()
     val selectedDistrict by viewModel.selectedDistrict.collectAsStateWithLifecycle()
     val providers by viewModel.providers.collectAsStateWithLifecycle()
+    val ownedProviders by viewModel.ownedProviders.collectAsStateWithLifecycle()
     val requests by viewModel.jobRequests.collectAsStateWithLifecycle()
     val myRequests by viewModel.myRequests.collectAsStateWithLifecycle()
+    val assignedRequests by viewModel.assignedRequests.collectAsStateWithLifecycle()
+    val jobLifecycles by viewModel.jobLifecycles.collectAsStateWithLifecycle()
+    val jobEvents by viewModel.activeJobEvents.collectAsStateWithLifecycle()
+    val busyJobIds by viewModel.busyJobIds.collectAsStateWithLifecycle()
+    val jobErrors by viewModel.jobErrors.collectAsStateWithLifecycle()
     val quotes by viewModel.allQuotes.collectAsStateWithLifecycle()
+    val reviewedRequestIds by viewModel.reviewedRequestIds.collectAsStateWithLifecycle()
+    val reviewBusy by viewModel.reviewBusy.collectAsStateWithLifecycle()
+    val providerReviews by viewModel.providerReviews.collectAsStateWithLifecycle()
     val conversations by viewModel.conversations.collectAsStateWithLifecycle()
     val activeChatMessages by viewModel.activeChatMessages.collectAsStateWithLifecycle()
     val toastMessage by viewModel.toastMessage.collectAsStateWithLifecycle()
@@ -202,8 +211,15 @@ fun MarketplaceApp(
 
                 is ScreenDestination.ProviderDetail -> {
                     val provider = providers.find { it.id == screen.providerId }
+                    DisposableEffect(screen.providerId) {
+                        viewModel.selectReviewProvider(screen.providerId)
+                        onDispose { viewModel.selectReviewProvider(null) }
+                    }
                     ProviderDetailScreen(
                         provider = provider,
+                        reviews = providerReviews.filter { it.providerId == screen.providerId },
+                        onMoreReviews = viewModel::loadMoreReviews,
+                        onReportReview = { id, reason -> viewModel.reportJobReview(screen.providerId, id, reason) },
                         onBackClick = { viewModel.navigateBack() },
                         onFavoriteToggle = { provider?.let { viewModel.toggleFavorite(it) } },
                         onRequestQuoteClick = {
@@ -307,7 +323,8 @@ fun MarketplaceApp(
                         },
                         onNewRequestClick = {
                             viewModel.navigateTo(ScreenDestination.CreateRequest())
-                        }
+                        },
+                        onOpenJob = { viewModel.navigateTo(ScreenDestination.JobDetail(it)) }
                     )
                 }
 
@@ -355,7 +372,7 @@ fun MarketplaceApp(
 
                 is ScreenDestination.ProviderDashboard -> {
                     ProviderDashboardScreen(
-                        providers = providers.filter { it.ownerUid == viewModel.currentUid },
+                        providers = ownedProviders,
                         requests = requests.filter { it.ownerUid != viewModel.currentUid && it.status == "PENDING" },
                         onBackClick = { viewModel.navigateBack() },
                         onToggleOffers = { pId, status ->
@@ -366,9 +383,26 @@ fun MarketplaceApp(
                         },
                         onSubmitQuote = { reqId, prov, price, arrival, notes ->
                             viewModel.submitProviderQuote(reqId, prov, price, arrival, notes)
-                        }
+                        },
+                        onOpenMyJobs = { viewModel.navigateTo(ScreenDestination.MyJobs) }
                     )
                 }
+
+                is ScreenDestination.MyJobs -> MyJobsScreen(assignedRequests, jobLifecycles,
+                    onBack = { viewModel.navigateBack() },
+                    onOpenJob = { viewModel.navigateTo(ScreenDestination.JobDetail(it)) })
+
+                is ScreenDestination.JobDetail -> JobDetailScreen(
+                    request = (myRequests + assignedRequests).find { it.id == screen.requestId },
+                    job = jobLifecycles.find { it.requestId == screen.requestId }, events = jobEvents,
+                    currentUid = viewModel.currentUid, busy = screen.requestId in busyJobIds,
+                    reviewed = screen.requestId in reviewedRequestIds, reviewBusy = screen.requestId in reviewBusy,
+                    onSubmitReview = { rating, comment -> viewModel.submitJobReview(screen.requestId, rating, comment) },
+                    error = jobErrors[screen.requestId], onBack = { viewModel.navigateBack() },
+                    onRetry = { viewModel.retryJobAction(screen.requestId) },
+                    onAction = { action, version, note, reason ->
+                        viewModel.submitJobAction(screen.requestId, action, version, note, reason)
+                    })
 
                 else -> {}
             }
@@ -378,19 +412,7 @@ fun MarketplaceApp(
                 EscrowPaymentDialog(
                     quote = quote,
                     jobTitle = req.title,
-                    onDismiss = { escrowTargetQuote = null },
-                    onConfirmPayment = { q ->
-                        viewModel.fundEscrowPayment(
-                            quote = q,
-                            jobTitle = req.title,
-                            customerName = req.customerName,
-                            district = req.district,
-                            onReceiptGenerated = { receipt ->
-                                activeReceipt = receipt
-                            }
-                        )
-                        escrowTargetQuote = null
-                    }
+                    onDismiss = { escrowTargetQuote = null }
                 )
             }
 

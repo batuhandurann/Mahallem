@@ -8,7 +8,7 @@ const { onDocumentCreated } = require("firebase-functions/v2/firestore");
 const { onCall, HttpsError } = require("firebase-functions/v2/https");
 const crypto = require("node:crypto");
 const sharp = require("sharp");
-const { MAX_PHOTO_BYTES, segment, participants, recipientFor, pushPayload, photoBytes, deadToken } = require("./policy");
+const { MAX_PHOTO_BYTES, segment, participants, recipientFor, pushPayload, photoBytes, deadToken, recipientPushAllowed } = require("./policy");
 
 initializeApp();
 const DATABASE = process.env.FIRESTORE_DATABASE_ID || "mahallem";
@@ -16,6 +16,51 @@ const db = getFirestore(DATABASE);
 // FUNCTIONS_EMULATOR is set by the Firebase runtime, never accepted from a client.
 const callableOptions = { region: "europe-west3", enforceAppCheck: process.env.FUNCTIONS_EMULATOR !== "true", memory: "512MiB", timeoutSeconds: 60,
   maxInstances: 5, concurrency: 2 };
+
+exports.manageJob = onCall(callableOptions, require("./job-handler").createJobHandler({ db, auth: getAuth(), reserve }));
+
+// No client-controlled trust booleans, phone numbers or owner UIDs are accepted.
+// Return only a boolean for visible listings; private contact values never leave the server.
+exports.getListingTrust = onCall(callableOptions, async request => {
+  if (!request.auth) throw new HttpsError("unauthenticated", "Giriş yapın.");
+  const viewer = await getAuth().getUser(request.auth.uid).catch(error => {
+    if (error.code === "auth/user-not-found") return null;
+    throw error;
+  });
+  const viewerProfile = (await db.doc(`users/${request.auth.uid}`).get()).data();
+  if (!viewer || viewer.disabled || ["REQUESTED", "PURGING"].includes(viewerProfile?.deletionStatus))
+    throw new HttpsError("permission-denied", "Hesap etkin değil.");
+  const { listingTargets, phoneMatches } = require("./trust-policy");
+  let targets;
+  try { targets = listingTargets(request.data); }
+  catch { throw new HttpsError("invalid-argument", "Geçersiz ilan listesi."); }
+  await reserve(request.auth.uid, "listingTrust", 600, 3600);
+  const listings = await db.getAll(...targets.ids.map(id => db.doc(`${targets.kind}/${id}`)));
+  const visible = listings.filter(doc => doc.exists && (doc.data().visibility === "published"
+    || doc.data().ownerUid === request.auth.uid));
+  const owners = new Map();
+  const contacts = targets.kind === "providers" ? "providerContacts" : "requestContacts";
+  const results = {};
+  // Bounded batch; cache each authoritative Auth lookup only within this request.
+  for (const listing of visible) {
+    const ownerUid = listing.data().ownerUid;
+    if (typeof ownerUid !== "string" || !/^[^/]{1,128}$/.test(ownerUid)) continue;
+    if (!owners.has(ownerUid)) owners.set(ownerUid, Promise.all([
+      getAuth().getUser(ownerUid).catch(error => {
+        if (error.code === "auth/user-not-found") return null;
+        throw error;
+      }), db.doc(`users/${ownerUid}`).get()
+    ]));
+    const [account, profile] = await owners.get(ownerUid);
+    const contact = (await db.doc(`${contacts}/${listing.id}`).get()).data();
+    // Re-check visibility before releasing evidence if moderation changed during the lookup.
+    const current = (await listing.ref.get()).data();
+    if (!current || current.ownerUid !== ownerUid || (current.visibility !== "published" && ownerUid !== request.auth.uid)) continue;
+    results[listing.id] = { phoneVerified: contact?.ownerUid === ownerUid
+      && phoneMatches(account, contact.phone, profile.data()) === true };
+  }
+  return { listings: results };
+});
 
 async function requireModerator(request) {
   if (!request.auth) throw new HttpsError("unauthenticated", "Giriş yapın.");
@@ -31,7 +76,13 @@ exports.getModerationQueue = onCall(callableOptions, async request => {
   const uid = await requireModerator(request);
   await reserve(uid, "moderationQueue", 120, 3600);
   const queue = await db.collection("reports").where("status", "==", "pending").orderBy("createdAt").limit(50).get();
-  return { reports: queue.docs.map(doc => ({ id: doc.id, ...doc.data(), createdAt: doc.data().createdAt?.toMillis() || 0 })) };
+  return { reports: queue.docs.map(doc => {
+    const { targetRef, ...report } = doc.data();
+    // Callable responses must never contain Admin DocumentReference internals.
+    // Older reports remain readable without inventing evidence references.
+    return { id: doc.id, ...report, targetRefPath: targetRef?.path || null,
+      createdAt: report.createdAt?.toMillis() || 0 };
+  }) };
 });
 
 exports.reviewReport = onCall(callableOptions, async request => {
@@ -172,6 +223,13 @@ exports.notifyConversationMessage = onDocumentCreated({
     doc.data().updatedAt?.toMillis() > Date.now() - 30 * 86400 * 1000);
   if (!valid.length) return;
   if (await blocked(ids[0], ids[1])) return;
+  // Cached device tokens are not evidence of a currently authorized recipient.
+  const recipientAccount = await getAuth().getUser(recipientUid).catch(error => {
+    if (error.code === "auth/user-not-found") return null;
+    throw error;
+  });
+  const recipientProfile = (await db.doc(`users/${recipientUid}`).get()).data();
+  if (!recipientPushAllowed(recipientAccount, recipientProfile)) return;
   try { await reserve(message.senderUid, "messagePush", 240, 3600); }
   catch (error) {
     if (error.code === "resource-exhausted") return;
@@ -185,3 +243,5 @@ exports.notifyConversationMessage = onDocumentCreated({
   await deliveryRef.set({ sent: true, updatedAt: FieldValue.serverTimestamp(),
     expiresAt: Timestamp.fromMillis(Date.now() + 7 * 86400 * 1000) });
 });
+
+Object.assign(exports, require("./reviews").registerReviews({ db, onCall, options: callableOptions, HttpsError, getAuth, FieldValue, reserve, requireModerator }));

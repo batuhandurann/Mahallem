@@ -1,7 +1,7 @@
 "use strict";
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { recipientFor, pushPayload, photoBytes, segment, deadToken, MAX_PHOTO_BYTES } = require("../policy");
+const { recipientFor, pushPayload, photoBytes, segment, deadToken, recipientPushAllowed, MAX_PHOTO_BYTES } = require("../policy");
 const conversation = { participantUids: ["batuhan", "ayse"] };
 test("push is UID scoped: sends to the other participant; forged sender and blocks denied", () => {
   assert.equal(recipientFor(conversation, "batuhan", false), "ayse");
@@ -27,4 +27,15 @@ test("paths prevent traversal and malformed identities; only permanent token err
   assert.equal(segment("3:uid5:other"), "3:uid5:other");
   assert.equal(deadToken("messaging/registration-token-not-registered"), true);
   assert.equal(deadToken("messaging/internal-error"), false);
+});
+
+test("push revokes disabled, deleted and pending-deletion recipients", () => {
+  assert.equal(recipientPushAllowed({ disabled: false }, undefined), false);
+  assert.equal(recipientPushAllowed({ disabled: false }, null), false);
+  assert.equal(recipientPushAllowed({ disabled: false }, {}), true);
+  assert.equal(recipientPushAllowed({ disabled: false }, { deletionStatus: "ACTIVE" }), true);
+  assert.equal(recipientPushAllowed({ disabled: false }, { deletionStatus: "REQUESTED" }), false);
+  assert.equal(recipientPushAllowed({ disabled: false }, { deletionStatus: "PURGING" }), false);
+  assert.equal(recipientPushAllowed({ disabled: true }, { deletionStatus: "ACTIVE" }), false);
+  assert.equal(recipientPushAllowed(null, { deletionStatus: "ACTIVE" }), false);
 });

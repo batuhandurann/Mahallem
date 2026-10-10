@@ -5,6 +5,7 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 import java.util.GregorianCalendar
+import java.util.TimeZone
 
 data class RequestSchedule(val date: String, val time: String)
 
@@ -18,7 +19,11 @@ object RequestSchedules {
         if (!value.matches(Regex("[0-9]{4}-[0-9]{2}-[0-9]{2}"))) return false
         if (value.take(4).toInt() < 100) return false
         val parser = SimpleDateFormat("yyyy-MM-dd", Locale.US).apply {
-            calendar = GregorianCalendar().apply { gregorianChange = Date(Long.MIN_VALUE) }
+            // A requested calendar day is not a device-local midnight. Some zones skip
+            // whole days; UTC keeps validation consistent with Firestore's calendar rules.
+            calendar = GregorianCalendar(TimeZone.getTimeZone("UTC")).apply {
+                gregorianChange = Date(Long.MIN_VALUE)
+            }
             isLenient = false
         }
         val position = ParsePosition(0)

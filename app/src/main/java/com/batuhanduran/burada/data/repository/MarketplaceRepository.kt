@@ -1,8 +1,13 @@
 package com.batuhanduran.burada.data.repository
 
+import com.batuhanduran.burada.validation.quoteDraftError
+
 import com.batuhanduran.burada.data.local.*
 import com.batuhanduran.burada.data.model.SectorType
 import com.batuhanduran.burada.data.model.UrgencyMode
+import com.batuhanduran.burada.data.model.JobLifecycle
+import com.batuhanduran.burada.data.model.JobEvent
+import com.batuhanduran.burada.data.model.JobAction
 import com.batuhanduran.burada.data.remote.FirebaseServices
 import com.batuhanduran.burada.data.remote.AtomicWriteBudget
 import com.batuhanduran.burada.data.remote.WriteOperation
@@ -10,6 +15,12 @@ import com.google.android.gms.tasks.Task
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.*
 import com.squareup.moshi.Moshi
+import com.batuhanduran.burada.BuildConfig
+import com.batuhanduran.burada.auth.awaitResult
+import com.google.firebase.functions.FirebaseFunctions
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.suspendCancellableCoroutine
@@ -44,7 +55,9 @@ class MarketplaceRepository(
         require(area.provinceId == provinceId && area.districtId == districtId)
     }
     private fun <T> observe(query: Query, transform: (DocumentSnapshot) -> T): Flow<List<T>> = callbackFlow {
-        requireAccount()
+        // A WhileSubscribed stream can start after its account has already left.
+        // End read streams empty; write operations still strictly reject stale UIDs.
+        if (auth.currentUser?.uid != uid) { trySend(emptyList()); close(); return@callbackFlow }
         val authListener = FirebaseAuth.AuthStateListener { current ->
             if (current.currentUser?.uid != uid) { trySend(emptyList()); close() }
         }
@@ -141,15 +154,98 @@ class MarketplaceRepository(
         }
     }
 
-    fun getAllProviders(): Flow<List<ServiceProviderEntity>> = combine(
+    // A verified phone is computed from current server Auth + the private listing contact.
+    // Strip all client-supplied trust claims, including certificates without a review workflow.
+    @OptIn(ExperimentalCoroutinesApi::class)
+    private fun <T> withPhoneTrust(source: Flow<List<T>>, kind: String,
+        id: (T) -> String, apply: (T, Boolean) -> T): Flow<List<T>> = source.transformLatest { rows ->
+        if (auth.currentUser?.uid != uid) { emit(emptyList()); return@transformLatest }
+        val unverified = rows.map { apply(it, false) }
+        emit(unverified)
+        if (rows.isEmpty()) return@transformLatest
+        val functions = FirebaseFunctions.getInstance(FirebaseServices.app, "europe-west3").apply {
+            if (BuildConfig.USE_FIREBASE_EMULATORS) useEmulator(BuildConfig.EMULATOR_HOST, 5001)
+        }
+        while (true) {
+            if (auth.currentUser?.uid != uid) { emit(emptyList()); return@transformLatest }
+            emit(unverified)
+            try {
+                requireAccount()
+                val flags = mutableMapOf<String, Boolean>()
+                for (batch in rows.map(id).distinct().chunked(50)) {
+                    val response = withTimeout(15_000) {
+                        functions.getHttpsCallable("getListingTrust")
+                            .call(mapOf("kind" to kind, "ids" to batch)).awaitResult().data
+                    } as? Map<*, *> ?: error("Invalid trust response")
+                    requireAccount()
+                    val results = response["listings"] as? Map<*, *> ?: error("Invalid trust evidence")
+                    for (listingId in batch) flags[listingId] =
+                        (results[listingId] as? Map<*, *>)?.get("phoneVerified") == true
+                }
+                emit(rows.map { apply(it, flags[id(it)] == true) })
+            } catch (error: kotlinx.coroutines.TimeoutCancellationException) {
+                emit(unverified)
+            } catch (error: CancellationException) {
+                throw error
+            } catch (_: Exception) {
+                if (auth.currentUser?.uid != uid) { emit(emptyList()); return@transformLatest }
+                emit(unverified)
+            }
+            // Revoked/disabled accounts lose evidence on the next refresh (maximum 60 seconds).
+            delay(60_000)
+        }
+    }
+    private fun providerTrust(source: Flow<List<ServiceProviderEntity>>) =
+        withPhoneTrust(source, "providers", { it.id }) { row, verified ->
+            row.copy(phoneVerified = verified, verifiedSafeBadge = false, mykCertified = false, childSafeCertified = false)
+        }
+    private fun requestTrust(source: Flow<List<JobRequestEntity>>) =
+        withPhoneTrust(source, "requests", { it.id }) { row, verified -> row.copy(phoneVerified = verified) }
+
+    fun getAllProviders(): Flow<List<ServiceProviderEntity>> = providerTrust(combine(
         observe(db.collection("providers").whereEqualTo("visibility", "published")) { decode(it, ServiceProviderEntity::class.java) },
         observe(db.collection("users").document(uid).collection("favorites")) { it.id }
-    ) { providers, favorites -> providers.map { it.copy(isFavorite = it.id in favorites) } }
-    fun getAllRequests(): Flow<List<JobRequestEntity>> = observe(db.collection("requests").whereEqualTo("visibility", "published")) {
+    ) { providers, favorites -> providers.map { it.copy(isFavorite = it.id in favorites) } })
+    fun getOwnedProviders(): Flow<List<ServiceProviderEntity>> = providerTrust(
+        observe(db.collection("providers").whereEqualTo("ownerUid", uid)) {
+            decode(it, ServiceProviderEntity::class.java)
+        }.map { profiles -> ownedProviderProfiles(profiles, uid) })
+
+    fun getAllRequests(): Flow<List<JobRequestEntity>> = requestTrust(observe(db.collection("requests").whereEqualTo("visibility", "published")) {
         decode(it, JobRequestEntity::class.java).copy(createdAt = it.getTimestamp("createdAt")?.toDate()?.time ?: 0)
-    }
-    fun getMyRequests(): Flow<List<JobRequestEntity>> = observe(db.collection("requests").whereEqualTo("ownerUid", uid)) {
+    }.map { rows -> rows.filter { it.status == "PENDING" } })
+    fun getMyRequests(): Flow<List<JobRequestEntity>> = requestTrust(observe(db.collection("requests").whereEqualTo("ownerUid", uid)) {
         decode(it, JobRequestEntity::class.java).copy(createdAt = it.getTimestamp("createdAt")?.toDate()?.time ?: 0)
+    })
+    fun getAssignedRequests(): Flow<List<JobRequestEntity>> = observe(
+        db.collection("requests").whereEqualTo("acceptedProviderUid", uid)
+    ) { decode(it, JobRequestEntity::class.java) }
+
+    fun getJobLifecycles(): Flow<List<JobLifecycle>> = observe(
+        db.collection("jobs").whereArrayContains("participantUids", uid)
+    ) { JobLifecycle(it.id, requireNotNull(it.getString("status")), requireNotNull(it.getLong("version")).toInt(),
+        it.getString("cancellationByUid") ?: "", it.getString("previousStatus") ?: "",
+        it.getString("note") ?: "", it.getString("reasonCode") ?: "") }
+
+    fun getJobEvents(requestId: String): Flow<List<JobEvent>> = observe(
+        db.collection("jobs").document(requestId).collection("events")
+            .orderBy("version", Query.Direction.DESCENDING).limit(50)
+    ) { JobEvent(it.id, requestId, requireNotNull(it.getString("action")), requireNotNull(it.getString("actorRole")),
+        requireNotNull(it.getString("toStatus")), it.getString("note") ?: "", it.getString("reasonCode") ?: "",
+        requireNotNull(it.getLong("version")).toInt(), it.getTimestamp("createdAt")?.toDate()?.time ?: 0) }
+
+    suspend fun manageJob(requestId: String, action: JobAction, version: Int, note: String,
+        reasonCode: String, actionId: String) {
+        requireAccount()
+        val functions = FirebaseFunctions.getInstance(FirebaseServices.app, "europe-west3").apply {
+            if (BuildConfig.USE_FIREBASE_EMULATORS) useEmulator(BuildConfig.EMULATOR_HOST, 5001)
+        }
+        withTimeout(30_000) {
+            functions.getHttpsCallable("manageJob").call(mapOf("requestId" to requestId,
+                "actionId" to actionId, "action" to action.name, "version" to version,
+                "note" to note, "reasonCode" to reasonCode)).awaitResult()
+        }
+        requireAccount()
     }
     fun getProviderById(id: String) = getAllProviders().map { list -> list.find { it.id == id } }
     fun getRequestById(id: String) = getAllRequests().map { list -> list.find { it.id == id } }
@@ -207,6 +303,8 @@ class MarketplaceRepository(
     fun getQuotesForRequest(requestId: String) = getAllQuotes().map { list -> list.filter { it.requestId == requestId } }
     suspend fun sendQuote(quote: QuoteEntity): String {
         requireAccount()
+        val validationError = quoteDraftError(quote.price, quote.durationOrArrival, quote.notes)
+        require(validationError == null) { validationError ?: "Teklif bilgileri geçersiz." }
         val request = db.collection("requests").document(quote.requestId).get(Source.SERVER).awaitRemote()
         val customerUid = requireNotNull(request.getString("ownerUid"))
         check(customerUid != uid) { "Kendi ilanınıza teklif veremezsiniz." }
@@ -231,6 +329,7 @@ class MarketplaceRepository(
             val request = tx.get(reqRef)
             val quote = tx.get(quoteRef)
             check(request.getString("ownerUid") == uid && quote.getString("customerUid") == uid)
+            check(request.getString("data.status") == "PENDING") { "Bu talep artık teklif kabul etmiyor." }
             check(quote.getString("requestId") == requestId && quote.getString("status") == "PENDING")
             check(request.getString("acceptedQuoteId") == "") { "Bu ilan için zaten teklif kabul edildi." }
             tx.update(quoteRef, mapOf("status" to "ACCEPTED", "updatedAt" to FieldValue.serverTimestamp()))
@@ -238,6 +337,27 @@ class MarketplaceRepository(
                 "acceptedProviderUid" to requireNotNull(quote.getString("providerUid")), "updatedAt" to FieldValue.serverTimestamp()))
         }.awaitRemote()
     }
+    private suspend fun reviewCall(name: String, payload: Map<String, Any>) {
+        requireAccount()
+        val functions = FirebaseFunctions.getInstance(FirebaseServices.app, "europe-west3").apply {
+            if (BuildConfig.USE_FIREBASE_EMULATORS) useEmulator(BuildConfig.EMULATOR_HOST, 5001)
+        }
+        withTimeout(30_000) { functions.getHttpsCallable(name).call(payload).awaitResult() }
+        requireAccount()
+    }
+    suspend fun submitJobReview(requestId: String, rating: Int, comment: String) =
+        reviewCall("submitJobReview", mapOf("requestId" to requestId, "rating" to rating, "comment" to comment))
+    suspend fun reportJobReview(providerId: String, reviewId: String, reason: String) =
+        reviewCall("reportJobReview", mapOf("providerId" to providerId, "reviewId" to reviewId, "reason" to reason))
+    fun getReviewedRequestIds(): Flow<List<String>> = observe(
+        db.collection("jobReviews").whereEqualTo("customerUid", uid)
+    ) { it.id }
+    fun getProviderReviews(providerId: String, limit: Long): Flow<List<com.batuhanduran.burada.data.model.JobReview>> = observe(
+        db.collection("providers").document(providerId).collection("reviews")
+            .orderBy("createdAt", Query.Direction.DESCENDING).limit(limit)
+    ) { com.batuhanduran.burada.data.model.JobReview(it.id, (it.getLong("rating") ?: 0).toInt(),
+        it.getString("comment") ?: "", it.getTimestamp("createdAt")?.toDate()?.time ?: 0, providerId) }
+
     suspend fun rejectQuote(quoteId: String) {
         requireAccount()
         db.collection("quotes").document(quoteId).update(mapOf("status" to "REJECTED",
