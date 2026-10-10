@@ -1,4 +1,4 @@
-name: Mahallem Security
+name: Yakino Security
 on:
   pull_request:
     branches: [main]

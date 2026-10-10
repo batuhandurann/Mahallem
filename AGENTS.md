@@ -1,4 +1,4 @@
-# Working on Burada / Mahallem
+# Working on Yakıno
 
 - Start by reading `PROGRESS.md`, this file and `git status`. Fetch the relevant remote branch before using an older local checkout.
 - Keep completed, tested features. Make changes in small, independently reviewable steps.

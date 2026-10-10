@@ -1,5 +1,5 @@
 {
-  "name": "Burada",
+  "name": "Yakıno",
   "description": "Yerel yaşam, ev tadilatı ve organizasyon pazar yeri platformu",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]

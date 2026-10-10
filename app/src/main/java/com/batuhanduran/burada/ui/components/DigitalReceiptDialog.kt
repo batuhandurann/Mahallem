@@ -80,7 +80,7 @@ fun DigitalReceiptDialog(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Column {
-                        Text("MAHALLEMDE GÜVENCESİ", fontWeight = FontWeight.Bold, fontSize = 12.sp, color = TealDark)
+                        Text("YAKINO", fontWeight = FontWeight.Bold, fontSize = 12.sp, color = TealDark)
                         Text("Resmi İş Onay Belgesi", fontSize = 10.sp, color = Slate500)
                     }
                     Text(
