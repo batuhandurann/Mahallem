@@ -10,6 +10,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
@@ -30,17 +31,18 @@ fun MarketplaceMapView(
     onChatForJobRequest: (JobRequestEntity) -> Unit
 ) {
     BackHandler { onBackClick() }
-    var selectedFilter by remember { mutableStateOf("ALL") }
-    var selectedNeighborhoodId by remember { mutableStateOf<String?>(null) }
+    var selectedFilter by rememberSaveable { mutableStateOf("ALL") }
+    var selectedNeighborhoodId by rememberSaveable { mutableStateOf<String?>(null) }
     val neighborhoodIds = (providers.map { it.neighborhoodId } + requests.map { it.neighborhoodId }).distinct().sorted()
     fun labelFor(id: String): String = PilotNeighborhoodCatalog.findById(id)?.displayLabel
         ?: providers.firstOrNull { it.neighborhoodId == id }?.let { "${it.neighborhoodName.ifBlank { "Mahalle belirtilmemiş" }}, ${it.district}" }
         ?: requests.firstOrNull { it.neighborhoodId == id }?.let { "${it.neighborhoodName.ifBlank { "Mahalle belirtilmemiş" }}, ${it.district}" }
         ?: "Mahalle belirtilmemiş"
 
-    // A realtime deletion must not leave an orphaned filter hiding all surviving results.
+    // Empty backend snapshots may be transient during refresh or state restoration.
+    // Clear orphaned selections only after a non-empty neighborhood snapshot arrives.
     LaunchedEffect(neighborhoodIds) {
-        if (selectedNeighborhoodId != null && selectedNeighborhoodId !in neighborhoodIds) selectedNeighborhoodId = null
+        if (neighborhoodIds.isNotEmpty() && selectedNeighborhoodId != null && selectedNeighborhoodId !in neighborhoodIds) selectedNeighborhoodId = null
     }
     val filteredProviders = providers.filter {
         selectedFilter != "REQUESTS" && (selectedFilter != "EMERGENCY" || it.isEmergencyAvailable) &&

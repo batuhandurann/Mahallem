@@ -1,8 +1,14 @@
 package com.batuhanduran.burada.location
 
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.test.junit4.StateRestorationTester
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.assertIsSelected
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performClick
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.batuhanduran.burada.data.local.ServiceProviderEntity
@@ -58,6 +64,66 @@ class NeighborhoodDiscoveryInstrumentedTest {
             assertEquals(neighborhood.neighborhoodId, selectedId)
             assertEquals(0, locationCallbacks)
         }
+    }
+
+    @Test fun selectedNeighborhoodSurvivesSavedStateRestoration() {
+        val firstId = "test_neighborhood_001"
+        val secondId = "test_neighborhood_002"
+        val providers = listOf(provider("first", firstId), provider("second", secondId))
+        val restoration = StateRestorationTester(compose)
+        restoration.setContent {
+            MaterialTheme { MarketplaceMapView(providers, emptyList(), {}, {}, {}, {}) }
+        }
+        compose.onNodeWithTag("discovery_neighborhood_$secondId").performScrollTo().performClick()
+        compose.onNodeWithTag("discovery_neighborhood_$secondId").assertIsSelected()
+        compose.onNodeWithTag("discovery_provider_first").assertDoesNotExist()
+        compose.onNodeWithTag("discovery_provider_second").assertExists()
+
+        restoration.emulateSavedInstanceStateRestore()
+
+        compose.onNodeWithTag("discovery_neighborhood_$secondId").assertIsSelected()
+        compose.onNodeWithTag("discovery_provider_first").assertDoesNotExist()
+        compose.onNodeWithTag("discovery_provider_second").assertExists()
+    }
+
+    @Test fun discoveryTypeFilterSurvivesSavedStateRestoration() {
+        val providers = listOf(provider("first", "test_neighborhood_001"))
+        val restoration = StateRestorationTester(compose)
+        restoration.setContent {
+            MaterialTheme { MarketplaceMapView(providers, emptyList(), {}, {}, {}, {}) }
+        }
+        compose.onNodeWithTag("discovery_filter_REQUESTS").performScrollTo().performClick()
+        compose.onNodeWithTag("discovery_filter_REQUESTS").assertIsSelected()
+        compose.onNodeWithTag("discovery_provider_first").assertDoesNotExist()
+        compose.onNodeWithTag("neighborhood_discovery_empty").assertExists()
+
+        restoration.emulateSavedInstanceStateRestore()
+
+        compose.onNodeWithTag("discovery_filter_REQUESTS").assertIsSelected()
+        compose.onNodeWithTag("discovery_provider_first").assertDoesNotExist()
+        compose.onNodeWithTag("neighborhood_discovery_empty").assertExists()
+    }
+
+    @Test fun restoredNeighborhoodSelectionSurvivesTemporaryEmptyBackend() {
+        val firstId = "test_neighborhood_001"
+        val secondId = "test_neighborhood_002"
+        val populated = listOf(provider("first", firstId), provider("second", secondId))
+        var currentProviders by mutableStateOf(populated)
+        val restoration = StateRestorationTester(compose)
+        restoration.setContent {
+            MaterialTheme { MarketplaceMapView(currentProviders, emptyList(), {}, {}, {}, {}) }
+        }
+        compose.onNodeWithTag("discovery_neighborhood_$secondId").performScrollTo().performClick()
+        compose.onNodeWithTag("discovery_neighborhood_$secondId").assertIsSelected()
+
+        compose.runOnIdle { currentProviders = emptyList() }
+        compose.onNodeWithTag("neighborhood_discovery_empty").assertExists()
+        restoration.emulateSavedInstanceStateRestore()
+
+        compose.runOnIdle { currentProviders = populated }
+        compose.onNodeWithTag("discovery_neighborhood_$secondId").assertIsSelected()
+        compose.onNodeWithTag("discovery_provider_first").assertDoesNotExist()
+        compose.onNodeWithTag("discovery_provider_second").assertExists()
     }
 
     private fun provider(id: String, neighborhoodId: String) = ServiceProviderEntity(
