@@ -1,0 +1,37 @@
+{
+  "date": "2026-10-10",
+  "timezone": "Europe/Istanbul",
+  "sourceCodeCommit": "f13b5f36b6c03e9598b892e4fd948318be245842",
+  "integratedMain": "4995bd0",
+  "environment": { "os": "Windows", "java": "21.0.12.1+1", "node": "24.19.0", "python": "3.12.14", "firebaseProject": "demo-mahallem", "database": "mahallem" },
+  "android": {
+    "gradleExitCode": 0,
+    "tasks": ["assembleDebug", "testDebugUnitTest", "lintDebug", "assembleDebugAndroidTest"],
+    "unitTests": { "tests": 115, "failures": 0, "errors": 0, "skipped": 0, "classes": 30 },
+    "lint": { "errors": 0, "warnings": 43 },
+    "debugApk": { "bytes": 25563223, "sha256": "1d98563358d28b9cfa06b7fb9a75278715d9d52efa21d20b8bb8abc7f2adbd1b" },
+    "androidTestApk": { "bytes": 1063578, "sha256": "bc3ed19514618e849fb7f83081aa4cc7d327c24b6f5bcff6e52561cb8e22addb" },
+    "localInstrumentedExecution": "NOT_RUN_NO_DEVICE"
+  },
+  "authRules": { "tests": 50, "failures": 0, "skipped": 0, "repeatedAfterToolingUpdate": true },
+  "backendUnit": { "tests": 20, "failures": 0 },
+  "configurationFixtures": { "tests": 60, "failures": 0 },
+  "trustedIntegration": { "tests": 11, "failures": 0, "skipped": 0, "durationSeconds": 49.075 },
+  "dependencyAudit": {
+    "toolingAffectedPackagesBefore": 16,
+    "toolingAffectedPackagesAfter": 3,
+    "remainingUnderlyingAdvisories": ["GHSA-vfj7-8cjw-p6xm"],
+    "rootProductionAdvisories": 0,
+    "functionsAdvisories": 0
+  },
+  "production": {
+    "signedRelease": "NOT_RUN",
+    "liveDeployment": "NOT_VERIFIED",
+    "physicalDevice": "NOT_RUN",
+    "realSmsDelivery": "NOT_VERIFIED",
+    "realFcmDelivery": "NOT_VERIFIED",
+    "enforcedAppCheckRejection": "NOT_VERIFIED",
+    "payments": "NOT_INTEGRATED"
+  },
+  "githubExactHeadChecks": "PENDING_PR_CI"
+}
