@@ -3,6 +3,9 @@
 .kotlin
 /local.properties
 .env
+.env.*
+!.env.example
+.secret.local
 /.idea/caches
 /.idea/libraries
 /.idea/modules.xml

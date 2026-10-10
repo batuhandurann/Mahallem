@@ -62,6 +62,18 @@ disabled in this version; an explicit sandbox configuration is required even
 when credentials exist. The operator must provide the authenticated sandbox
 callback URL plus sandbox credentials through protected server configuration.
 
+The ordinary deployment requires no merchant credentials. After an actual
+sandbox account exists, store `IYZICO_SANDBOX_API_KEY` and
+`IYZICO_SANDBOX_SECRET_KEY` in Google Secret Manager through Firebase's
+`functions:secrets:set` command. Set only the non-secret operator flag
+`IYZICO_SANDBOX_ENABLED=true` and explicit HTTPS `IYZICO_SANDBOX_CALLBACK_URL`
+in protected server deployment configuration. With that flag, the four payment
+functions explicitly bind the two Secret Manager names; credentials are never
+plain deployment environment variables or Android BuildConfig fields. A local
+Functions emulator may use ignored `.secret.local` test values. Environment
+files and local secret files are ignored. Keep all production payment collection
+disabled; a real merchant account alone does not implement refunds/settlement.
+
 Reserve a single durable attempt per request in a Firestore transaction before
 calling iyzico. A second concurrent call returns the same known checkout or
 pending status. `conversationId` is a correlation identifier; iyzico documentation
