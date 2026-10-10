@@ -31,7 +31,9 @@ class ProviderQuoteDraftTest {
                     { _, _, _, _, _, complete -> completions += complete }, quoteComposer = composer)
             }
         }
-        compose.onNodeWithTag("btn_give_quote_request").performScrollTo().performClick()
+        compose.onNodeWithTag("provider_dashboard_list")
+            .performScrollToNode(hasTestTag("btn_give_quote_request"))
+        compose.onNodeWithTag("btn_give_quote_request").performClick()
         compose.onNodeWithTag("input_quote_price").performTextReplacement("1000 TL")
         compose.onNodeWithTag("input_quote_arrival").performTextReplacement("Yarın 14.00")
         compose.onNodeWithTag("input_quote_notes").performTextReplacement("Malzeme dahil")

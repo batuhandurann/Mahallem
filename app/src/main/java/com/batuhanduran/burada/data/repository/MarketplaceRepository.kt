@@ -308,6 +308,7 @@ class MarketplaceRepository(
         val requestRef = db.collection("requests").document(quote.requestId)
         val providerRef = db.collection("providers").document(quote.providerId)
         val ref = db.collection("quotes").document("${quote.requestId}_$uid")
+        try {
         db.runTransaction { tx ->
             requireAccount()
             val request = tx.get(requestRef)
@@ -331,6 +332,23 @@ class MarketplaceRepository(
             tx.set(ref, envelope(encode(data, QuoteEntity::class.java), "providerUid" to uid,
                 "customerUid" to customerUid, "requestId" to quote.requestId, "status" to "PENDING"))
         }.awaitRemote()
+        } catch (exception: Exception) {
+            if (exception is CancellationException && exception !is kotlinx.coroutines.TimeoutCancellationException) throw exception
+            requireAccount()
+            // A Task may commit after awaitRemote times out. Immutable Rules reject a
+            // duplicate write; confirm the actual server record instead of spending quota.
+            val existing = try {
+                ref.get(Source.SERVER).awaitRemote()
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (_: Exception) {
+                throw exception
+            }
+            requireAccount()
+            if (!existing.exists()) throw exception
+            val saved = decode(existing, QuoteEntity::class.java).copy(status = existing.getString("status") ?: "")
+            if (!acknowledgesQuoteRetry(saved, quote, uid)) throw exception
+        }
         return ref.id
     }
     suspend fun acceptQuote(requestId: String, quoteId: String) {

@@ -98,6 +98,9 @@ class AuthMarketplaceInstrumentedTest {
             assertEquals("Provider", savedQuote.getString("data.providerName"))
             assertEquals("Boyacı", savedQuote.getString("data.providerTitle"))
             assertEquals(0.0, savedQuote.getDouble("data.providerRating")!!, 0.001)
+            assertEquals(quoteId, providerRepo.sendQuote(QuoteEntity(requestId=requestId,providerId=provider.id,
+                providerName="Stale snapshot",providerTitle="Old title",providerRating=4.0,price="1000 ₺",
+                durationOrArrival="1 gün",notes="Android SDK teklifi")))
             val convId=providerRepo.startOrGetConversation(customerUid,"Customer","","Boya")
             // Reopening an existing chat must not spend a new-conversation allowance.
             assertEquals(convId, providerRepo.startOrGetConversation(customerUid,"Customer","","Boya"))
