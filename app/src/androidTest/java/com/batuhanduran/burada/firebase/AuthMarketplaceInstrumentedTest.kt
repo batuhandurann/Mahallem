@@ -1,6 +1,8 @@
 package com.batuhanduran.burada.firebase
 
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import androidx.test.platform.app.InstrumentationRegistry
+import com.google.firebase.appcheck.debug.testing.DebugAppCheckTestHelper
 import com.batuhanduran.burada.BuildConfig
 import com.batuhanduran.burada.data.local.JobRequestEntity
 import com.batuhanduran.burada.data.local.QuoteEntity
@@ -28,11 +30,24 @@ import org.junit.runner.RunWith
 import java.util.UUID
 import java.util.concurrent.TimeUnit
 
-/** Uses actual Android Firebase SDKs and deployed emulator rules. Never contacts production. */
+/** Real Android SDK flows: isolated emulators or explicitly authorized, fixed staging only. */
 @RunWith(AndroidJUnit4::class)
 class AuthMarketplaceInstrumentedTest {
-    @Test fun registerLoginListingOfferChatAndAccountIsolation(): Unit = runBlocking {
-        check(BuildConfig.USE_FIREBASE_EMULATORS) { "Run with -PfirebaseEmulators=true; production tests are forbidden." }
+    @Test fun registerLoginListingOfferChatAndAccountIsolation() {
+        if (BuildConfig.USE_FIREBASE_EMULATORS) {
+            runBlocking { exerciseMarketplace() }
+        } else {
+            check(BuildConfig.DEBUG && FirebaseServices.app.options.projectId == "yakino-staging-261010") {
+                "Live tests require the fixed isolated Yakino staging project; production is forbidden."
+            }
+            check(InstrumentationRegistry.getArguments().getString("allowLiveStaging") == "true")
+            DebugAppCheckTestHelper.fromInstrumentationArgs().withDebugProvider(FirebaseServices.app) {
+                runBlocking { exerciseMarketplace() }
+            }
+        }
+    }
+
+    private suspend fun exerciseMarketplace() {
         val auth = FirebaseServices.auth
         val db = FirebaseServices.firestore
         val suffix = UUID.randomUUID().toString()
@@ -60,6 +75,7 @@ class AuthMarketplaceInstrumentedTest {
         auth.signOut()
         val customer = await(auth.createUserWithEmailAndPassword(customerEmail, password)).user!!
         val customerUid = customer.uid
+        assertFalse(await(customer.getIdToken(true)).token.isNullOrBlank())
         val customerRepo = MarketplaceRepository()
         val emergencySchedule = RequestSchedules.now()
         val requestId = customerRepo.createJobRequest(JobRequestEntity(title = "Android test boya",

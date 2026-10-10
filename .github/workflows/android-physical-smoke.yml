@@ -18,10 +18,14 @@ permissions:
 
 jobs:
   physical-smoke:
+    if: github.ref == 'refs/heads/main'
     name: physical-smoke
     environment: staging
     runs-on: ubuntu-24.04
     timeout-minutes: 45
+    permissions:
+      contents: read
+      id-token: write
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
@@ -37,12 +41,28 @@ jobs:
       - run: sdkmanager 'platforms;android-36.1' 'build-tools;36.0.0'
       - uses: gradle/actions/wrapper-validation@3f5f9adaf7d9fecd50b5935e54106014257a94e6
       - uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6
-      - name: Build isolated emulator-mode instrumentation APKs
-        run: ./gradlew --no-daemon -PfirebaseEmulators=true clean :app:assembleDebug :app:assembleDebugAndroidTest
+      - name: Materialize the fixed isolated staging configuration
+        env:
+          CONFIG_B64: ${{ secrets.STAGING_GOOGLE_SERVICES_JSON_BASE64 }}
+          PROJECT_ID: ${{ inputs.gcp_project_id }}
+        run: |
+          set -euo pipefail
+          test "$PROJECT_ID" = 'yakino-staging-261010'
+          umask 077
+          printf '%s' "$CONFIG_B64" | base64 --decode > app/google-services.json
+          python3 - <<'PY'
+          import json
+          c = json.load(open('app/google-services.json'))
+          assert c['project_info']['project_id'] == 'yakino-staging-261010'
+          assert any(x['client_info']['android_client_info']['package_name'] == 'com.batuhanduran.burada' for x in c['client'])
+          PY
+      - name: Build actual live staging Android SDK instrumentation APKs
+        run: ./gradlew --no-daemon clean :app:assembleDebug :app:assembleDebugAndroidTest
       - name: Authenticate staging-only Firebase Test Lab
         uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093
         with:
-          credentials_json: ${{ secrets.FIREBASE_TEST_LAB_SERVICE_ACCOUNT }}
+          workload_identity_provider: ${{ vars.GCP_STAGING_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.FIREBASE_TEST_LAB_SERVICE_ACCOUNT_EMAIL }}
       - name: Configure gcloud
         uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db
       - name: Select available physical Android model
@@ -64,11 +84,12 @@ jobs:
           else:
               raise SystemExit('No physical Firebase Test Lab device available for API ' + api)
           PY
-      - name: Physical device Compose smoke (no production backend)
+      - name: Physical device live staging marketplace and Compose regressions
         env:
           PROJECT_ID: ${{ inputs.gcp_project_id }}
           ANDROID_API: ${{ inputs.android_api }}
           DEVICE_MODEL: ${{ steps.model.outputs.model }}
+          STAGING_DEBUG_TOKEN: ${{ secrets.STAGING_APPCHECK_DEBUG_TOKEN }}
         run: |
           set -euo pipefail
           test -s app/build/outputs/apk/debug/app-debug.apk
@@ -78,7 +99,9 @@ jobs:
             --type instrumentation \
             --app app/build/outputs/apk/debug/app-debug.apk \
             --test app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk \
-            --test-targets 'class com.batuhanduran.burada.location.NeighborhoodDiscoveryInstrumentedTest' \
+            --test-targets 'class com.batuhanduran.burada.firebase.AuthMarketplaceInstrumentedTest','class com.batuhanduran.burada.ui.screens.ProviderTrustCopyTest','class com.batuhanduran.burada.ui.screens.MyRequestsSectorScreenTest','class com.batuhanduran.burada.ui.screens.QuoteAcceptanceWithoutPaymentTest','class com.batuhanduran.burada.location.NeighborhoodDiscoveryInstrumentedTest' \
+            --environment-variables "allowLiveStaging=true,firebaseAppCheckDebugSecret=$STAGING_DEBUG_TOKEN" \
+            --results-bucket "$PROJECT_ID.firebasestorage.app" \
             --device model="$DEVICE_MODEL",version="$ANDROID_API",locale=tr,orientation=portrait \
             --timeout 15m | tee "$RUNNER_TEMP/physical-smoke-result.txt"
       - name: Upload Test Lab execution evidence
@@ -88,3 +111,6 @@ jobs:
           name: physical-smoke-test-lab-evidence
           path: ${{ runner.temp }}/physical-smoke-result.txt
           if-no-files-found: warn
+      - name: Delete temporary staging config
+        if: always()
+        run: rm -f app/google-services.json

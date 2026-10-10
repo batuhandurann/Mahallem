@@ -3,7 +3,7 @@ package com.batuhanduran.burada.ui.theme
 import androidx.compose.ui.graphics.Color
 
 // =========================================================================
-// MAHALLEMDE - PURE WHITE THEME & HOUSE LOGO BRANDING
+// YAKINO - PURE WHITE THEME & HOUSE LOGO BRANDING
 // Crisp Pure White Background + Royal Indigo Blue + Energetic Warm Orange
 // =========================================================================
 
