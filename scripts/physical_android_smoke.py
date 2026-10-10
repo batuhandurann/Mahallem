@@ -67,7 +67,7 @@ def adb_program(explicit):
     if explicit:
         return explicit
     sdk = os.environ.get("ANDROID_HOME") or os.environ.get("ANDROID_SDK_ROOT")
-    candidate = Path(sdk) / "platform-tools" / "adb" if sdk else None
+    candidate = Path(sdk) / "platform-tools" / ("adb.exe" if os.name == "nt" else "adb") if sdk else None
     return str(candidate) if candidate and candidate.is_file() else shutil.which("adb")
 
 

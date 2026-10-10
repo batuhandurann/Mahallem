@@ -16,7 +16,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.batuhanduran.burada.data.local.DigitalReceiptEntity
+
 import com.batuhanduran.burada.data.local.JobRequestEntity
 import com.batuhanduran.burada.data.local.QuoteEntity
 import com.batuhanduran.burada.data.model.FeedFlowType
@@ -26,8 +26,8 @@ import com.batuhanduran.burada.ui.MarketplaceViewModel
 import com.batuhanduran.burada.ui.BuradaApp
 import com.batuhanduran.burada.ui.ScreenDestination
 import com.batuhanduran.burada.ui.components.CostEstimatorSheet
-import com.batuhanduran.burada.ui.components.DigitalReceiptDialog
-import com.batuhanduran.burada.ui.components.EscrowPaymentDialog
+
+import com.batuhanduran.burada.ui.components.HostedPaymentDialog
 import com.batuhanduran.burada.ui.components.ReportListingDialog
 import com.batuhanduran.burada.ui.screens.*
 import com.batuhanduran.burada.ui.theme.BuradaTheme
@@ -81,7 +81,6 @@ fun MarketplaceApp(
 
     var reportingTarget by remember { mutableStateOf<Triple<String?, String?, String>?>(null) }
     var escrowTargetQuote by remember { mutableStateOf<Pair<QuoteEntity, JobRequestEntity>?>(null) }
-    var activeReceipt by remember { mutableStateOf<DigitalReceiptEntity?>(null) }
     var showCostEstimator by remember { mutableStateOf(false) }
 
     LaunchedEffect(toastMessage) {
@@ -411,26 +410,11 @@ fun MarketplaceApp(
 
             // Escrow Payment Modal Dialog
             escrowTargetQuote?.let { (quote, req) ->
-                EscrowPaymentDialog(
+                HostedPaymentDialog(
                     quote = quote,
                     jobTitle = req.title,
+                    uid = viewModel.currentUid,
                     onDismiss = { escrowTargetQuote = null }
-                )
-            }
-
-            // Digital Receipt & Warranty Dialog
-            activeReceipt?.let { receipt ->
-                DigitalReceiptDialog(
-                    receipt = receipt,
-                    onDismiss = { activeReceipt = null },
-                    onReleaseFunds = { code ->
-                        viewModel.releaseEscrowPayment(receipt.requestId, receipt.quoteId, code)
-                        activeReceipt = null
-                    },
-                    onDisputeClick = {
-                        reportingTarget = Triple(null, receipt.requestId, "İtiraz: ${receipt.jobTitle}")
-                        activeReceipt = null
-                    }
                 )
             }
 

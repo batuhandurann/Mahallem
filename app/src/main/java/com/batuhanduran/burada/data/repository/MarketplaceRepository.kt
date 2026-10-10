@@ -483,12 +483,6 @@ class MarketplaceRepository(
             Unit
         }.awaitRemote()
     }
-    // Only a verified payment backend may acknowledge funds or generate receipts.
-    suspend fun fundEscrowPayment(requestId: String, quoteId: String, amount: String,
-        jobTitle: String, customerName: String, providerName: String, providerTitle: String, district: String): String =
-        error("Ödeme altyapısı henüz bağlı değil. Para bloke edilmedi.")
-    suspend fun releaseEscrowPayment(requestId: String, quoteId: String, receiptCode: String): Unit =
-        error("Ödeme altyapısı henüz bağlı değil. Para transferi yapılamaz.")
 }
 private suspend fun <T> Task<T>.awaitRemote(): T = withTimeout(30_000) {
     suspendCancellableCoroutine { continuation ->
