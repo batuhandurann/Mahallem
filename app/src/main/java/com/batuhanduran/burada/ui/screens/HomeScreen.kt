@@ -16,9 +16,11 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.batuhanduran.burada.R
 import com.batuhanduran.burada.data.local.JobRequestEntity
 import com.batuhanduran.burada.data.local.ServiceProviderEntity
 import com.batuhanduran.burada.data.model.FeedFlowType
@@ -70,7 +72,7 @@ fun HomeScreen(
         containerColor = Color.White,
         topBar = {
             MarketplaceTopBar(
-                title = "Burada",
+                title = stringResource(R.string.app_name),
                 selectedDistrict = selectedDistrict,
                 onDistrictSelected = onDistrictSelected,
                 isProviderMode = isProviderMode,
@@ -213,7 +215,7 @@ fun HomeScreen(
                 }
             }
 
-            if (providers.isEmpty() && jobRequests.isEmpty()) {
+            if (shouldShowFeedEmptyState(feedFlowType, providers.size, jobRequests.size)) {
                 item {
                     EmptyProvidersState(
                         onResetFilters = {

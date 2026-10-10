@@ -24,6 +24,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.batuhanduran.burada.data.local.ConversationEntity
+import com.batuhanduran.burada.data.repository.ChatOrdering
 import com.batuhanduran.burada.ui.theme.*
 import java.text.DateFormat
 import java.util.Date
@@ -91,7 +92,7 @@ fun ConversationsListScreen(
                 contentPadding = PaddingValues(16.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                items(conversations, key = { it.id }) { conv ->
+                items(ChatOrdering.mostRecentConversationsFirst(conversations), key = { it.id }) { conv ->
                     Card(
                         shape = RoundedCornerShape(16.dp),
                         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),

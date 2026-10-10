@@ -22,6 +22,6 @@ dependencyResolutionManagement {
   }
 }
 
-rootProject.name = "Burada"
+rootProject.name = "Yakino"
 
 include(":app")

@@ -1,3 +1,4 @@
 <resources>
-    <string name="app_name">Burada</string>
+    <string name="app_name">Yakıno</string>
+    <string name="chat_new_message_notification">Yakıno\u0027da yeni bir mesajınız var.</string>
 </resources>
