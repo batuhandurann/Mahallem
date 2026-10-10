@@ -19,4 +19,12 @@ class LocationFixFreshnessTest {
     @Test fun futureFixIsRejected() {
         assertFalse(isFreshLocationFix(300_000_000_001L, 300_000_000_000L))
     }
+    @Test fun negativeFixTimestampIsRejected() {
+        assertFalse(isFreshLocationFix(-1L, 300_000_000_000L))
+    }
+
+    @Test fun extremeAgeDoesNotOverflowIntoFreshRange() {
+        assertFalse(isFreshLocationFix(0L, Long.MAX_VALUE))
+    }
+
 }
