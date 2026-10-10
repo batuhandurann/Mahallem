@@ -37,6 +37,14 @@ fetch current remote state because other sessions may advance the repository.
 - Physical phone is still absent from adb. User can connect one; USB debugging
   instructions supplied. Existing production signing inputs are absent locally.
   Added a secret-free read-only preflight and repaired Windows adb.exe discovery.
+- Repaired the live Google Services task action's Gradle script capture. Live
+  development APK build succeeded with configuration cache stored, then reused
+  on a second successful build (JDK21/Windows, firebaseEmulators=false). Copied
+  artifact outside Git to work/phone-preview/yakino-live-development.apk; SHA256
+  B2CD0C4AB616E931CDAD4E76770C0FA163CA1E80560CF36CB1F3B28A2DB65F2F.
+  This is a development-signed APK, not a signed Play release or device test.
+  Config fixtures passed 65/65 with UTF-8 mode and JDK21 on PATH; initial
+  invocation without those host prerequisites failed and was rerun correctly.
 - Firestore/Auth App Check remain UNENFORCED pending actual device/Play evidence;
   Play Integrity registration exists. Live SMS/FCM delivery, signed Play artifacts
   and complete production audit remain unverified. New payment Functions are not
