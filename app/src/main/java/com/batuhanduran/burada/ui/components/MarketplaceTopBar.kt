@@ -93,7 +93,7 @@ fun MarketplaceTopBar(
                         ) {
                             Icon(
                                 imageVector = Icons.Default.Home,
-                                contentDescription = "Burada Ev Logosu",
+                                contentDescription = "Yakıno Logosu",
                                 tint = Color.White,
                                 modifier = Modifier.size(26.dp)
                             )

@@ -1,7 +1,30 @@
-# Progress — Burada / Mahallem
+# Progress — Yakıno
 
-Updated: 2026-10-09 (Europe/Istanbul). Read `AGENTS.md` and git status before work;
+Updated: 2026-10-10 (Europe/Istanbul). Read `AGENTS.md` and git status before work;
 fetch current remote state because other sessions may advance the repository.
+
+## Report reconciliation and Yakıno branding (2026-10-10)
+
+- Based on main `9eecf8db2eeaabb39f04e281fa389d7a3c4cfe71`.
+  Main Android Quality `37993663156` and Security `37993663150` passed.
+  The same source also passed Android `38019052398`: 9/9 jobs and 31 Android
+  tests, zero failures/skips, with real Android SDK plus isolated Firebase emulators.
+- PR #53 is merged. #54 and legacy #1 are closed without merge. The #55 trust
+  regression is already in main with semantic scrolling and visible assertions.
+  #48/#49/#51 are closed; their canonical hardening is in main.
+- Ported remaining #42 sector summaries, #43 selected-tab empty state and #52
+  conversation ordering onto current main. Preserved non-payment quote acceptance,
+  separate payment information, job lifecycle, reviews and all UID/Rules guards.
+  Sector UI uses targeted semantic scrolling; existing payment tests run together.
+- Applied #68's Yakıno app label, Auth/home copy and private notification resource,
+  plus accessible logo label and Gradle project display name. Installed application
+  ID and backend database identifiers remain compatibility identifiers; they are
+  not public branding and changing them requires registration/data migration.
+- This integration's exact-source Android/Security results are pending; prior
+  main success does not verify these edits. `git diff --check` passed locally.
+  Signed production AAB, live staging/App Check and real physical-device proof
+  remain unavailable until their protected access is verified. No substitute
+  key, fixture configuration or unsigned artifact is production evidence.
 
 ## Verified customer reviews (2026-10-10)
 
