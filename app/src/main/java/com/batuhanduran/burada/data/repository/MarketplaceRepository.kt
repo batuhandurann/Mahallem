@@ -270,7 +270,13 @@ class MarketplaceRepository(
         val ref = db.collection("conversations").document(id)
         db.runTransaction { tx ->
             requireAccount()
-            if (!tx.get(ref).exists()) {
+            val existing = tx.get(ref)
+            if (existing.exists()) {
+                val existingParticipants = existing.get("participantUids") as? List<*>
+                check(existingParticipants?.size == 2 && existingParticipants.toSet() == participants.toSet()) {
+                    "Sohbet katılımcıları doğrulanamadı. Lütfen destek ile iletişime geçin."
+                }
+            } else {
                 val budget = writeBudget.plan(tx, WriteOperation.CONVERSATION, ref)
                 budget.applyTo(tx)
                 tx.set(ref, mapOf("participantUids" to participants,

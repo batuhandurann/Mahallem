@@ -213,6 +213,12 @@ service cloud.firestore {
         && !exists(/databases/$(database)/documents/users/$(b)/blocks/$(a));
     }
     function chatWritable(d) { return member(d) && notBlocked(d.participantUids[0], d.participantUids[1]); }
+    function conversationKey(a, b) {
+      return string(a.size()) + ':' + a + string(b.size()) + ':' + b;
+    }
+    function conversationIdentity(id, ids) {
+      return id == conversationKey(ids[0], ids[1]) || id == conversationKey(ids[1], ids[0]);
+    }
     function validGeo(d) {
       let names = {'pilot_tr_35_buca_adatepe':'Adatepe','pilot_tr_35_buca_efeler':'Efeler',
         'pilot_tr_35_buca_inonu':'İnönü','pilot_tr_35_buca_sirinkapi':'Şirinkapı','pilot_tr_35_buca_yigitler':'Yiğitler'};
@@ -370,8 +376,13 @@ service cloud.firestore {
         && request.resource.data.status == 'PENDING'
         && requestDoc(request.resource.data.requestId).ownerUid == request.resource.data.customerUid
         && requestDoc(request.resource.data.requestId).data.status == 'PENDING'
+        && requestDoc(request.resource.data.requestId).visibility == 'published'
         && notBlocked(request.resource.data.providerUid, request.resource.data.customerUid)
         && providerDoc(request.resource.data.data.providerId).ownerUid == request.auth.uid
+        && providerDoc(request.resource.data.data.providerId).visibility == 'published'
+        && request.resource.data.data.providerName == providerDoc(request.resource.data.data.providerId).data.name
+        && request.resource.data.data.providerTitle == providerDoc(request.resource.data.data.providerId).data.title
+        && request.resource.data.data.providerRating == providerDoc(request.resource.data.data.providerId).data.rating
         && hasWriteBudget('quote', /databases/$(database)/documents/quotes/$(id));
       allow update: if signed() && resource.data.status == 'PENDING'
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status','updatedAt'])
@@ -396,6 +407,7 @@ service cloud.firestore {
         && request.resource.data.participantUids[0] is string && request.resource.data.participantUids[1] is string
         && request.resource.data.participantUids[0] != request.resource.data.participantUids[1]
         && request.resource.data.participantUids[0].size() <= 128 && request.resource.data.participantUids[1].size() <= 128
+        && conversationIdentity(id, request.resource.data.participantUids)
         && chatWritable(request.resource.data) && fresh(request.resource.data)
         && request.resource.data.names is map && request.resource.data.names.keys().hasOnly(request.resource.data.participantUids)
         && request.resource.data.names.keys().hasAll(request.resource.data.participantUids)

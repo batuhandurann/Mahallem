@@ -295,18 +295,28 @@ class MarketplaceViewModel(application: Application) : AndroidViewModel(applicat
         }
     }
 
-    fun sendChatMessage(conversationId: String, text: String, isOffer: Boolean = false, offerPrice: String = "") {
-        if (text.isBlank() && offerPrice.isBlank()) return
+    fun sendChatMessage(conversationId: String, text: String, isOffer: Boolean = false, offerPrice: String = "",
+        onResult: (Boolean) -> Unit = {}) {
+        if (text.isBlank() && offerPrice.isBlank()) {
+            onResult(false)
+            return
+        }
         action {
-            repository.sendChatMessage(
-                conversationId = conversationId,
-                senderName = "Ben",
-                text = text,
-                isFromMe = true,
-                isOffer = isOffer,
-                offerPrice = offerPrice
-            )
-
+            var sent = false
+            try {
+                repository.sendChatMessage(
+                    conversationId = conversationId,
+                    senderName = "Ben",
+                    text = text,
+                    isFromMe = true,
+                    isOffer = isOffer,
+                    offerPrice = offerPrice
+                )
+                sent = true
+            } finally {
+                // Repository returns only after the remote transaction acknowledgement.
+                onResult(sent)
+            }
         }
     }
 
@@ -406,7 +416,7 @@ class MarketplaceViewModel(application: Application) : AndroidViewModel(applicat
                 verifiedSafeBadge = hasSafeBadge,
                 mykCertified = hasMykBadge,
                 childSafeCertified = hasChildSafeBadge,
-                phoneVerified = true,
+                phoneVerified = false,
                 daysRemaining = 30,
                 isReported = false,
                 paintBrandsJson = if (sector == SectorType.HOME_REPAIR) "[\"$brandsOrCharacters\"]" else "[]",
@@ -464,7 +474,7 @@ class MarketplaceViewModel(application: Application) : AndroidViewModel(applicat
                 status = "PENDING",
                 customerName = customerName.ifBlank { "Mahalle Sakini" },
                 customerPhone = customerPhone.ifBlank { "05xx xxx xx xx" },
-                phoneVerified = true,
+                phoneVerified = false,
                 daysRemaining = 7,
                 isReported = false,
                 areaSquareMeters = areaSquareMeters,

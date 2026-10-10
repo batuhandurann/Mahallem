@@ -329,8 +329,8 @@ fun MarketplaceApp(
                         conversation = conv,
                         messages = activeChatMessages,
                         onBackClick = { viewModel.navigateBack() },
-                        onSendMessage = { text, isOffer, price ->
-                            viewModel.sendChatMessage(screen.conversationId, text, isOffer, price)
+                        onSendMessage = { text, isOffer, price, onResult ->
+                            viewModel.sendChatMessage(screen.conversationId, text, isOffer, price, onResult)
                         },
                         onSendVoiceNote = { duration ->
                             viewModel.sendVoiceNote(screen.conversationId, duration)

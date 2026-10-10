@@ -54,7 +54,7 @@ test('named database with real Auth UIDs: request -> owned provider -> quote -> 
   try {
     await Promise.all([a,b,e].map((c,i)=>createUserWithEmailAndPassword(c.auth,`named-${suffix}-${i}@example.com`,'SecurePass123!')));
     const au=a.auth.currentUser.uid,bu=b.auth.currentUser.uid;
-    const r=`request-${suffix}`,p=`provider-${suffix}`,q=`${r}_${bu}`,conv=`conv-${suffix}`;
+    const r=`request-${suffix}`,p=`provider-${suffix}`,q=`${r}_${bu}`,conv=[au,bu].sort().map(uid=>`${uid.length}:${uid}`).join('');
     await chargedCreate(a,'listing',`requests/${r}`,{ownerUid:au,visibility:'published',acceptedQuoteId:'',acceptedProviderUid:'',data:{...fixture.request,id:r,ownerUid:au},...stamp()},tx =>
       tx.set(doc(a.db,`requestContacts/${r}`),{ownerUid:au,phone:'555',address:'Private street',updatedAt:serverTimestamp()}));
     await assert.rejects(getDoc(doc(b.db,`requestContacts/${r}`)),x=>x.code==='permission-denied');

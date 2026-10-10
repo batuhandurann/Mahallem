@@ -1,5 +1,6 @@
 package com.batuhanduran.burada.auth
 
+import android.os.SystemClock
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.google.android.gms.tasks.Task
@@ -10,8 +11,11 @@ import com.google.firebase.auth.FirebaseAuthException
 import com.google.firebase.auth.FirebaseUser
 import com.google.firebase.auth.UserProfileChangeRequest
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -20,18 +24,22 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeout
 import kotlin.coroutines.resumeWithException
 
 data class AuthUser(
     val uid: String,
     val displayName: String,
-    val email: String
+    val email: String,
+    val emailVerified: Boolean = false
 )
 
 data class AuthUiState(
     val initialized: Boolean = false,
     val user: AuthUser? = null,
     val busy: Boolean = false,
+    val accountActionBusy: Boolean = false,
+    val verificationResendSeconds: Int = 0,
     val error: String? = null,
     val message: String? = null
 )
@@ -39,11 +47,25 @@ data class AuthUiState(
 class AuthViewModel(private val auth: FirebaseAuth = com.batuhanduran.burada.data.remote.FirebaseServices.auth) : ViewModel() {
     private val mutableState = MutableStateFlow(AuthUiState())
     val state: StateFlow<AuthUiState> = mutableState.asStateFlow()
+    private val verificationCooldown = VerificationEmailCooldown()
+    private var verificationCooldownJob: Job? = null
 
     private val authListener = FirebaseAuth.AuthStateListener { firebaseAuth ->
+        val user = firebaseAuth.currentUser
         mutableState.update {
-            it.copy(initialized = true, user = firebaseAuth.currentUser?.asAuthUser())
+            val changedAccount = it.user?.uid != user?.uid
+            it.copy(
+                initialized = true,
+                user = user?.asAuthUser(),
+                error = if (changedAccount) null else it.error,
+                message = if (changedAccount) null else it.message,
+                verificationResendSeconds = user?.let { account ->
+                    verificationCooldown.remainingSeconds(account.uid)
+                } ?: 0
+            )
         }
+        user?.let { observeVerificationCooldown(it.uid) }
+            ?: verificationCooldownJob?.cancel()
     }
 
     init {
@@ -116,13 +138,20 @@ class AuthViewModel(private val auth: FirebaseAuth = com.batuhanduran.burada.dat
             currentCoroutineContext().ensureActive()
 
             val verificationSent = try {
-                user.sendEmailVerification().awaitResult()
+                requireCurrentAccount(user.uid)
+                recordVerificationAttempt(user.uid)
+                withTimeout(30_000) { user.sendEmailVerification().awaitResult() }
                 true
+            } catch (_: TimeoutCancellationException) {
+                false
             } catch (exception: CancellationException) {
+                throw exception
+            } catch (exception: AccountSessionException) {
                 throw exception
             } catch (_: Exception) {
                 false
             }
+            requireCurrentAccount(user.uid)
             mutableState.update {
                 it.copy(
                     message = if (verificationSent) {
@@ -151,38 +180,113 @@ class AuthViewModel(private val auth: FirebaseAuth = com.batuhanduran.burada.dat
 
     fun signOut() {
         if (state.value.busy) return
+        verificationCooldownJob?.cancel()
         auth.signOut()
-        mutableState.update { it.copy(user = null, error = null, message = null) }
+        mutableState.update { it.copy(user = null, error = null, message = null, verificationResendSeconds = 0) }
+    }
+
+    fun resendVerificationEmail() {
+        if (!state.value.initialized || state.value.busy) return
+        val user = auth.currentUser ?: return
+        if (state.value.user?.uid != user.uid) return
+        if (user.isEmailVerified) {
+            mutableState.update { it.copy(user = user.asAuthUser(), message = "E-posta adresiniz zaten doğrulandı.", error = null) }
+            return
+        }
+        val remaining = verificationCooldown.remainingSeconds(user.uid)
+        if (remaining > 0) {
+            mutableState.update {
+                it.copy(verificationResendSeconds = remaining, error = "Yeni doğrulama e-postası için $remaining saniye bekleyin.", message = null)
+            }
+            return
+        }
+        perform(validationError = null, accountUid = user.uid) {
+            val account = requireCurrentAccount(user.uid)
+            // Failed attempts also count; Firebase quotas remain the server authority.
+            recordVerificationAttempt(account.uid)
+            account.sendEmailVerification().awaitResult()
+            requireCurrentAccount(account.uid)
+            mutableState.update {
+                it.copy(message = "Doğrulama bağlantısı e-posta adresinize gönderildi. Gelen kutusu ve spam klasörünü kontrol edin.")
+            }
+        }
+    }
+
+    fun refreshVerificationStatus() {
+        val uid = state.value.user?.uid ?: return
+        perform(validationError = null, accountUid = uid) {
+            requireCurrentAccount(uid).reload().awaitResult()
+            // Refresh the claim as well as the user snapshot.
+            requireCurrentAccount(uid).getIdToken(true).awaitResult()
+            val user = requireCurrentAccount(uid)
+            mutableState.update {
+                it.copy(
+                    user = user.asAuthUser(),
+                    message = if (user.isEmailVerified) "E-posta adresiniz doğrulandı."
+                    else "E-posta adresiniz henüz doğrulanmadı. E-postadaki bağlantıyı açtıktan sonra tekrar kontrol edin."
+                )
+            }
+        }
+    }
+
+    private fun requireCurrentAccount(uid: String): FirebaseUser {
+        val current = auth.currentUser
+        if (current == null || current.uid != uid) throw AccountSessionException()
+        return current
+    }
+
+    private fun recordVerificationAttempt(uid: String) {
+        verificationCooldown.recordAttempt(uid)
+        observeVerificationCooldown(uid)
+    }
+
+    private fun observeVerificationCooldown(uid: String) {
+        verificationCooldownJob?.cancel()
+        verificationCooldownJob = viewModelScope.launch {
+            while (auth.currentUser?.uid == uid && state.value.user?.uid == uid) {
+                val remaining = verificationCooldown.remainingSeconds(uid)
+                mutableState.update { it.copy(verificationResendSeconds = remaining) }
+                if (remaining == 0) break
+                delay(1_000)
+            }
+        }
     }
 
     fun clearMessage() {
         mutableState.update { it.copy(error = null, message = null) }
     }
 
-    private fun perform(validationError: String?, action: suspend () -> Unit) {
+    private fun perform(validationError: String?, accountUid: String? = null, action: suspend () -> Unit) {
         if (!state.value.initialized || state.value.busy) return
         if (validationError != null) {
             mutableState.update { it.copy(error = validationError, message = null) }
             return
         }
         // Set this before launching so repeated taps cannot start parallel auth requests.
-        mutableState.update { it.copy(busy = true, error = null, message = null) }
+        mutableState.update { it.copy(busy = true, accountActionBusy = accountUid != null, error = null, message = null) }
         viewModelScope.launch {
             try {
-                action()
+                if (accountUid != null) withTimeout(30_000) { action() } else action()
+            } catch (_: TimeoutCancellationException) {
+                if (accountUid == null || auth.currentUser?.uid == accountUid) {
+                    mutableState.update { it.copy(error = "İşlem zaman aşımına uğradı. Bağlantınızı kontrol edip yeniden deneyin.") }
+                }
             } catch (exception: CancellationException) {
                 throw exception
             } catch (exception: Exception) {
-                mutableState.update { it.copy(error = exception.asTurkishMessage()) }
+                if (accountUid == null || auth.currentUser?.uid == accountUid) {
+                    mutableState.update { it.copy(error = exception.asTurkishMessage()) }
+                }
             } finally {
                 mutableState.update {
-                    it.copy(busy = false, user = auth.currentUser?.asAuthUser())
+                    it.copy(busy = false, accountActionBusy = false, user = auth.currentUser?.asAuthUser())
                 }
             }
         }
     }
 
     override fun onCleared() {
+        verificationCooldownJob?.cancel()
         auth.removeAuthStateListener(authListener)
         super.onCleared()
     }
@@ -191,18 +295,36 @@ class AuthViewModel(private val auth: FirebaseAuth = com.batuhanduran.burada.dat
 private fun FirebaseUser.asAuthUser() = AuthUser(
     uid = uid,
     displayName = displayName?.takeIf { it.isNotBlank() } ?: "Mahalle Sakini",
-    email = email.orEmpty()
+    email = email.orEmpty(),
+    emailVerified = isEmailVerified
 )
 
 private class RegistrationProfileException(message: String, cause: Throwable) : Exception(message, cause)
+private class AccountSessionException : IllegalStateException()
+
+/** In-memory UX throttle only; survives Activity recreation through the ViewModel. */
+internal class VerificationEmailCooldown(private val nowMillis: () -> Long = { SystemClock.elapsedRealtime() }) {
+    private val attemptedAt = mutableMapOf<String, Long>()
+
+    fun recordAttempt(uid: String) {
+        attemptedAt[uid] = nowMillis()
+    }
+
+    fun remainingSeconds(uid: String): Int {
+        val started = attemptedAt[uid] ?: return 0
+        val remainingMillis = (30_000 - (nowMillis() - started).coerceAtLeast(0)).coerceAtLeast(0)
+        return ((remainingMillis + 999) / 1_000).toInt()
+    }
+}
 
 internal fun Exception.asTurkishMessage(): String = when (this) {
+    is AccountSessionException -> "Oturumunuz değişti. Yeniden giriş yapıp tekrar deneyin."
     is RegistrationProfileException -> message ?: "Hesabınızın adı kaydedilemedi."
     is FirebaseNetworkException -> "Bağlantı kurulamadı. İnternet bağlantınızı kontrol edip yeniden deneyin."
     is FirebaseTooManyRequestsException -> "Çok fazla deneme yapıldı. Bir süre bekleyip yeniden deneyin."
     is FirebaseAuthException -> when (errorCode) {
         "ERROR_INVALID_EMAIL" -> "Geçerli bir e-posta adresi yazın."
-        "ERROR_EMAIL_ALREADY_IN_USE" -> "Bu e-posta adresi zaten kayıtlı. Giriş yapın veya şifrenizi yenileyin."
+        "ERROR_EMAIL_ALREADY_IN_USE" -> "Kayıt tamamlanamadı. Bilgilerinizi kontrol edin; hesabınız varsa giriş yapın veya şifrenizi yenileyin."
         "ERROR_USER_NOT_FOUND", "ERROR_WRONG_PASSWORD", "ERROR_INVALID_CREDENTIAL",
         "ERROR_INVALID_LOGIN_CREDENTIALS" -> "E-posta adresi veya şifre hatalı."
         "ERROR_USER_DISABLED" -> "Bu hesap devre dışı bırakılmış. Destek ile iletişime geçin."
