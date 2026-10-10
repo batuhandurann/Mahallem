@@ -72,6 +72,22 @@ def verify_apk(path, apksigner, expected_sha256):
         raise ValueError("Release APK signer does not match the supplied upload certificate")
 
 
+def verified_checkout_provenance():
+    """Bind release evidence to a clean checked-out commit, not just artifact hashes."""
+    sha = run(["git", "rev-parse", "HEAD"]).decode("ascii").strip()
+    if not re.fullmatch(r"[0-9a-f]{40}", sha):
+        raise ValueError("Release source revision must be a full Git SHA")
+    # Refuse a claimed source revision when tracked sources changed after checkout.
+    # Ignored build outputs and protected (untracked) Firebase config are unaffected.
+    run(["git", "diff", "--quiet", "HEAD", "--"])
+    is_actions = os.environ.get("GITHUB_ACTIONS") == "true"
+    expected = os.environ.get("GITHUB_SHA", "")
+    if is_actions:
+        if not re.fullmatch(r"[0-9a-f]{40}", expected) or expected != sha:
+            raise ValueError("Release checkout does not match GitHub Actions source SHA")
+    return {"source_commit_sha": sha, "github_actions_source_verified": is_actions}
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--config", default="app/google-services.json")
@@ -96,6 +112,7 @@ def main():
         verify_aab(aab, keystore, alias)
         apksigner = args.apksigner or str(Path(os.environ["ANDROID_HOME"]) / "build-tools/36.0.0/apksigner")
         verify_apk(apk, apksigner, certificate_sha256)
+        evidence.update(verified_checkout_provenance())
         evidence.update(upload_certificate_sha1=hashlib.sha1(certificate).hexdigest(), upload_certificate_sha256=certificate_sha256)
         evidence["artifacts"] = [{"file": path.name, "sha256": hashlib.sha256(path.read_bytes()).hexdigest()} for path in (aab, apk)]
         evidence["scope"] = "Upload-key signed APK/AAB; not Play App Signing or physical-device attestation"
