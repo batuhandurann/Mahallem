@@ -3,6 +3,9 @@
 .kotlin
 /local.properties
 .env
+.env.*
+!.env.example
+.secret.local
 /.idea/caches
 /.idea/libraries
 /.idea/modules.xml
@@ -34,6 +37,7 @@ app/build/
 /local-*-audit.json
 /local-*-audit.log
 /local-tooling-compatibility.log
+/local-payment-android.log
 __pycache__/
 
 node_modules/

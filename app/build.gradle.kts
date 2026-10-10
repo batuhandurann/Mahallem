@@ -106,8 +106,10 @@ tasks.withType<GoogleServicesTask>().configureEach {
   val isCiUnsignedRelease = ciUnsignedRelease && name.contains("Release")
   enabled = !(isLocalEmulatorDebug || isCiUnsignedRelease)
   if (enabled) {
+    // Capture the file value, not the Gradle script, in the execution action.
+    val configFileForTask = liveFirebaseConfig
     doFirst {
-      val config = liveFirebaseConfig
+      val config = configFileForTask
       check(config.isFile) { "Register com.batuhanduran.burada in Firebase and provide app/google-services.json" }
       val parsed = JsonSlurper().parse(config) as Map<*, *>
       val projectInfo = parsed["project_info"] as? Map<*, *>

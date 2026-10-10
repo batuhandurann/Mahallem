@@ -275,7 +275,7 @@ private fun RequestItemCard(
     }
 }
 
-/** A rejected, withdrawn or accepted offer must never expose payment/acceptance controls. */
+/** A rejected, withdrawn or accepted offer must never expose acceptance controls. */
 internal fun mayActOnQuote(status: String, requestAlreadyAccepted: Boolean): Boolean =
     status == "PENDING" && !requestAlreadyAccepted
 
@@ -377,6 +377,9 @@ private fun QuoteCardView(
 
                     Text("Teklif kabulü ödeme veya garanti onayı değildir. İşin güncel durumunu iş ekranından takip edin.",
                         style = MaterialTheme.typography.bodySmall)
+                    TextButton(onClick = onAcceptWithEscrow, modifier = Modifier.testTag("payment_status_${quote.id}")) {
+                        Text("Ödeme durumunu görüntüle")
+                    }
                 }
             } else if (quote.status == "REJECTED" || quote.status == "WITHDRAWN") {
                 Text(

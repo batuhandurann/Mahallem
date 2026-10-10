@@ -425,51 +425,6 @@ class MarketplaceViewModel @JvmOverloads constructor(
         }
     }
 
-    // --- Escrow Havuz Ödeme ve Dijital İş Fişi ---
-    fun fundEscrowPayment(
-        quote: QuoteEntity,
-        jobTitle: String,
-        customerName: String,
-        district: String,
-        onReceiptGenerated: (com.batuhanduran.burada.data.local.DigitalReceiptEntity) -> Unit
-    ) {
-        action {
-            val code = repository.fundEscrowPayment(
-                requestId = quote.requestId,
-                quoteId = quote.id,
-                amount = quote.price,
-                jobTitle = jobTitle,
-                customerName = customerName,
-                providerName = quote.providerName,
-                providerTitle = quote.providerTitle,
-                district = district
-            )
-            _toastMessage.value = "Ödeme Burada Güvenli Havuzu'nda bloke edildi! 🔒"
-            val receipt = com.batuhanduran.burada.data.local.DigitalReceiptEntity(
-                receiptCode = code,
-                requestId = quote.requestId,
-                quoteId = quote.id,
-                jobTitle = jobTitle,
-                customerName = customerName,
-                providerName = quote.providerName,
-                providerTitle = quote.providerTitle,
-                totalAmount = quote.price,
-                escrowStatus = "LOCKED",
-                warrantyInfo = "2 Yıl İşçilik & Malzeme Burada Güvencesi",
-                createdAtDate = "05.10.2026",
-                district = district
-            )
-            onReceiptGenerated(receipt)
-        }
-    }
-
-    fun releaseEscrowPayment(requestId: String, quoteId: String, receiptCode: String) {
-        action {
-            repository.releaseEscrowPayment(requestId, quoteId, receiptCode)
-            _toastMessage.value = "İş başarıyla tamamlandı ve ödeme ustaya aktarıldı! Teşekkür ederiz 🤝"
-        }
-    }
-
     // --- Flow A: Esnaf / Hizmet İlanı Yayınlama ---
     fun publishProviderListing(
         name: String,

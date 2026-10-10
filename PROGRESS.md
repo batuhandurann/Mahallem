@@ -3,6 +3,54 @@
 Updated: 2026-10-10 (Europe/Istanbul). Read `AGENTS.md` and git status before work;
 fetch current remote state because other sessions may advance the repository.
 
+## Hosted payment preparation and live Firebase setup (2026-10-10)
+
+- PR #85 merged as `f8ef198`; all required Android/Security checks passed on
+  `72d3304`, including 40 actual Android emulator tests and process-death smoke.
+- Current work adds server-only iyzico hosted-checkout policy/adapter/orchestration
+  and UID-guarded Android status/checkout UI. Only server-derived accepted quote
+  prices are accepted. One durable attempt per job prevents concurrent or uncertain
+  retries from issuing a second initialization; callbacks only trigger verified
+  provider retrieval. Private payment/billing records remain client-denied.
+- Production payments are deliberately unavailable until merchant onboarding,
+  refunds, settlement and dispute handling exist. User confirmed no iyzico account;
+  no keys, provider call, real card transaction or live payment is claimed.
+- Removed unreachable client-generated receipt/warranty/escrow-success code.
+  Test environments are explicitly labeled; browser return cannot mark a job paid.
+- Local Android: debug and instrumentation APK builds, 121/121 unit/Compose tests,
+  lint 0 errors / 44 warnings. Backend 33/33, config 65/65. Original plus new payment
+  emulator integration run passed 16/16; after final authorization/header change,
+  all six focused payment integrations passed, including forged callback rejection.
+- Authorized live CLI setup on verified main source `f8ef198`: phone Auth enabled,
+  SMS restricted to TR, password minimum 8 enforced, email enumeration protection
+  enabled. Created default Frankfurt Storage with public access prevention and
+  uniform access. Published named `mahallem` Rules/indexes and private Storage Rules.
+- All 11 verified-main Functions now ACTIVE (Node22, maxInstances 5). Initial
+  Cloud bootstrap/build failures were retried; partial-create callable IAM for
+  reviewReport/uploadConversationPhoto was repaired while preserving in-function
+  Auth/App Check/ACL checks. Container image cleanup enabled by CLI (one day).
+- Live Rules source hashes match the verified main snapshot; `_abuseBudgets` and
+  `_pushDeliveries` TTL fields are ACTIVE. Canonical Android key initially had no
+  allowed application/certificates. Registered the existing development APK SHA1/
+  SHA256 and allowed only the canonical package/development SHA1. This is not
+  production signing proof and must be replaced/reviewed for Play distribution.
+- Physical phone is still absent from adb. User can connect one; USB debugging
+  instructions supplied. Existing production signing inputs are absent locally.
+  Added a secret-free read-only preflight and repaired Windows adb.exe discovery.
+- Repaired the live Google Services task action's Gradle script capture. Live
+  development APK build succeeded with configuration cache stored, then reused
+  on a second successful build (JDK21/Windows, firebaseEmulators=false). Copied
+  artifact outside Git to work/phone-preview/yakino-live-development.apk; SHA256
+  B2CD0C4AB616E931CDAD4E76770C0FA163CA1E80560CF36CB1F3B28A2DB65F2F.
+  This is a development-signed APK, not a signed Play release or device test.
+  Config fixtures passed 65/65 with UTF-8 mode and JDK21 on PATH; initial
+  invocation without those host prerequisites failed and was rerun correctly.
+- Firestore/Auth App Check remain UNENFORCED pending actual device/Play evidence;
+  Play Integrity registration exists. Live SMS/FCM delivery, signed Play artifacts
+  and complete production audit remain unverified. New payment Functions are not
+  deployed from this unreviewed branch. Next: required CI/merge, publish disabled
+  payment entrypoints from verified main, connect phone, then actual service tests.
+
 ## Current security and mobile flow audit (2026-10-10)
 
 - Preserved main `4995bd0` including Yakıno branding, phone trust, job lifecycle,

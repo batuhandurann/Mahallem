@@ -5,7 +5,7 @@ const { getMessaging } = require("firebase-admin/messaging");
 const { getAuth } = require("firebase-admin/auth");
 const { getStorage } = require("firebase-admin/storage");
 const { onDocumentCreated } = require("firebase-functions/v2/firestore");
-const { onCall, HttpsError } = require("firebase-functions/v2/https");
+const { onCall, onRequest, HttpsError } = require("firebase-functions/v2/https");
 const crypto = require("node:crypto");
 const sharp = require("sharp");
 const { MAX_PHOTO_BYTES, segment, participants, recipientFor, pushPayload, photoBytes, deadToken, recipientPushAllowed } = require("./policy");
@@ -18,6 +18,18 @@ const callableOptions = { region: "europe-west3", enforceAppCheck: process.env.F
   maxInstances: 5, concurrency: 2 };
 
 exports.manageJob = onCall(callableOptions, require("./job-handler").createJobHandler({ db, auth: getAuth(), reserve }));
+
+const payments = require("./payment-handler").createPaymentHandlers({ db, auth: getAuth(), reserve });
+// Only an explicit operator sandbox activation binds credentials from Secret
+// Manager. The normal deployment requires no merchant secrets and stays disabled.
+const paymentSecrets = process.env.IYZICO_SANDBOX_ENABLED === "true"
+  ? ["IYZICO_SANDBOX_API_KEY", "IYZICO_SANDBOX_SECRET_KEY"] : [];
+const paymentOptions = { ...callableOptions, secrets: paymentSecrets };
+exports.getPaymentAvailability = onCall(paymentOptions, payments.availability);
+exports.startHostedCheckout = onCall(paymentOptions, payments.start);
+exports.getHostedCheckoutStatus = onCall(paymentOptions, payments.status);
+exports.iyzicoCheckoutCallback = onRequest({ region: "europe-west3", memory: "256MiB", timeoutSeconds: 60,
+  maxInstances: 2, concurrency: 2, secrets: paymentSecrets }, payments.callback);
 
 // No client-controlled trust booleans, phone numbers or owner UIDs are accepted.
 // Return only a boolean for visible listings; private contact values never leave the server.
