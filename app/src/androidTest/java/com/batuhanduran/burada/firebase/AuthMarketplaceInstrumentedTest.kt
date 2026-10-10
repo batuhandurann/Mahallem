@@ -92,12 +92,33 @@ class AuthMarketplaceInstrumentedTest {
                 provinceId="tr_35",districtId="tr_35_buca",neighborhoodId="pilot_tr_35_buca_efeler",neighborhoodName="Efeler"))
             val provider = withTimeout(30_000) { providerRepo.getAllProviders().first { list -> list.any { it.ownerUid==providerUid } } }.first { it.ownerUid==providerUid }
             val quoteId=providerRepo.sendQuote(QuoteEntity(requestId=requestId,providerId=provider.id,
-                providerName="Provider",providerTitle="Boyacı",providerRating=0.0,price="1000 ₺",
+                providerName="Forged discovery name",providerTitle="Stale title",providerRating=5.0,price="1000 ₺",
                 durationOrArrival="1 gün",notes="Android SDK teklifi"))
+            val savedQuote = await(db.collection("quotes").document(quoteId).get(Source.SERVER))
+            assertEquals("Provider", savedQuote.getString("data.providerName"))
+            assertEquals("Boyacı", savedQuote.getString("data.providerTitle"))
+            assertEquals(0.0, savedQuote.getDouble("data.providerRating")!!, 0.001)
+            assertEquals(quoteId, providerRepo.sendQuote(QuoteEntity(requestId=requestId,providerId=provider.id,
+                providerName="Stale snapshot",providerTitle="Old title",providerRating=4.0,price="1000 ₺",
+                durationOrArrival="1 gün",notes="Android SDK teklifi")))
             val convId=providerRepo.startOrGetConversation(customerUid,"Customer","","Boya")
             // Reopening an existing chat must not spend a new-conversation allowance.
             assertEquals(convId, providerRepo.startOrGetConversation(customerUid,"Customer","","Boya"))
-            providerRepo.sendChatMessage(convId,"Ignored","Merhaba Android",true)
+            val submissionId = UUID.randomUUID().toString()
+            providerRepo.sendChatMessage(convId,"Ignored","Merhaba Android",true, submissionId = submissionId)
+            // An uncertain acknowledgement retry must not create another message or spend quota.
+            providerRepo.sendChatMessage(convId,"Ignored"," Merhaba Android ",true, submissionId = submissionId)
+            val savedMessages = await(db.collection("conversations").document(convId)
+                .collection("messages").get(Source.SERVER))
+            assertEquals(1, savedMessages.size())
+            assertEquals(submissionId, savedMessages.documents.single().id)
+            try {
+                providerRepo.sendChatMessage(convId,"Ignored","Different payload",true, submissionId = submissionId)
+                fail("A submission ID collision must not silently accept a different message")
+            } catch (error: Exception) {
+                assertTrue(generateSequence<Throwable>(error) { it.cause }
+                    .any { it.message?.contains("farklı bir mesaj") == true })
+            }
             val providerBudgets = db.collection("users").document(providerUid).collection("writeBudgets")
             listOf("listing", "quote", "conversation", "message").forEach { operation ->
                 assertEquals(1L, await(providerBudgets.document(operation).get(Source.SERVER)).getLong("count"))

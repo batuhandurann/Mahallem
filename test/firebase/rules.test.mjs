@@ -35,7 +35,8 @@ const stamp = () => ({createdAt: serverTimestamp(), updatedAt: serverTimestamp()
 const provider = (overrides = {}) => ({ ownerUid: 'bob', visibility: 'published', data: {...f.provider, ...overrides}, ...stamp() });
 const request = (overrides = {}) => ({ ownerUid: 'alice', visibility: 'published', acceptedQuoteId: '', acceptedProviderUid: '', data: {...f.request, ...overrides}, ...stamp() });
 const quote = (overrides = {}) => ({providerUid: 'bob', customerUid: 'alice', requestId: 'r', status: 'PENDING', data: {...f.quote}, ...stamp(), ...overrides});
-const conversation = () => ({participantUids: ['alice','bob'], names: {alice:'Alice',bob:'Bob'}, relatedItemTitle:'Boya', lastMessage:'', ...stamp()});
+const conversationId = (...uids) => [...uids].sort().map(uid => `${uid.length}:${uid}`).join('');
+const conversation = (participants = ['alice','bob']) => ({participantUids: participants, names: Object.fromEntries(participants.map(uid => [uid,uid])), relatedItemTitle:'Boya', lastMessage:'', ...stamp()});
 const message = (overrides = {}) => ({senderUid:'alice', data:{...f.message, ...overrides}, ...stamp()});
 before(async () => {
   env = await initializeTestEnvironment({projectId:'demo-mahallem', firestore:{host:'127.0.0.1',port:8080,rules:readFileSync('firestore.rules','utf8')}});
@@ -142,6 +143,39 @@ test('quote requires owned provider, correct customer and open request',async()=
   await assertFails(budgetedSet(doc(db('bob'),'quotes/forged'),quote({data:{...f.quote,id:'forged',providerId:'missing'}})));
   await assertFails(updateDoc(doc(db('bob'),'quotes/q'),{status:'ACCEPTED',updatedAt:serverTimestamp()}));
 });
+
+test('quote presentation must match the authoritative provider and failed forgeries preserve quota', async () => {
+  const d = db('bob');
+  // A reviewed provider's real score is authoritative, including nonzero ratings.
+  await env.withSecurityRulesDisabled(c => updateDoc(doc(c.firestore(),'providers/p'),{'data.rating':4.25,'data.reviewCount':4,ratingSum:17}));
+  for (const change of [{providerName:'Trusted Impersonation'}, {providerTitle:'Certified Master'}, {providerRating:5}, {providerRating:0}]) {
+    await assertFails(budgetedSet(doc(d,'quotes/forged-presentation'),quote({data:{...f.quote,id:'forged-presentation',providerRating:4.25,...change}})));
+    assert.equal((await getDoc(doc(d,'users/bob/writeBudgets/quote'))).exists(),false);
+    assert.equal((await inspectAsAdmin('quotes/forged-presentation')).exists(),false);
+  }
+  await assertSucceeds(budgetedSet(doc(d,'quotes/verified-presentation'),quote({data:{...f.quote,id:'verified-presentation',providerRating:4.25}})));
+  assert.equal((await getDoc(doc(d,'users/bob/writeBudgets/quote'))).data().count,1);
+});
+
+test('hidden provider and unpublished request cannot receive fresh quotes even from the provider owner', async () => {
+  const d = db('bob');
+  for (const visibility of ['hidden','closed']) {
+    await env.withSecurityRulesDisabled(async c => {
+      await updateDoc(doc(c.firestore(),'providers/p'),{visibility});
+      await updateDoc(doc(c.firestore(),'requests/r'),{visibility:'published'});
+    });
+    await assertFails(budgetedSet(doc(d,'quotes/unpublished-provider'),quote({data:{...f.quote,id:'unpublished-provider'}})));
+    await env.withSecurityRulesDisabled(async c => {
+      await updateDoc(doc(c.firestore(),'providers/p'),{visibility:'published'});
+      await updateDoc(doc(c.firestore(),'requests/r'),{visibility});
+    });
+    await assertFails(budgetedSet(doc(d,'quotes/unpublished-request'),quote({data:{...f.quote,id:'unpublished-request'}})));
+    assert.equal((await getDoc(doc(d,'users/bob/writeBudgets/quote'))).exists(),false);
+  }
+  await env.withSecurityRulesDisabled(c => updateDoc(doc(c.firestore(),'requests/r'),{visibility:'published'}));
+  await assertSucceeds(budgetedSet(doc(d,'quotes/published-again'),quote({data:{...f.quote,id:'published-again'}})));
+  assert.equal((await getDoc(doc(d,'users/bob/writeBudgets/quote'))).data().count,1);
+});
 async function accept(d,q='q'){
   const b=writeBatch(d);b.update(doc(d,`quotes/${q}`),{status:'ACCEPTED',updatedAt:serverTimestamp()});
   b.update(doc(d,'requests/r'),{'data.status':'ACCEPTED',acceptedQuoteId:q,acceptedProviderUid:'bob',updatedAt:serverTimestamp()});
@@ -191,8 +225,36 @@ test('conversations list scoped, outsider denied, participants immutable',async(
   await assertFails(getDoc(doc(db('eve'),'conversations/c')));
   await assertFails(getDocs(collection(db('alice'),'conversations')));
   await assertFails(updateDoc(doc(db('alice'),'conversations/c'),{participantUids:['alice','eve'],updatedAt:serverTimestamp()}));
-  await assertSucceeds(budgetedSet(doc(db('alice'),'conversations/new'),conversation()));
-  await assertFails(budgetedSet(doc(db('eve'),'conversations/forged'),conversation()));
+  await assertSucceeds(budgetedSet(doc(db('alice'),`conversations/${conversationId('alice','bob')}`),conversation()));
+  await assertFails(budgetedSet(doc(db('eve'),`conversations/${conversationId('alice','eve')}`),conversation()));
+});
+
+test('outsider cannot squat another pair conversation ID; participants can create the canonical chat', async () => {
+  const id = conversationId('alice','bob');
+  const eve = db('eve');
+  for (const participants of [['eve','bob'],['alice','eve'],['alice','bob']]) {
+    await assertFails(budgetedSet(doc(eve,`conversations/${id}`),conversation(participants)));
+    assert.equal((await getDoc(doc(eve,'users/eve/writeBudgets/conversation'))).exists(),false);
+    assert.equal((await inspectAsAdmin(`conversations/${id}`)).exists(),false);
+  }
+  const alice = db('alice');
+  await assertFails(budgetedSet(doc(alice,'conversations/arbitrary'),conversation()));
+  assert.equal((await getDoc(doc(alice,'users/alice/writeBudgets/conversation'))).exists(),false);
+  await assertSucceeds(budgetedSet(doc(alice,`conversations/${id}`),conversation(['bob','alice'])));
+  assert.equal((await getDoc(doc(alice,'users/alice/writeBudgets/conversation'))).data().count,1);
+  await assertSucceeds(getDoc(doc(db('bob'),`conversations/${id}`)));
+  await assertFails(getDoc(doc(eve,`conversations/${id}`)));
+});
+
+test('length-prefixed conversation IDs distinguish participant UIDs containing separators', async () => {
+  const pairs = [['alice','bob:3:eve'],['alice:bob','eve']];
+  assert.notEqual(conversationId(...pairs[0]),conversationId(...pairs[1]));
+  for (const participants of pairs) {
+    const d = db(participants[0]);
+    await assertSucceeds(budgetedSet(doc(d,`conversations/${conversationId(...participants)}`),conversation(participants)));
+    await assertFails(budgetedSet(doc(d,`conversations/${participants.join(':')}`),conversation(participants)));
+    assert.equal((await getDoc(doc(d,`users/${participants[0]}/writeBudgets/conversation`))).data().count,1);
+  }
 });
 test('message sender bound to auth; outsider, spoofing, edits, deletes and oversized text denied',async()=>{
   await assertSucceeds(budgetedSet(doc(db('alice'),'conversations/c/messages/m'),message()));
@@ -216,8 +278,8 @@ test('blocks bidirectional for new messages/conversations/offers; own block reco
   await assertSucceeds(budgetedSet(doc(db('alice'),'users/alice/blocks/bob'),{blockedUid:'bob',createdAt:serverTimestamp()}));
   await assertFails(getDoc(doc(db('bob'),'users/alice/blocks/bob')));
   await assertFails(budgetedSet(doc(db('alice'),'users/alice/blocks/alice'),{blockedUid:'alice',createdAt:serverTimestamp()}));
-  await assertFails(budgetedSet(doc(db('alice'),'conversations/new'),conversation()));
-  await assertFails(budgetedSet(doc(db('bob'),'conversations/new'),conversation()));
+  await assertFails(budgetedSet(doc(db('alice'),`conversations/${conversationId('alice','bob')}`),conversation()));
+  await assertFails(budgetedSet(doc(db('bob'),`conversations/${conversationId('alice','bob')}`),conversation()));
   await assertFails(budgetedSet(doc(db('alice'),'conversations/c/messages/x'),message({id:'x'})));
   await assertFails(budgetedSet(doc(db('bob'),'quotes/x'),quote({data:{...f.quote,id:'x'}})));
   await assertSucceeds(getDoc(doc(db('bob'),'conversations/c'))); // readable history as evidence
@@ -264,7 +326,7 @@ const reportPayload = (d = db('alice'), overrides = {}) => ({reporterUid:'alice'
 const creations = (d, suffix) => [
   {operation:'listing', uid:'bob', ref:doc(d,`providers/${suffix}`), payload:provider({id:suffix})},
   {operation:'quote', uid:'bob', ref:doc(d,`quotes/${suffix}`), payload:quote({data:{...f.quote,id:suffix}})},
-  {operation:'conversation', uid:'alice', ref:doc(d,`conversations/${suffix}`), payload:conversation()},
+  {operation:'conversation', uid:'alice', ref:doc(d,`conversations/${conversationId('alice',suffix)}`), payload:conversation(['alice',suffix])},
   {operation:'message', uid:'alice', ref:doc(d,`conversations/c/messages/${suffix}`), payload:message({id:suffix})},
   {operation:'report', uid:'alice', ref:doc(d,`reports/${suffix}`), payload:reportPayload(d)},
 ];
@@ -339,10 +401,12 @@ test('user reports bind a canonical UID reference without requiring a private pr
 });
 test('reports cannot refer to a target created in the same atomic batch', async () => {
   const d=db('alice');
-  const payload=reportPayload(d,{targetType:'conversation',targetId:'fresh',targetRef:doc(d,'conversations/fresh')});
+  const id=conversationId('alice','bob');
+  const target=doc(d,`conversations/${id}`);
+  const payload=reportPayload(d,{targetType:'conversation',targetId:id,targetRef:target});
   await assertFails(budgetedSet(doc(d,'reports/new-evidence'),payload, tx=>{
-    tx.set(doc(d,'conversations/fresh'),conversation());
-    tx.set(doc(d,'users/alice/writeBudgets/conversation'),{count:1,windowStartedAt:serverTimestamp(),updatedAt:serverTimestamp(),target:doc(d,'conversations/fresh')});
+    tx.set(target,conversation());
+    tx.set(doc(d,'users/alice/writeBudgets/conversation'),{count:1,windowStartedAt:serverTimestamp(),updatedAt:serverTimestamp(),target});
   }));
   assert.equal((await getDoc(doc(d,'users/alice/writeBudgets/report'))).exists(),false);
   assert.equal((await getDoc(doc(d,'users/alice/writeBudgets/conversation'))).exists(),false);

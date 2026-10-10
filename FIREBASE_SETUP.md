@@ -33,9 +33,17 @@ Chat içindeki fiyat mesajı bir ödeme veya kabul edilmiş iş teklifi değildi
 ## Canlı Firebase
 
 E-posta/şifre Auth sağlayıcısını açın. `app/google-services.json` application ID
-ile eşleşmelidir: `com.batuhanduran.burada`. Mevcut JSON eski Android app kaydına
-aittir; Firebase Console üzerinde yeni Burada Android uygulamasını kaydedip doğru
-JSON dosyasını indirin. Elle package name değişikliği gerçek Firebase kaydı oluşturmaz.
+ile eşleşmelidir: `com.batuhanduran.burada`. 10 Ekim 2026'da gerçek Firebase
+projesinde bu paket adına ait aktif Yakıno Android kaydı CLI ile doğrulandı.
+Doğru yapılandırma yerel olarak indirildi; eski yapılandırma Git takibinden
+çıkarıldı. Yeni bir checkout yapılandırmayı korunan erişimle yeniden indirmelidir:
+
+```bash
+npx firebase-tools@15.32.1 apps:sdkconfig ANDROID 1:212821509565:android:623fe6723afb4c93ddbed4 --project mahallem-batuhandurann-261007 --out app/google-services.json
+```
+
+Dosyayı depoya eklemeyin; CI ve yayın ortamında korunan yapılandırmayı kullanın.
+Elle package name değişikliği gerçek Firebase kaydı oluşturmaz.
 Ayrıntılar: [Android kimlik geçişi](BRANDING_FIREBASE_MIGRATION.md). Canlı debug ve
 release derlemeleri eşleşen yapılandırma olmadan durur. Emulator debug derlemesi
 programatik `demo-mahallem` yapılandırmasını kullanır.
@@ -43,12 +51,13 @@ programatik `demo-mahallem` yapılandırmasını kullanır.
 ```bash
 npm ci
 npm ci --prefix functions
-npx firebase deploy --only firestore,storage,functions --project mahallem-batuhandurann-261007
 ```
 
-Bu komut yetkili Firebase oturumu gerektirir. GitHub commit'i canlı Firebase
-kurallarını dağıtmaz. Eski kurallar yeni ilan/teklif/sohbet erişimini reddeder.
-Yeni kuralları yeni uygulama sürümünden önce dağıtın. Yönetici anahtarı depoya koymayın.
+Canlı dağıtım için [korunan dağıtım ve denetim akışını](FIREBASE_PRODUCTION_DEPLOY.md)
+kullanın. GitHub commit'i canlı Firebase kurallarını dağıtmaz. Eski kurallar yeni
+ilan/teklif/sohbet erişimini reddeder. Yeni kuralları yeni uygulama sürümünden önce
+dağıtın. Yapılandırma indirilmesi App Check, gerçek SMS, FCM veya dağıtım kanıtı
+değildir. Yönetici anahtarı depoya koymayın.
 
 ## Build ve test
 

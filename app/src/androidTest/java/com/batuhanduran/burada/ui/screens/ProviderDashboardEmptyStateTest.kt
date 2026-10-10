@@ -26,7 +26,7 @@ class ProviderDashboardEmptyStateTest {
                     onBackClick = { backClicks++ },
                     onToggleOffers = { _, _ -> },
                     onToggleCalendarDate = { _, _ -> },
-                    onSubmitQuote = { _, _, _, _, _ -> }
+                    onSubmitQuote = { _, _, _, _, _, _ -> }
                 )
             }
         }

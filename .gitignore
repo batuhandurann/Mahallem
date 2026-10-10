@@ -17,6 +17,12 @@
 local.properties
 .env
 debug.keystore
+*.jks
+*.keystore
+*-service-account*.json
+service-account*.json
+# Canonical live config is downloaded locally, never used for emulator checks.
+app/google-services.json
 
 node_modules/
 *-debug.log
@@ -25,6 +31,9 @@ app/build/
 
 # Local production audit evidence may include API key metadata/string.
 *cloud-evidence*.json
+/local-*-audit.json
+/local-*-audit.log
+/local-tooling-compatibility.log
 __pycache__/
 
 node_modules/

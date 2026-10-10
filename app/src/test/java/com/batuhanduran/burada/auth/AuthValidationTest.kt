@@ -14,12 +14,15 @@ class AuthValidationTest {
         assertNotNull(AuthValidation.nameError("a"))
         assertNotNull(AuthValidation.nameError("a".repeat(81)))
         assertNotNull(AuthValidation.nameError("Alice\nBob"))
+        assertNotNull(AuthValidation.nameError("Alice\u2028Bob"))
+        assertNotNull(AuthValidation.nameError("Alice\u2029Bob"))
         assertNull(AuthValidation.nameError("Batuhan Duran"))
     }
     @Test fun loginDoesNotRejectLegacyPasswords() {
         assertNotNull(AuthValidation.passwordError("", false))
         assertNull(AuthValidation.passwordError("short", false))
         assertNotNull(AuthValidation.passwordError("short", true))
-        assertNull(AuthValidation.passwordError("sixsix", true))
+        assertNotNull(AuthValidation.passwordError("sixsix", true))
+        assertNull(AuthValidation.passwordError("eight888", true))
     }
 }

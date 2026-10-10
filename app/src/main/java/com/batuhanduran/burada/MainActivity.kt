@@ -344,10 +344,11 @@ fun MarketplaceApp(
                     val conv = conversations.find { it.id == screen.conversationId }
                     ChatScreen(
                         conversation = conv,
+                        composerState = viewModel.chatComposerFor(screen.conversationId),
                         messages = activeChatMessages,
                         onBackClick = { viewModel.navigateBack() },
-                        onSendMessage = { text, isOffer, price ->
-                            viewModel.sendChatMessage(screen.conversationId, text, isOffer, price)
+                        onSendMessage = { text, isOffer, price, onResult ->
+                            viewModel.sendChatMessage(screen.conversationId, text, isOffer, price, onResult)
                         },
                         onSendVoiceNote = { duration ->
                             viewModel.sendVoiceNote(screen.conversationId, duration)
@@ -381,9 +382,10 @@ fun MarketplaceApp(
                         onToggleCalendarDate = { prov, dateIso ->
                             viewModel.toggleBookedDate(prov, dateIso)
                         },
-                        onSubmitQuote = { reqId, prov, price, arrival, notes ->
-                            viewModel.submitProviderQuote(reqId, prov, price, arrival, notes)
+                        onSubmitQuote = { reqId, prov, price, arrival, notes, onResult ->
+                            viewModel.submitProviderQuote(reqId, prov, price, arrival, notes, onResult)
                         },
+                        quoteComposer = viewModel.providerQuoteComposer,
                         onOpenMyJobs = { viewModel.navigateTo(ScreenDestination.MyJobs) }
                     )
                 }

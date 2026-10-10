@@ -61,22 +61,23 @@ fun ChatScreen(
     conversation: ConversationEntity?,
     messages: List<ChatMessageEntity>,
     onBackClick: () -> Unit,
-    onSendMessage: (text: String, isOffer: Boolean, offerPrice: String) -> Unit,
+    onSendMessage: (text: String, isOffer: Boolean, offerPrice: String, onResult: (Boolean) -> Unit) -> Unit,
     onSendVoiceNote: (duration: Int) -> Unit = {},
     onSendPhoto: (Uri) -> Unit = {},
     onCallClick: () -> Unit,
     onReportClick: () -> Unit,
     isBlocked: Boolean = false,
     onBlockChanged: ((Boolean) -> Unit)? = null,
-    onSubmitReport: ((ReportReason, String) -> Unit)? = null
+    onSubmitReport: ((ReportReason, String) -> Unit)? = null,
+    composerState: ChatComposerState? = null
 ) {
     BackHandler { onBackClick() }
 
-    var messageInput by remember(conversation?.id) { mutableStateOf("") }
+    // Each pending callback owns this conversation's state, even after navigation.
+    val localComposer = remember(conversation?.id) { ChatComposerState() }
+    val composer = composerState ?: localComposer
     var showBlockConfirmation by remember(conversation?.id) { mutableStateOf(false) }
     var showReportDialog by remember(conversation?.id) { mutableStateOf(false) }
-    var showOfferDialog by remember(conversation?.id) { mutableStateOf(false) }
-    var offerPriceInput by remember(conversation?.id) { mutableStateOf("") }
     var photoSelectionConversationId by remember { mutableStateOf<String?>(null) }
     var photoSelectionUid by remember { mutableStateOf<String?>(null) }
     val photoPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
@@ -152,10 +153,10 @@ fun ChatScreen(
                     }
                     IconButton(
                         onClick = onCallClick,
-                        enabled = !isBlocked,
+                        enabled = false,
                         modifier = Modifier.testTag("btn_chat_call")
                     ) {
-                        Icon(imageVector = Icons.Default.Phone, contentDescription = "Ara", tint = TealPrimary)
+                        Icon(imageVector = Icons.Default.Phone, contentDescription = "Arama henüz kullanılamıyor", tint = TealPrimary)
                     }
                     IconButton(
                         onClick = {
@@ -181,6 +182,7 @@ fun ChatScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .navigationBarsPadding()
+                    .imePadding()
             ) {
                 Column(modifier = Modifier.padding(8.dp)) {
                     // Quick reply question pills (Letgo / Sahibinden style)
@@ -197,7 +199,7 @@ fun ChatScreen(
                             color = FestiveCoralLight,
                             modifier = Modifier
                                 .clip(RoundedCornerShape(16.dp))
-                                .clickable { showOfferDialog = true }
+                                .clickable(enabled = conversation != null && !composer.isSending) { composer.showOfferDialog = true }
                                 .testTag("btn_quick_offer")
                         ) {
                             Row(
@@ -216,7 +218,7 @@ fun ChatScreen(
                                 color = MaterialTheme.colorScheme.surfaceVariant,
                                 modifier = Modifier
                                     .clip(RoundedCornerShape(16.dp))
-                                    .clickable { onSendMessage(q, false, "") }
+                                    .clickable(enabled = conversation != null) { composer.messageInput = q }
                             ) {
                                 Text(
                                     text = q,
@@ -251,15 +253,16 @@ fun ChatScreen(
                             onClick = {
                                 onSendVoiceNote(6)
                             },
+                            enabled = false,
                             modifier = Modifier.size(40.dp).testTag("btn_send_voice_note")
                         ) {
-                            Icon(Icons.Default.Mic, contentDescription = "Sesli Not Gönder", tint = FestiveCoral)
+                            Icon(Icons.Default.Mic, contentDescription = "Sesli mesaj henüz kullanılamıyor", tint = FestiveCoral)
                         }
 
                         OutlinedTextField(
-                            value = messageInput,
-                            onValueChange = { messageInput = it },
-                            placeholder = { Text("Mesaj veya sesli not...", fontSize = 13.sp) },
+                            value = composer.messageInput,
+                            onValueChange = { composer.messageInput = it },
+                            placeholder = { Text("Mesaj yaz…", fontSize = 13.sp) },
                             shape = RoundedCornerShape(24.dp),
                             singleLine = true,
                             modifier = Modifier
@@ -271,11 +274,16 @@ fun ChatScreen(
 
                         IconButton(
                             onClick = {
-                                if (messageInput.isNotBlank()) {
-                                    onSendMessage(messageInput, false, "")
-                                    messageInput = ""
+                                if (conversation != null && !composer.isSending && composer.messageInput.isNotBlank()) {
+                                    val submitted = composer.messageInput
+                                    composer.isSending = true
+                                    onSendMessage(submitted, false, "") { success ->
+                                        composer.isSending = false
+                                        if (success && composer.messageInput == submitted) composer.messageInput = ""
+                                    }
                                 }
                             },
+                            enabled = conversation != null && !composer.isSending && composer.messageInput.isNotBlank(),
                             modifier = Modifier
                                 .size(44.dp)
                                 .clip(CircleShape)
@@ -365,17 +373,17 @@ fun ChatScreen(
         )
     }
 
-    if (showOfferDialog && !isBlocked) {
+    if (composer.showOfferDialog && !isBlocked) {
         AlertDialog(
-            onDismissRequest = { showOfferDialog = false },
+            onDismissRequest = { if (!composer.isSending) composer.showOfferDialog = false },
             title = { Text("Fiyat Teklifi Gönder") },
             text = {
                 Column {
                     Text("Bu iş veya hizmet için karşı tarafa doğrudan fiyat teklifinizi iletin:", fontSize = 12.sp, color = Slate600)
                     Spacer(modifier = Modifier.height(10.dp))
                     OutlinedTextField(
-                        value = offerPriceInput,
-                        onValueChange = { offerPriceInput = it },
+                        value = composer.offerPriceInput,
+                        onValueChange = { composer.offerPriceInput = it },
                         label = { Text("Teklif Edilen Tutar (₺)") },
                         placeholder = { Text("Örn: 3.500 ₺") },
                         singleLine = true,
@@ -386,19 +394,26 @@ fun ChatScreen(
             confirmButton = {
                 Button(
                     onClick = {
-                        if (offerPriceInput.isNotBlank()) {
-                            onSendMessage("Size $offerPriceInput tutarında fiyat teklifi gönderdim.", true, offerPriceInput)
-                            showOfferDialog = false
-                            offerPriceInput = ""
+                        if (conversation != null && !composer.isSending && composer.offerPriceInput.isNotBlank()) {
+                            val submitted = composer.offerPriceInput
+                            composer.isSending = true
+                            onSendMessage("Size $submitted tutarında fiyat teklifi gönderdim.", true, submitted) { success ->
+                                composer.isSending = false
+                                if (success && composer.offerPriceInput == submitted) {
+                                    composer.showOfferDialog = false
+                                    composer.offerPriceInput = ""
+                                }
+                            }
                         }
                     },
+                    enabled = conversation != null && !composer.isSending && composer.offerPriceInput.isNotBlank(),
                     modifier = Modifier.testTag("btn_confirm_send_offer")
                 ) {
                     Text("Teklifi İlet")
                 }
             },
             dismissButton = {
-                TextButton(onClick = { showOfferDialog = false }) {
+                TextButton(onClick = { composer.showOfferDialog = false }, enabled = !composer.isSending) {
                     Text("İptal")
                 }
             }

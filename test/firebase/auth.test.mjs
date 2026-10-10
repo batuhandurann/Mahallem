@@ -53,15 +53,27 @@ test('named database with real Auth UIDs: request -> owned provider -> quote -> 
   const stamp=()=>({createdAt:serverTimestamp(),updatedAt:serverTimestamp()});
   try {
     await Promise.all([a,b,e].map((c,i)=>createUserWithEmailAndPassword(c.auth,`named-${suffix}-${i}@example.com`,'SecurePass123!')));
-    const au=a.auth.currentUser.uid,bu=b.auth.currentUser.uid;
-    const r=`request-${suffix}`,p=`provider-${suffix}`,q=`${r}_${bu}`,conv=`conv-${suffix}`;
+    const au=a.auth.currentUser.uid,bu=b.auth.currentUser.uid,eu=e.auth.currentUser.uid;
+    const r=`request-${suffix}`,p=`provider-${suffix}`,q=`${r}_${bu}`,conv=[au,bu].sort().map(uid=>`${uid.length}:${uid}`).join('');
     await chargedCreate(a,'listing',`requests/${r}`,{ownerUid:au,visibility:'published',acceptedQuoteId:'',acceptedProviderUid:'',data:{...fixture.request,id:r,ownerUid:au},...stamp()},tx =>
       tx.set(doc(a.db,`requestContacts/${r}`),{ownerUid:au,phone:'555',address:'Private street',updatedAt:serverTimestamp()}));
     await assert.rejects(getDoc(doc(b.db,`requestContacts/${r}`)),x=>x.code==='permission-denied');
     await chargedCreate(b,'listing',`providers/${p}`,{ownerUid:bu,visibility:'published',data:{...fixture.provider,id:p,ownerUid:bu},...stamp()});
-    await chargedCreate(b,'quote',`quotes/${q}`,{providerUid:bu,customerUid:au,requestId:r,status:'PENDING',data:{...fixture.quote,id:q,requestId:r,providerId:p,providerUid:bu,customerUid:au},...stamp()});
+    const quotePayload = id => ({providerUid:bu,customerUid:au,requestId:r,status:'PENDING',data:{...fixture.quote,id,requestId:r,providerId:p,providerUid:bu,customerUid:au},...stamp()});
+    for (const change of [{providerName:'Impersonated provider'},{providerTitle:'Forged qualification'},{providerRating:5}]) {
+      const forgedId=`forged-${q}`;
+      const payload=quotePayload(forgedId);
+      await assert.rejects(chargedCreate(b,'quote',`quotes/${forgedId}`,{...payload,data:{...payload.data,...change}}),x=>x.code==='permission-denied');
+      assert.equal((await getDoc(doc(b.db,`users/${bu}/writeBudgets/quote`))).exists(),false);
+    }
+    await chargedCreate(b,'quote',`quotes/${q}`,quotePayload(q));
     assert.equal((await getDocs(query(collection(a.db,'quotes'),or(where('customerUid','==',au),where('providerUid','==',au))))).docs.filter(x=>x.id===q).length,1);
     await assert.rejects(getDoc(doc(e.db,`quotes/${q}`)),x=>x.code==='permission-denied');
+    for (const participants of [[eu,bu],[au,eu],[au,bu]]) {
+      await assert.rejects(chargedCreate(e,'conversation',`conversations/${conv}`,{participantUids:participants,
+        names:Object.fromEntries(participants.map(uid=>[uid,'Forged participant'])),relatedItemTitle:'Boya',lastMessage:'',...stamp()}),x=>x.code==='permission-denied');
+      assert.equal((await getDoc(doc(e.db,`users/${eu}/writeBudgets/conversation`))).exists(),false);
+    }
     await chargedCreate(b,'conversation',`conversations/${conv}`,{participantUids:[au,bu],names:{[au]:'Customer',[bu]:'Provider'},relatedItemTitle:'Boya',lastMessage:'',...stamp()});
     await chargedCreate(b,'message',`conversations/${conv}/messages/m`,{senderUid:bu,data:{...fixture.message,id:'m',conversationId:conv,senderId:bu},...stamp()},tx =>
       tx.update(doc(b.db,`conversations/${conv}`),{lastMessage:'Merhaba',updatedAt:serverTimestamp()}));

@@ -76,7 +76,7 @@ fun AuthScreen(viewModel: AuthViewModel) {
     val keyboard = LocalSoftwareKeyboardController.current
     val enabled = state.initialized && !state.busy
     val passwordSupportingText: (@Composable () -> Unit)? = if (mode == AuthMode.REGISTER) {
-        { Text("En az 6 karakter kullanın.") }
+        { Text("En az 8 karakter kullanın.") }
     } else null
 
     fun changeMode(nextMode: AuthMode) {

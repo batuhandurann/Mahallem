@@ -14,13 +14,13 @@ object AuthValidation {
     fun nameError(name: String): String? = when {
         name.trim().length < 2 -> "Adınız ve soyadınız için en az 2 karakter yazın."
         name.trim().length > 80 -> "Adınız ve soyadınız en fazla 80 karakter olabilir."
-        name.any { it.isISOControl() } -> "Adınızı ve soyadınızı tek satırda yazın."
+        name.any { it.isISOControl() || it == '\u2028' || it == '\u2029' } -> "Adınızı ve soyadınızı tek satırda yazın."
         else -> null
     }
 
     fun passwordError(password: String, registering: Boolean): String? = when {
         password.isEmpty() -> "Şifrenizi yazın."
-        registering && password.length < 6 -> "Şifreniz en az 6 karakter olmalı."
+        registering && password.length < 8 -> "Şifreniz en az 8 karakter olmalı."
         else -> null
     }
 }

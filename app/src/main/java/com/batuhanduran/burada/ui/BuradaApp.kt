@@ -8,7 +8,15 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ManageAccounts
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -33,6 +41,7 @@ import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -43,6 +52,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.batuhanduran.burada.MarketplaceApp
 import com.batuhanduran.burada.auth.AuthUser
+import com.batuhanduran.burada.auth.AuthUiState
 import com.batuhanduran.burada.auth.AuthViewModel
 import com.batuhanduran.burada.data.remote.ProfileSyncState
 import com.batuhanduran.burada.data.remote.UserProfileViewModel
@@ -66,14 +76,18 @@ fun BuradaApp(
             modifier = Modifier.fillMaxSize(),
             contentAlignment = Alignment.Center
         ) { CircularProgressIndicator() }
-        user == null || authState.busy -> AuthScreen(authViewModel)
+        user == null || (authState.busy && !authState.accountActionBusy) -> AuthScreen(authViewModel)
         else -> key(user.uid) {
             AuthenticatedMarketplace(
                 user = user,
                 owner = sessionStore.ownerFor(user.uid),
                 notice = authState.message,
+                authState = authState,
                 onDismissNotice = authViewModel::clearMessage,
+                onResendVerification = authViewModel::resendVerificationEmail,
+                onRefreshVerification = authViewModel::refreshVerificationStatus,
                 onSignOut = {
+                    if (authViewModel.state.value.busy || signingOut) return@AuthenticatedMarketplace
                     signingOut = true
                     sessionStore.clearSession()
                     val leavingUid = user.uid
@@ -100,7 +114,10 @@ private fun AuthenticatedMarketplace(
     user: AuthUser,
     owner: ViewModelStoreOwner,
     notice: String?,
+    authState: AuthUiState,
     onDismissNotice: () -> Unit,
+    onResendVerification: () -> Unit,
+    onRefreshVerification: () -> Unit,
     onSignOut: () -> Unit
 ) {
     val context = LocalContext.current
@@ -150,7 +167,8 @@ private fun AuthenticatedMarketplace(
     var showPhone by remember { mutableStateOf(false) }
     if (showPhone) com.batuhanduran.burada.ui.components.PhoneVerificationDialog(phone) { showPhone = false }
     MarketplaceApp(viewModel = marketplace, accountHeader = {
-        AccountHeader(user, profileState, notice, onDismissNotice, profile::retry, onSignOut, { showPhone = true }) {
+        AccountHeader(user, profileState, authState, notice, onDismissNotice, profile::retry,
+            onSignOut, { showPhone = true }, onResendVerification, onRefreshVerification) {
             if (Build.VERSION.SDK_INT >= 33 && ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED)
                 notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
             else PushTokenLifecycle.start(context.applicationContext)
@@ -159,16 +177,20 @@ private fun AuthenticatedMarketplace(
 }
 
 @Composable
-private fun AccountHeader(
+internal fun AccountHeader(
     user: AuthUser,
     profile: ProfileSyncState,
+    authState: AuthUiState,
     notice: String?,
     onDismissNotice: () -> Unit,
     onRetry: () -> Unit,
     onSignOut: () -> Unit,
     onVerifyPhone: () -> Unit,
+    onResendVerification: () -> Unit,
+    onRefreshVerification: () -> Unit,
     onEnableNotifications: () -> Unit
 ) {
+    var showAccount by remember(user.uid) { mutableStateOf(false) }
     Surface(color = MaterialTheme.colorScheme.surface, tonalElevation = 2.dp) {
         Column(
             modifier = Modifier.fillMaxWidth().statusBarsPadding().padding(horizontal = 16.dp, vertical = 8.dp),
@@ -179,10 +201,43 @@ private fun AccountHeader(
                     Text(user.displayName, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     Text(user.email, style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
-                TextButton(onClick = onEnableNotifications) { Text("Bildirimleri aç") }
-                TextButton(onClick = onSignOut) { Text("Çıkış yap") }
+                IconButton(onClick = { showAccount = true }, modifier = Modifier.testTag("btn_account_settings")) {
+                    Icon(Icons.Default.ManageAccounts, contentDescription = "Hesap ayarları")
+                }
             }
-            TextButton(onClick = onVerifyPhone) { Text("Telefon doğrulaması") }
+            if (profile.error != null || authState.error != null || notice != null) {
+                TextButton(onClick = { showAccount = true }) { Text("Hesap bildirimini görüntüle") }
+            }
+        }
+    }
+    if (showAccount) {
+        AlertDialog(
+            onDismissRequest = { showAccount = false },
+            title = { Text("Hesabım") },
+            confirmButton = { TextButton(onClick = { showAccount = false }) { Text("Kapat") } },
+            text = { Column(
+                modifier = Modifier.fillMaxWidth().heightIn(max = 440.dp).verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+            Text(user.displayName, style = MaterialTheme.typography.titleMedium)
+            Text(user.email, style = MaterialTheme.typography.bodyMedium)
+            Text(if (user.emailVerified) "E-posta doğrulandı" else "E-posta henüz doğrulanmadı",
+                style = MaterialTheme.typography.bodySmall)
+            if (!user.emailVerified) {
+                TextButton(onClick = onResendVerification,
+                    enabled = !authState.busy && authState.verificationResendSeconds == 0,
+                    modifier = Modifier.testTag("btn_resend_verification")) {
+                    Text(if (authState.verificationResendSeconds > 0)
+                        "Tekrar gönder (${authState.verificationResendSeconds} sn)" else "Doğrulama e-postası gönder")
+                }
+                TextButton(onClick = onRefreshVerification, enabled = !authState.busy,
+                    modifier = Modifier.testTag("btn_refresh_verification")) { Text("Doğrulamayı kontrol et") }
+            }
+            if (authState.accountActionBusy) {
+                Text("İşlem sürüyor…", style = MaterialTheme.typography.bodySmall)
+            }
+            TextButton(onClick = onVerifyPhone, enabled = !authState.busy) { Text("Telefon doğrulaması") }
+            TextButton(onClick = onEnableNotifications, enabled = !authState.busy) { Text("Bildirimleri aç") }
             Text(
                 text = when {
                     profile.busy -> "Profil buluta kaydediliyor…"
@@ -195,7 +250,7 @@ private fun AccountHeader(
             if (profile.error != null && !profile.busy) {
                 TextButton(onClick = onRetry) { Text("Profil kaydını yeniden dene") }
             }
-            notice?.let {
+            (authState.error ?: notice)?.let {
                 Text(it, style = MaterialTheme.typography.bodySmall)
                 TextButton(onClick = onDismissNotice) { Text("Tamam") }
             }
@@ -204,6 +259,9 @@ private fun AccountHeader(
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
-        }
+            TextButton(onClick = onSignOut, enabled = !authState.busy,
+                modifier = Modifier.testTag("btn_sign_out")) { Text("Çıkış yap") }
+            } }
+        )
     }
 }

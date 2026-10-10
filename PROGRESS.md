@@ -3,6 +3,49 @@
 Updated: 2026-10-10 (Europe/Istanbul). Read `AGENTS.md` and git status before work;
 fetch current remote state because other sessions may advance the repository.
 
+## Current security and mobile flow audit (2026-10-10)
+
+- Preserved main `4995bd0` including Yakıno branding, phone trust, job lifecycle,
+  verified reviews, sector/empty-state fixes and chat ordering. Audit code is
+  committed as `f13b5f36b6c03e9598b892e4fd948318be245842` (following `3972132`).
+- Closed outsider conversation-ID reservation/impersonation, verifying both
+  participant UIDs in Rules and existing-chat repository reads. Quotes require
+  published provider/pending request and authoritative name/title/rating snapshots.
+- UID-scoped in-memory chat/quote drafts survive rotation/navigation and failed
+  sends; completion waits for remote acknowledgement. Stable chat UUIDs reconcile
+  uncertain retries without extra writes/quota; matching server quotes reconcile
+  duplicate/late acknowledgement without claiming altered/rejected quotes sent.
+- Added accessible compact account controls, verification resend/check/cooldown,
+  bounded profile save/rollback, eight-character registration guidance and Unicode
+  single-line name checks. Disabled unavailable call/voice controls; chat handles
+  keyboard insets and quote/account dialogs scroll. Private drafts clear on logout.
+- Removed arbitrary `.env` BuildConfig injection via the generic Secrets plugin
+  and unused SDKs. Downloaded the existing canonical Firebase Android config
+  locally; removed the stale tracked config. Protected config/keystore rules remain.
+- Local final Gradle on audit source `f13b5f3`, JDK21/Windows: debug APK, AndroidTest
+  APK compilation, **115/115** JVM/Robolectric/Compose tests, **0 lint errors / 43
+  dependency/resource warnings**, exit 0. No tests skipped. Earlier locale/semantic
+  assertion failures were repaired; no lint/test suppression used.
+- Auth/Firestore **50/50** (repeated after tooling pins), backend **20/20**, config
+  fixtures **60/60**, real local Auth/Firestore/Storage/Functions integrations
+  **11/11**, all passed. Node24.19.0 locally versus production Functions Node22.
+  No prior-version result is substituted for final Android validation. See
+  `docs/verification-results.json` and `docs/current-security-audit.md`.
+- npm tooling audit fell **16 -> 3 affected packages**, representing one unpatched
+  braces watcher advisory. Root production `--omit=dev` and Functions audits each
+  found zero dependency advisories. This does not prove a vulnerability-free app.
+- adb has no physical device. SMS REST trust fixtures are not real SMS delivery.
+  Signed production APK/AAB, Play Integrity/enforced App Check, live Rules/Functions
+  deployment, real SMS and FCM delivery remain unverified. Functions listing failed;
+  successful app config retrieval does not prove deployment authority.
+- Payment requires the chosen iyzico merchant credentials/contract and integration.
+  Voice/calls, GPS/map/distance, nationwide coverage, booking authority and staffed
+  support remain product work; see `docs/competitor-comparison.md`.
+- Next concrete task: run exact-head required Android/Security CI on the audit PR,
+  merge only after success, then provide protected signing/Cloud/merchant access and
+  physical devices for the documented production audit. Never bypass protections
+  or use substitute keys as production evidence.
+
 ## Report reconciliation and Yakıno branding (2026-10-10)
 
 - Based on main `9eecf8db2eeaabb39f04e281fa389d7a3c4cfe71`.
