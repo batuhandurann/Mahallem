@@ -79,7 +79,17 @@ android {
     compose = true
     buildConfig = true
   }
-  testOptions { unitTests { isIncludeAndroidResources = true } }
+  testOptions {
+    unitTests {
+      isIncludeAndroidResources = true
+      all {
+        // Conscrypt derives the host JNI library name using the default locale.
+        // Turkish Windows otherwise turns WINDOWS into wındows and fails before test setup.
+        it.systemProperty("user.language", "en")
+        it.systemProperty("user.country", "US")
+      }
+    }
+  }
   dependenciesInfo {
     includeInApk = false
     includeInBundle = true

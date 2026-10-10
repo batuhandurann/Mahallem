@@ -110,7 +110,7 @@ class AuthViewModel(private val auth: FirebaseAuth = com.batuhanduran.burada.dat
                     val profile = UserProfileChangeRequest.Builder()
                         .setDisplayName(name.trim())
                         .build()
-                    user.updateProfile(profile).awaitResult()
+                    withTimeout(30_000) { user.updateProfile(profile).awaitResult() }
                     // FirebaseAuth owns the latest user snapshot after a profile update.
                     val updatedUser = auth.currentUser
                     if (updatedUser == null || updatedUser.uid != user.uid || updatedUser.displayName != name.trim()) {
@@ -118,7 +118,7 @@ class AuthViewModel(private val auth: FirebaseAuth = com.batuhanduran.burada.dat
                     }
                 } catch (exception: Exception) {
                     val rolledBack = try {
-                        user.delete().awaitResult()
+                        withTimeout(30_000) { user.delete().awaitResult() }
                         true
                     } catch (_: Exception) {
                         false
@@ -328,7 +328,8 @@ internal fun Exception.asTurkishMessage(): String = when (this) {
         "ERROR_USER_NOT_FOUND", "ERROR_WRONG_PASSWORD", "ERROR_INVALID_CREDENTIAL",
         "ERROR_INVALID_LOGIN_CREDENTIALS" -> "E-posta adresi veya şifre hatalı."
         "ERROR_USER_DISABLED" -> "Bu hesap devre dışı bırakılmış. Destek ile iletişime geçin."
-        "ERROR_WEAK_PASSWORD" -> "Şifreniz yeterince güçlü değil. En az 6 karakterli daha güçlü bir şifre kullanın."
+        "ERROR_WEAK_PASSWORD", "ERROR_PASSWORD_DOES_NOT_MEET_REQUIREMENTS" ->
+            "Şifreniz güvenlik koşullarını karşılamıyor. En az 8 karakterli daha güçlü bir şifre kullanın."
         "ERROR_OPERATION_NOT_ALLOWED" -> "E-posta ile giriş şu anda kullanılamıyor. Daha sonra yeniden deneyin."
         "ERROR_TOO_MANY_REQUESTS" -> "Çok fazla deneme yapıldı. Bir süre bekleyip yeniden deneyin."
         "ERROR_NETWORK_REQUEST_FAILED" -> "İnternet bağlantınızı kontrol edip yeniden deneyin."

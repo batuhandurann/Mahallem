@@ -6,6 +6,8 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -35,18 +37,20 @@ fun ProviderDashboardScreen(
     onBackClick: () -> Unit,
     onToggleOffers: (providerId: String, currentStatus: Boolean) -> Unit,
     onToggleCalendarDate: (provider: ServiceProviderEntity, dateIso: String) -> Unit,
-    onSubmitQuote: (requestId: String, provider: ServiceProviderEntity, price: String, arrival: String, notes: String) -> Unit,
-    onOpenMyJobs: () -> Unit = {}
+    onSubmitQuote: (requestId: String, provider: ServiceProviderEntity, price: String, arrival: String, notes: String, onResult: (Boolean) -> Unit) -> Unit,
+    onOpenMyJobs: () -> Unit = {},
+    quoteComposer: ProviderQuoteComposerState? = null
 ) {
     BackHandler { onBackClick() }
 
     var selectedProviderIndex by remember { mutableStateOf(0) }
-    val currentProv = providers.getOrNull(selectedProviderIndex) ?: providers.firstOrNull()
-
-    var showQuoteDialogForRequest by remember { mutableStateOf<JobRequestEntity?>(null) }
-    var quotePriceInput by remember { mutableStateOf("") }
-    var quoteArrivalInput by remember { mutableStateOf("") }
-    var quoteNoteInput by remember { mutableStateOf("") }
+    val composer = quoteComposer ?: remember { ProviderQuoteComposerState() }
+    val currentProv = if (composer.showDialog) providers.find { it.id == composer.providerId }
+        else providers.getOrNull(selectedProviderIndex) ?: providers.firstOrNull()
+    val showQuoteDialogForRequest = requests.find { it.id == composer.requestId }.takeIf { composer.showDialog }
+    var quotePriceInput by composer::price
+    var quoteArrivalInput by composer::arrival
+    var quoteNoteInput by composer::notes
     val quoteError = quoteDraftError(quotePriceInput, quoteArrivalInput, quoteNoteInput)
 
     Scaffold(
@@ -272,11 +276,9 @@ fun ProviderDashboardScreen(
 
                         Button(
                             onClick = {
-                                showQuoteDialogForRequest = req
-                                quotePriceInput = ""
-                                quoteArrivalInput = ""
-                                quoteNoteInput = ""
+                                composer.open(req.id, currentProv.id)
                             },
+                            enabled = !composer.isSending,
                             shape = RoundedCornerShape(10.dp),
                             modifier = Modifier.fillMaxWidth().testTag("btn_give_quote_${req.id}")
                         ) {
@@ -294,10 +296,10 @@ fun ProviderDashboardScreen(
     showQuoteDialogForRequest?.let { req ->
         val prov = currentProv ?: return@let
         AlertDialog(
-            onDismissRequest = { showQuoteDialogForRequest = null },
+            onDismissRequest = { if (!composer.isSending) composer.showDialog = false },
             title = { Text("Teklif Ver: ${prov.name}") },
             text = {
-                Column {
+                Column(Modifier.heightIn(max = 400.dp).verticalScroll(rememberScrollState())) {
                     if (req.customerName.isNotBlank()) {
                         Text("Müşteri: ${req.customerName}", fontWeight = FontWeight.Bold, fontSize = 13.sp)
                     }
@@ -314,6 +316,7 @@ fun ProviderDashboardScreen(
                         label = { Text("Teklif Fiyatınız") },
                         placeholder = { Text("Örn. 1.250,50 TL") },
                         singleLine = true,
+                        enabled = !composer.isSending,
                         modifier = Modifier.fillMaxWidth().testTag("input_quote_price")
                     )
 
@@ -325,6 +328,7 @@ fun ProviderDashboardScreen(
                         label = { Text("Varış Süresi / Süre") },
                         placeholder = { Text("Örn. Yarın 14.00") },
                         singleLine = true,
+                        enabled = !composer.isSending,
                         modifier = Modifier.fillMaxWidth().testTag("input_quote_arrival")
                     )
 
@@ -334,6 +338,7 @@ fun ProviderDashboardScreen(
                         value = quoteNoteInput,
                         onValueChange = { quoteNoteInput = it },
                         label = { Text("Açıklama & Dahil Olanlar") },
+                        enabled = !composer.isSending,
                         modifier = Modifier.fillMaxWidth().testTag("input_quote_notes")
                     )
                     if (quoteError != null) {
@@ -344,30 +349,36 @@ fun ProviderDashboardScreen(
                             modifier = Modifier.testTag("quote_validation_error")
                         )
                     }
+                    composer.error?.let {
+                        Text(it, color = MaterialTheme.colorScheme.error,
+                            style = MaterialTheme.typography.bodySmall, modifier = Modifier.testTag("quote_send_error"))
+                    }
                 }
             },
             confirmButton = {
                 Button(
                     onClick = {
-                        if (quoteError == null) {
+                        if (quoteError == null && !composer.isSending) {
+                            composer.isSending = true
+                            composer.error = null
                             onSubmitQuote(
                                 req.id,
                                 prov,
                                 quotePriceInput.trim(),
                                 quoteArrivalInput.trim(),
-                                quoteNoteInput.trim()
+                                quoteNoteInput.trim(),
+                                composer::complete
                             )
-                            showQuoteDialogForRequest = null
                         }
                     },
-                    enabled = quoteError == null,
+                    enabled = quoteError == null && !composer.isSending,
                     modifier = Modifier.testTag("btn_confirm_send_quote")
                 ) {
-                    Text("Teklifi Gönder")
+                    Text(if (composer.isSending) "Gönderiliyor…" else "Teklifi Gönder")
                 }
             },
             dismissButton = {
-                TextButton(onClick = { showQuoteDialogForRequest = null }) {
+                TextButton(onClick = { composer.showDialog = false }, enabled = !composer.isSending) {
                     Text("Vazgeç")
                 }
             }

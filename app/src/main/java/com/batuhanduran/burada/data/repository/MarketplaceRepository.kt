@@ -305,14 +305,27 @@ class MarketplaceRepository(
         requireAccount()
         val validationError = quoteDraftError(quote.price, quote.durationOrArrival, quote.notes)
         require(validationError == null) { validationError ?: "Teklif bilgileri geçersiz." }
-        val request = db.collection("requests").document(quote.requestId).get(Source.SERVER).awaitRemote()
-        val customerUid = requireNotNull(request.getString("ownerUid"))
-        check(customerUid != uid) { "Kendi ilanınıza teklif veremezsiniz." }
+        val requestRef = db.collection("requests").document(quote.requestId)
+        val providerRef = db.collection("providers").document(quote.providerId)
         val ref = db.collection("quotes").document("${quote.requestId}_$uid")
-        val data = quote.copy(id = ref.id, providerUid = uid, customerUid = customerUid,
-            status = "PENDING", escrowFunded = false, receiptCode = "", warrantyDuration = "")
         db.runTransaction { tx ->
             requireAccount()
+            val request = tx.get(requestRef)
+            val provider = tx.get(providerRef)
+            val customerUid = requireNotNull(request.getString("ownerUid"))
+            check(customerUid != uid) { "Kendi ilanınıza teklif veremezsiniz." }
+            check(request.getString("visibility") == "published" && request.getString("data.status") == "PENDING") {
+                "Bu talep artık teklif kabul etmiyor."
+            }
+            check(provider.getString("ownerUid") == uid && provider.getString("visibility") == "published") {
+                "Teklif vermek için yayınlanmış kendi hizmet ilanınızı seçin."
+            }
+            // Read the current listing inside the transaction: discovery cards may be stale.
+            val data = quote.copy(id = ref.id, providerUid = uid, customerUid = customerUid,
+                providerName = requireNotNull(provider.getString("data.name")),
+                providerTitle = requireNotNull(provider.getString("data.title")),
+                providerRating = requireNotNull(provider.getDouble("data.rating")),
+                status = "PENDING", escrowFunded = false, receiptCode = "", warrantyDuration = "")
             val budget = writeBudget.plan(tx, WriteOperation.QUOTE, ref)
             budget.applyTo(tx)
             tx.set(ref, envelope(encode(data, QuoteEntity::class.java), "providerUid" to uid,
@@ -414,23 +427,42 @@ class MarketplaceRepository(
     suspend fun sendChatMessage(conversationId: String, senderName: String, text: String,
         isFromMe: Boolean, isOffer: Boolean = false, offerPrice: String = "",
         isVoiceNote: Boolean = false, voiceDurationSeconds: Int = 0,
-        hasPhotoAttachment: Boolean = false, photoDescription: String = "", photoMediaId: String = "") {
+        hasPhotoAttachment: Boolean = false, photoDescription: String = "", photoMediaId: String = "",
+        submissionId: String? = null) {
         requireAccount()
         require(isFromMe && !isVoiceNote)
         require(!hasPhotoAttachment || photoMediaId.isNotBlank())
         require(text.isNotBlank() && text.length <= 4000) { "Mesaj 1–4000 karakter olmalı." }
+        require(submissionId == null || submissionId.matches(Regex("[A-Za-z0-9_-]{1,128}"))) {
+            "Mesaj gönderim kimliği geçersiz."
+        }
         val conv = db.collection("conversations").document(conversationId)
-        val ref = conv.collection("messages").document()
+        val ref = if (submissionId == null) conv.collection("messages").document()
+            else conv.collection("messages").document(submissionId)
         val data = ChatMessageEntity(id = ref.id, conversationId = conversationId, senderId = uid,
             senderName = auth.currentUser?.displayName ?: "Mahalle Sakini", text = text.trim(),
             isFromMe = false, isOfferMessage = isOffer, offerPrice = offerPrice,
             hasPhotoAttachment = hasPhotoAttachment, photoDescription = photoDescription, photoMediaId = photoMediaId)
         db.runTransaction { tx ->
             requireAccount()
+            if (submissionId != null) {
+                val existing = tx.get(ref)
+                if (existing.exists()) {
+                    val saved = decode(existing, ChatMessageEntity::class.java)
+                    // A retry may see a refreshed display name and a new local timestamp.
+                    // The committed message remains immutable; compare its actual submitted payload.
+                    check(existing.getString("senderUid") == uid &&
+                        saved == data.copy(senderName = saved.senderName, timestamp = saved.timestamp)) {
+                        "Bu gönderim kimliği farklı bir mesaj için kullanıldı."
+                    }
+                    return@runTransaction Unit
+                }
+            }
             val budget = writeBudget.plan(tx, WriteOperation.MESSAGE, ref)
             budget.applyTo(tx)
             tx.set(ref, envelope(encode(data, ChatMessageEntity::class.java), "senderUid" to uid))
             tx.update(conv, mapOf("lastMessage" to text.trim(), "updatedAt" to FieldValue.serverTimestamp()))
+            Unit
         }.awaitRemote()
     }
     // Only a verified payment backend may acknowledge funds or generate receipts.

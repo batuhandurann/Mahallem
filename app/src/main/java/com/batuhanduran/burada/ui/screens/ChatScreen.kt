@@ -55,13 +55,6 @@ val QUICK_REPLY_QUESTIONS = listOf(
     "Hafta sonu gelebilir misiniz?"
 )
 
-private class ChatComposerState {
-    var messageInput by mutableStateOf("")
-    var offerPriceInput by mutableStateOf("")
-    var showOfferDialog by mutableStateOf(false)
-    var isSending by mutableStateOf(false)
-}
-
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ChatScreen(
@@ -75,12 +68,14 @@ fun ChatScreen(
     onReportClick: () -> Unit,
     isBlocked: Boolean = false,
     onBlockChanged: ((Boolean) -> Unit)? = null,
-    onSubmitReport: ((ReportReason, String) -> Unit)? = null
+    onSubmitReport: ((ReportReason, String) -> Unit)? = null,
+    composerState: ChatComposerState? = null
 ) {
     BackHandler { onBackClick() }
 
     // Each pending callback owns this conversation's state, even after navigation.
-    val composer = remember(conversation?.id) { ChatComposerState() }
+    val localComposer = remember(conversation?.id) { ChatComposerState() }
+    val composer = composerState ?: localComposer
     var showBlockConfirmation by remember(conversation?.id) { mutableStateOf(false) }
     var showReportDialog by remember(conversation?.id) { mutableStateOf(false) }
     var photoSelectionConversationId by remember { mutableStateOf<String?>(null) }
@@ -158,10 +153,10 @@ fun ChatScreen(
                     }
                     IconButton(
                         onClick = onCallClick,
-                        enabled = !isBlocked,
+                        enabled = false,
                         modifier = Modifier.testTag("btn_chat_call")
                     ) {
-                        Icon(imageVector = Icons.Default.Phone, contentDescription = "Ara", tint = TealPrimary)
+                        Icon(imageVector = Icons.Default.Phone, contentDescription = "Arama henüz kullanılamıyor", tint = TealPrimary)
                     }
                     IconButton(
                         onClick = {
@@ -187,6 +182,7 @@ fun ChatScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .navigationBarsPadding()
+                    .imePadding()
             ) {
                 Column(modifier = Modifier.padding(8.dp)) {
                     // Quick reply question pills (Letgo / Sahibinden style)
@@ -257,15 +253,16 @@ fun ChatScreen(
                             onClick = {
                                 onSendVoiceNote(6)
                             },
+                            enabled = false,
                             modifier = Modifier.size(40.dp).testTag("btn_send_voice_note")
                         ) {
-                            Icon(Icons.Default.Mic, contentDescription = "Sesli Not Gönder", tint = FestiveCoral)
+                            Icon(Icons.Default.Mic, contentDescription = "Sesli mesaj henüz kullanılamıyor", tint = FestiveCoral)
                         }
 
                         OutlinedTextField(
                             value = composer.messageInput,
                             onValueChange = { composer.messageInput = it },
-                            placeholder = { Text("Mesaj veya sesli not...", fontSize = 13.sp) },
+                            placeholder = { Text("Mesaj yaz…", fontSize = 13.sp) },
                             shape = RoundedCornerShape(24.dp),
                             singleLine = true,
                             modifier = Modifier

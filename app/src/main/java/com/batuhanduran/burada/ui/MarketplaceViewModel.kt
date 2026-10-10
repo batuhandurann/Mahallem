@@ -49,6 +49,18 @@ class MarketplaceViewModel @JvmOverloads constructor(
 ) : AndroidViewModel(application) {
 
     private val repository = MarketplaceRepository(uid = sessionUid)
+    private val chatComposers = com.batuhanduran.burada.ui.screens.ChatComposerStore()
+    private val chatMessageAttempts = ChatMessageAttempts()
+    fun chatComposerFor(conversationId: String) = chatComposers.forConversation(conversationId)
+    val providerQuoteComposer = com.batuhanduran.burada.ui.screens.ProviderQuoteComposerState()
+
+    override fun onCleared() {
+        chatComposers.clear()
+        chatMessageAttempts.clear()
+        providerQuoteComposer.clear()
+        super.onCleared()
+    }
+
     val currentUid: String get() = repository.uid
     private val moderation = ModerationRepository(uid = sessionUid)
     val blockedUids = moderation.observeBlockedUids().catch {
@@ -379,6 +391,7 @@ class MarketplaceViewModel @JvmOverloads constructor(
             onResult(false)
             return
         }
+        val attempt = chatMessageAttempts.begin(conversationId, text, isOffer, offerPrice)
         action {
             var sent = false
             try {
@@ -388,8 +401,10 @@ class MarketplaceViewModel @JvmOverloads constructor(
                     text = text,
                     isFromMe = true,
                     isOffer = isOffer,
-                    offerPrice = offerPrice
+                    offerPrice = offerPrice,
+                    submissionId = attempt.submissionId
                 )
+                chatMessageAttempts.acknowledge(attempt)
                 sent = true
             } finally {
                 // Repository returns only after the remote transaction acknowledgement.
@@ -593,9 +608,12 @@ class MarketplaceViewModel @JvmOverloads constructor(
         provider: ServiceProviderEntity,
         price: String,
         arrival: String,
-        notes: String
+        notes: String,
+        onResult: (Boolean) -> Unit = {}
     ) {
         action {
+            var sent = false
+            try {
             val quote = QuoteEntity(
                 requestId = requestId,
                 providerId = provider.id,
@@ -608,7 +626,9 @@ class MarketplaceViewModel @JvmOverloads constructor(
                 status = "PENDING"
             )
             repository.sendQuote(quote)
+            sent = true
             _toastMessage.value = "Teklifiniz müşteriye başarıyla iletildi 🚀"
+            } finally { onResult(sent) }
         }
     }
 
