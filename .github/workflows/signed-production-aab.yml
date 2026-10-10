@@ -23,6 +23,22 @@ jobs:
           set -euo pipefail
           test "$RELEASE_EVENT" = 'workflow_dispatch'
           test "$RELEASE_REF" = 'refs/heads/main'
+      - name: Check protected signing inputs before downloading Android SDK
+        shell: bash
+        env:
+          FIREBASE_CONFIG_B64: ${{ secrets.GOOGLE_SERVICES_JSON_BASE64 }}
+          KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          STORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          # Only check presence. Never print protected values, even on failure.
+          for name in FIREBASE_CONFIG_B64 KEYSTORE_B64 STORE_PASSWORD KEY_PASSWORD; do
+            if [[ -z "${!name:-}" ]]; then
+              echo "::error title=Missing release input::Protected production input ${name} is not configured"
+              exit 1
+            fi
+          done
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
