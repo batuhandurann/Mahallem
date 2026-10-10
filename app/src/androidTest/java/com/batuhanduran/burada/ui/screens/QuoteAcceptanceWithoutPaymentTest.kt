@@ -1,11 +1,13 @@
 package com.batuhanduran.burada.ui.screens
 
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.test.performScrollToNode
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.batuhanduran.burada.data.local.JobRequestEntity
 import com.batuhanduran.burada.data.local.QuoteEntity
@@ -52,7 +54,7 @@ class QuoteAcceptanceWithoutPaymentTest {
         compose.setContent {
             BuradaTheme {
                 MyRequestsScreen(
-                    requests = listOf(request),
+                    requests = listOf(request.copy(sector = "CLEANING")),
                     quotes = listOf(quote),
                     onBackClick = {},
                     onAcceptQuote = { requestId, quoteId, providerName ->
@@ -67,6 +69,9 @@ class QuoteAcceptanceWithoutPaymentTest {
                 )
             }
         }
+        compose.onNodeWithTag("my_requests_list").performScrollToNode(hasText("Temizlik & Bakım"))
+        compose.onNodeWithText("Temizlik & Bakım").assertIsDisplayed()
+        compose.onNodeWithText("Kostüm:", substring = true).assertDoesNotExist()
         compose.onNodeWithTag("btn_accept_quote_quote-1").performScrollTo().performClick()
         compose.runOnIdle {
             assertEquals(1, accepts)
