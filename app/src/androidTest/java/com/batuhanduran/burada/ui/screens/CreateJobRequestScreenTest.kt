@@ -93,4 +93,30 @@ class CreateJobRequestScreenTest {
         compose.onNodeWithTag("btn_submit_job_request").performClick()
         compose.runOnIdle { assertEquals(1, calls) }
     }
+    @Test fun requestFormDoesNotInventAreaOrRoomCount() {
+        var submittedArea = -1
+        var submittedRoom = "unexpected"
+        compose.setContent {
+            BuradaTheme {
+                CreateJobRequestScreen(
+                    preselectedCategoryId = null,
+                    isEmergencyPreselected = true,
+                    onBackClick = {},
+                    onSubmitRequest = { _, _, _, _, _, _, _, _, _, _, area, room, _, _, _, _, _, _, _, _, _ ->
+                        submittedArea = area
+                        submittedRoom = room
+                    }
+                )
+            }
+        }
+        chooseNeighborhood()
+        fill("input_job_title", "Evde boya hizmeti")
+        compose.onNodeWithTag("btn_submit_job_request").performClick()
+        compose.runOnIdle {
+            assertEquals(0, submittedArea)
+            assertEquals("", submittedRoom)
+        }
+    }
+
+
 }
